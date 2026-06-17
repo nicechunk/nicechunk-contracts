@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0c0e12" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=0.1.53" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=0.1.53" />
+    <link rel="shortcut icon" href="/favicon.ico?v=0.1.53" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=0.1.53" />
+    <link rel="manifest" href="/site.webmanifest?v=0.1.53" />
+    <meta name="description" content="NiceChunk Solana contract directory, program IDs, PDA seeds, instruction surfaces, source paths, and integration notes." />
+    <title data-contracts-i18n="meta.title">NiceChunk Contracts</title>
+  </head>
+  <body>
+    <header class="contracts-header site-header">
+      <a class="brand-mark" href="/" aria-label="NiceChunk">
+        <img src="/media/nck.png" alt="" />
+        <span>NICECHUNK</span>
+      </a>
+      <nav class="top-nav site-nav" aria-label="Primary navigation" data-contracts-i18n-aria-label="nav.aria">
+        <div class="nav-links">
+          <a href="/" data-contracts-i18n="nav.home">Home</a>
+          <a href="/roadmap/" data-contracts-i18n="nav.roadbook">Roadbook</a>
+          <a href="/world_rule/" data-contracts-i18n="nav.worldRules">World Rules</a>
+          <a href="/resource_rule/" data-contracts-i18n="nav.resources">Resources</a>
+          <a href="/elements/" data-contracts-i18n="nav.elements">Elements</a>
+          <a href="/fairness/" data-contracts-i18n="nav.fairness">Fairness</a>
+          <a href="/proof-of-frontier/" data-contracts-i18n="nav.proofOfFrontier">Proof</a>
+          <a href="/guardian/" data-contracts-i18n="nav.guardians">Guardians</a>
+          <a class="active" href="/contracts/" data-contracts-i18n="nav.contracts">Contracts</a>
+          <a href="/docs/" data-contracts-i18n="nav.docs">Docs</a>
+        </div>
+        <div class="nav-actions">
+          <a class="header-action" href="/play/" data-contracts-i18n="nav.enterWorld">Enter World</a>
+          <div class="docs-language contracts-language language-picker" aria-label="Language" data-contracts-i18n-aria-label="language.aria">
+            <button class="docs-language-trigger contracts-language-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="docs-language-current contracts-language-current">English (English)</span>
+              <span class="docs-language-caret contracts-language-caret" aria-hidden="true"></span>
+            </button>
+            <div class="docs-language-menu contracts-language-menu" role="listbox"></div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="contracts-shell">
+      <aside class="contracts-sidebar" aria-label="Contracts directory" data-contracts-i18n-aria-label="sidebar.aria">
+        <div class="sidebar-title" data-contracts-i18n="sidebar.title">Contracts</div>
+        <nav id="contractsNav" class="sidebar-nav"></nav>
+      </aside>
+
+      <div class="contracts-content">
+        <section class="contracts-hero" id="overview" data-contract-section>
+          <div>
+            <p class="eyebrow" data-contracts-i18n="hero.eyebrow">Devnet Contract Directory</p>
+            <h1 data-contracts-i18n="hero.title">NiceChunk on-chain programs, IDs, and integration boundaries.</h1>
+            <p data-contracts-i18n="hero.subtitle">
+              A developer-facing directory for the current NiceChunk Solana programs.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-action" href="#directory" data-contracts-scroll="directory" data-contracts-i18n="hero.directory">Open Directory</a>
+              <a class="secondary-action" href="#integration-flow" data-contracts-scroll="integration-flow" data-contracts-i18n="hero.flow">Read Live Flow</a>
+            </div>
+          </div>
+          <div class="hero-panel">
+            <span data-contracts-i18n="hero.networkLabel">Network</span>
+            <strong data-contracts-i18n="hero.networkValue">Solana Devnet</strong>
+            <p data-contracts-i18n="hero.networkNote">
+              These contracts are for development and frontend integration. They do not imply mainnet finality.
+            </p>
+          </div>
+        </section>
+
+        <section class="contracts-section" id="directory" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="directory.eyebrow">Directory</p>
+            <h2 data-contracts-i18n="directory.title">Current NiceChunk programs.</h2>
+            <p data-contracts-i18n="directory.body">
+              The table lists the contracts currently present in the repository and used by the devnet integration surface.
+            </p>
+          </div>
+          <div class="directory-table" id="programDirectory"></div>
+        </section>
+
+        <section class="contracts-section" id="integration-flow" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="flow.eyebrow">Live Flow</p>
+            <h2 data-contracts-i18n="flow.title">How the current gameplay path touches the chain.</h2>
+          </div>
+          <div class="flow-grid" id="flowGrid"></div>
+        </section>
+
+        <section class="contracts-section" id="program-details" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="details.eyebrow">Program Details</p>
+            <h2 data-contracts-i18n="details.title">Contract code, instructions, PDA seeds, and stored data.</h2>
+          </div>
+          <div class="program-stack" id="programDetails"></div>
+        </section>
+
+        <section class="contracts-section" id="developer-notes" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="developer.eyebrow">Developer Notes</p>
+            <h2 data-contracts-i18n="developer.title">Frontend and script integration references.</h2>
+          </div>
+          <div class="developer-grid">
+            <article class="note-panel">
+              <strong data-contracts-i18n="developer.programIdsTitle">Program IDs</strong>
+              <pre class="code-block"><code id="programIdsCode"></code></pre>
+            </article>
+            <article class="note-panel">
+              <strong data-contracts-i18n="developer.pdaTitle">PDA seed examples</strong>
+              <pre class="code-block"><code id="pdaCode"></code></pre>
+            </article>
+            <article class="note-panel wide">
+              <strong data-contracts-i18n="developer.boundaryTitle">Current boundary</strong>
+              <p data-contracts-i18n="developer.boundaryBody">
+                This page documents the live devnet contract surface. It does not claim final mainnet governance, marketplace settlement, or complete gameplay decentralization.
+              </p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./contracts.js"></script>
+  </body>
+</html>

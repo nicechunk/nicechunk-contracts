@@ -1,0 +1,317 @@
+{
+  "meta": {
+    "title": "NiceChunk 컨트랙트"
+  },
+  "nav": {
+    "aria": "기본 내비게이션",
+    "home": "홈",
+    "roadbook": "로드북",
+    "worldRules": "월드 규칙",
+    "resources": "리소스",
+    "elements": "원소",
+    "fairness": "공정성",
+    "proofOfFrontier": "증명",
+    "guardians": "가디언",
+    "contracts": "컨트랙트",
+    "docs": "문서",
+    "enterWorld": "월드 입장"
+  },
+  "language": {
+    "aria": "언어"
+  },
+  "sidebar": {
+    "aria": "컨트랙트 디렉터리",
+    "title": "컨트랙트"
+  },
+  "hero": {
+    "eyebrow": "Devnet 컨트랙트 디렉터리",
+    "title": "NiceChunk 온체인 프로그램, ID, 통합 경계.",
+    "subtitle": "현재 NiceChunk Solana 프로그램을 플레이어와 개발자에게 공개하는 페이지입니다. 각 컨트랙트가 저장하는 값, 프론트엔드가 호출하는 기능, 현재 devnet 범위 밖의 기능을 설명합니다.",
+    "directory": "디렉터리 열기",
+    "flow": "라이브 플로우 보기",
+    "networkLabel": "네트워크",
+    "networkValue": "Solana Devnet",
+    "networkNote": "이 컨트랙트들은 개발과 프론트엔드 통합용이며 mainnet 최종 상태를 의미하지 않습니다."
+  },
+  "directory": {
+    "eyebrow": "디렉터리",
+    "title": "현재 NiceChunk 프로그램.",
+    "body": "저장소에 존재하고 devnet 통합 표면에서 사용되는 컨트랙트를 나열합니다.",
+    "columns": [
+      "프로그램",
+      "Program ID",
+      "상태",
+      "역할"
+    ]
+  },
+  "flow": {
+    "eyebrow": "라이브 플로우",
+    "title": "현재 게임플레이 경로가 체인에 닿는 방식.",
+    "steps": [
+      {
+        "title": "제네시스 설정 읽기",
+        "body": "The client derives GlobalConfig from the core program and reads world seed, chunk size, build limits, NCK mint, and published config hashes."
+      },
+      {
+        "title": "플레이어 프로필 생성",
+        "body": "The player program stores wallet-owned profile data, default attributes, position, equipment slots, and backpack style."
+      },
+      {
+        "title": "채굴 세션 열기",
+        "body": "A player can create a short-lived session authority so repeated mining actions do not require wallet confirmation every block."
+      },
+      {
+        "title": "파괴 블록 기록",
+        "body": "The chunk program verifies the generated single block, then writes a compact 3-byte broken-block record into the chunk-broken PDA."
+      },
+      {
+        "title": "리소스 추가",
+        "body": "The backpack program is prepared to append mined resource records after session validation. It is the inventory-side bridge for the mining loop."
+      }
+    ]
+  },
+  "details": {
+    "eyebrow": "프로그램 상세",
+    "title": "코드, instructions, PDA seeds, 저장 데이터."
+  },
+  "developer": {
+    "eyebrow": "개발자 노트",
+    "title": "프론트엔드 및 스크립트 통합 참고.",
+    "programIdsTitle": "Program IDs",
+    "pdaTitle": "PDA seed 예시",
+    "boundaryTitle": "현재 경계",
+    "boundaryBody": "이 페이지는 현재 devnet 컨트랙트 표면을 문서화합니다. 최종 mainnet 거버넌스, 마켓 결제, 토지 소유권 또는 완전한 게임플레이 탈중앙화를 주장하지 않습니다.",
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]"
+  },
+  "labels": {
+    "programId": "Program ID",
+    "source": "컨트랙트 코드",
+    "sdk": "SDK",
+    "magic": "Magic",
+    "accountSize": "계정 크기",
+    "instructions": "Instructions",
+    "pdaSeeds": "PDA seeds",
+    "storage": "저장 데이터",
+    "notes": "통합 노트",
+    "viewCode": "코드",
+    "sourceTree": "소스 트리",
+    "copyCode": "복사",
+    "copied": "복사됨"
+  },
+  "navigation": [
+    {
+      "id": "overview",
+      "label": "Overview"
+    },
+    {
+      "id": "directory",
+      "label": "Directory"
+    },
+    {
+      "id": "integration-flow",
+      "label": "Live Flow"
+    },
+    {
+      "id": "nicechunk-core",
+      "label": "Genesis Core"
+    },
+    {
+      "id": "nicechunk-player",
+      "label": "Player"
+    },
+    {
+      "id": "nicechunk-chunk",
+      "label": "Chunk / Mining"
+    },
+    {
+      "id": "nicechunk-guardian",
+      "label": "Guardian Registry"
+    },
+    {
+      "id": "nicechunk-backpack",
+      "label": "Backpack"
+    },
+    {
+      "id": "developer-notes",
+      "label": "Developer Notes"
+    }
+  ],
+  "programs": [
+    {
+      "id": "nicechunk-core",
+      "codeKey": "core",
+      "name": "NiceChunk Genesis Core",
+      "kind": "Genesis config layer",
+      "programId": "9EhMCRYMJej1F21KzaA5Zao3khGGc5aJbDGbnxaogQHu",
+      "status": "Devnet",
+      "role": "Immutable world configuration and NCK mint validation.",
+      "source": "programs/nicechunk_core/src/lib.rs",
+      "sdk": "sdk/nicechunk-core.ts",
+      "magic": "NCKCFG01",
+      "accountSize": "GlobalConfig: 293 bytes",
+      "summary": "The core program initializes the GlobalConfig PDA once. It writes compiled genesis parameters such as world seed, world ID, config hashes, NCK mint, NCK decimals, genesis supply, fees, chunk limits, and guardian parameters. It does not mint items, manage inventory, update admin settings, or run gameplay logic.",
+      "instructions": [
+        "0 initialize_global_config",
+        "Validates SPL Token mint layout, decimals, initialized flag, genesis supply, disabled mint authority, and disabled freeze authority.",
+        "Creates or allocates the GlobalConfig PDA safely even if the PDA was pre-funded with dust lamports."
+      ],
+      "pdaSeeds": [
+        "GlobalConfig: [\"global-config\"]"
+      ],
+      "storage": [
+        "World ID and 32-byte world seed.",
+        "Terrain, resource rule, and client world config hashes.",
+        "NCK mint, decimals, genesis supply, and development wallet.",
+        "Chunk size, section height, build limits, max terrain height, sea level, cooldowns, and guardian settings."
+      ],
+      "notes": [
+        "This is the immutable genesis config layer for the current devnet build.",
+        "Future crafting, inventory, chunk state, world knowledge, and reputation systems belong in separate programs or future modules after PDA specs are finalized.",
+        "Devnet and testnet must use their own NCK mint; the mainnet mint should not be reused on development clusters."
+      ]
+    },
+    {
+      "id": "nicechunk-player",
+      "codeKey": "player",
+      "name": "NiceChunk Player",
+      "kind": "Player identity and session layer",
+      "programId": "oeaRMVnPoV4iENnGCCtaEeRxU5be515s4YYe6aXQuKe",
+      "status": "Devnet",
+      "role": "Wallet-owned player profile, position, equipment slots, backpack style, and mining session authority.",
+      "source": "programs/nicechunk_player/src/lib.rs",
+      "sdk": "sdk/nicechunk-player.ts",
+      "magic": "NCKPLY01 / NCKSES01",
+      "accountSize": "PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
+      "summary": "The player program creates a wallet-bound profile and a short-lived session authority. The session lets the game submit repeated allowed actions, such as block breaking, without opening the wallet for every single mined block.",
+      "instructions": [
+        "0 initialize_player",
+        "1 update_position",
+        "2 set_equipment_slot",
+        "3 set_backpack_style",
+        "4 create_or_refresh_player_session"
+      ],
+      "pdaSeeds": [
+        "PlayerProfile: [\"player\", owner]",
+        "PlayerSession: [\"session\", owner, sessionAuthority]"
+      ],
+      "storage": [
+        "Owner wallet, GlobalConfig address, world ID, bump, and timestamps.",
+        "Base attributes: health, energy, stamina, mining power, build power, and defense.",
+        "Current position and nine equipment slots.",
+        "Session authority, allowed action bitmask, expiration time, max actions, and action count."
+      ],
+      "notes": [
+        "The profile is public state. Private backpack contents should be loaded separately when the player opens inventory flows.",
+        "The current session model is used to reduce repeated wallet prompts during mining.",
+        "Sessions are bounded by expiration, allowed action flags, and max action count."
+      ]
+    },
+    {
+      "id": "nicechunk-chunk",
+      "codeKey": "chunk",
+      "name": "NiceChunk Chunk",
+      "kind": "Chunk state and mining layer",
+      "programId": "12rCvz9PZ64Uix1TCiHEGU4AN4ZS1h4jv5u7CkqTRdk5",
+      "status": "Devnet",
+      "role": "Verifies generated single blocks and records compact broken-block state per chunk.",
+      "source": "programs/nicechunk_chunk/src/lib.rs",
+      "sdk": "sdk/nicechunk-chunk.ts",
+      "magic": "NCKCHK01 / NCBK",
+      "accountSize": "ChunkState: 8,280 bytes; ChunkBrokenState: 16-byte header + 3 bytes per record",
+      "summary": "The chunk program supports legacy chunk delta accounts and the current optimized mining path. For mining, the player submits one world block coordinate. The program derives the chunk, verifies the generated block, rejects air/water/bedrock or already-mined positions, and appends a compressed broken-block record.",
+      "instructions": [
+        "0 initialize_chunk",
+        "1 record_block_change",
+        "2 delegate_chunk",
+        "3 record_block_change_with_session",
+        "4 verify_generated_block",
+        "5 mine_block"
+      ],
+      "pdaSeeds": [
+        "ChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+        "ChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
+      ],
+      "storage": [
+        "Legacy ChunkState stores up to 128 64-byte block deltas.",
+        "ChunkBrokenState stores a 16-byte header and 3-byte mined-block records.",
+        "A record packs local x, local z, and y offset. Capacity starts at 64, grows by 64, and caps at 2,048 records.",
+        "GlobalConfig world seed, chunk size, build height, max terrain height, and sea level are used for generated block verification."
+      ],
+      "notes": [
+        "This is the current mining write path used by the browser client.",
+        "MagicBlock delegation hooks exist in the codebase, but the current gameplay path does not require MagicBlock.",
+        "Backpack resource settlement is intentionally separate so mining state and inventory state can evolve independently."
+      ]
+    },
+    {
+      "id": "nicechunk-guardian",
+      "codeKey": "guardian",
+      "name": "NiceChunk Guardian Registry",
+      "kind": "Guardian endpoint registry",
+      "programId": "6frJyJSirfEwsztsxijcJLe29LSaceET1wanXSFwPQyE",
+      "status": "Devnet",
+      "role": "Registers Guardian regions, endpoints, NCK treasury payment, liveness proof, settlement, and endpoint updates.",
+      "source": "programs/nicechunk_guardian/src/lib.rs",
+      "sdk": "sdk/nicechunk-guardian.ts",
+      "magic": "NCKGDR01 / NCKGRG01",
+      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion: 256 bytes",
+      "summary": "The guardian program records public service endpoints for regional realtime infrastructure. A guardian registers a region, pays the NCK registration amount to the treasury token account, and periodically submits proofs. The registry is non-custodial and does not sign player transactions.",
+      "instructions": [
+        "0 initialize_registry",
+        "1 register_genesis_guardian",
+        "2 register_guardian",
+        "3 submit_guardian_proof",
+        "4 settle_guardian",
+        "5 update_guardian_endpoint"
+      ],
+      "pdaSeeds": [
+        "GuardianRegistry: [\"guardian-registry\", globalConfig]",
+        "GuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
+        "GuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]"
+      ],
+      "storage": [
+        "Registry stores GlobalConfig, NCK mint, treasury token account, active count, and genesis flag.",
+        "Region stores status, region coordinates, owner/operator wallet, endpoint host, port, TLS flag, stake amount, slash total, proof count, and timestamps.",
+        "Region size is 100 by 100 chunks. Registration requires a 100,000 NCK treasury payment at 6 decimals.",
+        "Proof interval is 3,600 seconds. Settlement can slash 10% per missed proof window until removal."
+      ],
+      "notes": [
+        "The current web Guardian page reads this registry and region PDA data from devnet.",
+        "Endpoint updates are limited to the guardian owner/operator flow.",
+        "The registration payment goes to the treasury token account; this registry does not provide user-initiated unstaking or withdrawal."
+      ]
+    },
+    {
+      "id": "nicechunk-backpack",
+      "codeKey": "backpack",
+      "name": "NiceChunk Backpack",
+      "kind": "Inventory-side resource record layer",
+      "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
+      "status": "Devnet",
+      "role": "Creates player backpack accounts and appends mined resource records after player/session validation.",
+      "source": "programs/nicechunk_backpack/src/lib.rs",
+      "sdk": "sdk/nicechunk-backpack.ts",
+      "magic": "NCKBPK01",
+      "accountSize": "BackpackAccount: 1,118 bytes",
+      "summary": "The backpack program is the inventory-side bridge for mined resources. It creates a compact backpack PDA for a player and appends 10-byte resource records when a valid player session authorizes the write.",
+      "instructions": [
+        "0 initialize_backpack",
+        "1 append_mined_resource"
+      ],
+      "pdaSeeds": [
+        "Backpack: [\"backpack\", creator, backpackId:u64_le]"
+      ],
+      "storage": [
+        "Backpack header stores backpack ID, owner, capacity, item count, state, timestamps, and flags.",
+        "Default capacity is 36 records. Max capacity is 99 records.",
+        "Each mined resource record is 10 bytes.",
+        "Append validates the player profile owner and the break-block session action."
+      ],
+      "notes": [
+        "Backpack contents are separate from public player profile display.",
+        "This program is prepared for the mining-to-inventory flow and can be expanded later without changing chunk broken-state records.",
+        "It does not implement marketplace settlement, equipment forging, or item governance."
+      ]
+    }
+  ]
+}

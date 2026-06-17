@@ -1,0 +1,285 @@
+{
+  "meta": {
+    "title": "NiceChunk 合约"
+  },
+  "nav": {
+    "aria": "主导航",
+    "home": "首页",
+    "roadbook": "路书",
+    "worldRules": "世界规则",
+    "resources": "资源",
+    "elements": "元素表",
+    "fairness": "公平",
+    "proofOfFrontier": "证明",
+    "guardians": "守护者",
+    "contracts": "合约",
+    "docs": "文档",
+    "enterWorld": "进入世界"
+  },
+  "language": {
+    "aria": "语言"
+  },
+  "sidebar": {
+    "aria": "合约目录",
+    "title": "合约"
+  },
+  "hero": {
+    "eyebrow": "开发网合约目录",
+    "title": "NiceChunk 链上程序、合约地址与对接边界",
+    "subtitle": "这是面向开发者和玩家的当前 NiceChunk Solana 程序目录。页面说明每个合约存储什么、前端和脚本调用什么、以及当前开发网阶段还没有包含哪些能力。",
+    "directory": "查看目录",
+    "flow": "查看当前流程",
+    "networkLabel": "网络",
+    "networkValue": "Solana 开发网",
+    "networkNote": "这些合约用于开发网测试和前端对接，不代表主网最终状态。"
+  },
+  "directory": {
+    "eyebrow": "目录",
+    "title": "当前 NiceChunk 程序",
+    "body": "下表列出当前仓库中已经存在、并接入开发网前端流程的合约。",
+    "columns": ["程序", "Program ID", "状态", "作用"]
+  },
+  "flow": {
+    "eyebrow": "当前流程",
+    "title": "当前游戏流程如何触达链上程序",
+    "steps": [
+      {
+        "title": "读取创世配置",
+        "body": "客户端从 Core 程序推导 GlobalConfig，并读取世界种子、Chunk 大小、建造高度、NCK mint 和公开配置哈希。"
+      },
+      {
+        "title": "创建玩家档案",
+        "body": "Player 程序记录钱包拥有的玩家档案、默认属性、坐标、装备槽和背包样式。"
+      },
+      {
+        "title": "开启挖矿会话",
+        "body": "玩家可以创建一个短期 session authority，让连续挖矿不需要每破坏一个方块都弹出钱包确认。"
+      },
+      {
+        "title": "记录已破坏方块",
+        "body": "Chunk 程序校验单点生成方块，然后把 3 字节压缩记录写入 chunk-broken PDA。"
+      },
+      {
+        "title": "追加资源记录",
+        "body": "Backpack 程序已经预留好在 session 校验后追加挖掘资源记录，是挖矿到背包流程的库存侧桥接。"
+      }
+    ]
+  },
+  "details": {
+    "eyebrow": "程序详情",
+    "title": "合约代码、instruction、PDA seed 与存储数据"
+  },
+  "developer": {
+    "eyebrow": "开发者说明",
+    "title": "前端和脚本对接参考",
+    "programIdsTitle": "Program IDs",
+    "pdaTitle": "PDA seed 示例",
+    "boundaryTitle": "当前边界",
+    "boundaryBody": "本页面记录当前开发网合约面，并不声称主网治理、市场结算、土地所有权、完整实时去中心化或完整玩法去中心化已经最终完成。",
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]"
+  },
+  "labels": {
+    "programId": "Program ID",
+    "source": "合约代码",
+    "sdk": "SDK",
+    "magic": "Magic",
+    "accountSize": "账户大小",
+    "instructions": "Instructions",
+    "pdaSeeds": "PDA Seeds",
+    "storage": "存储数据",
+    "notes": "对接说明",
+    "viewCode": "代码",
+    "sourceTree": "源码树",
+    "copyCode": "复制",
+    "copied": "已复制"
+  },
+  "navigation": [
+    { "id": "overview", "label": "概览" },
+    { "id": "directory", "label": "目录" },
+    { "id": "integration-flow", "label": "当前流程" },
+    { "id": "nicechunk-core", "label": "创世 Core" },
+    { "id": "nicechunk-player", "label": "玩家程序" },
+    { "id": "nicechunk-chunk", "label": "Chunk / 挖矿" },
+    { "id": "nicechunk-guardian", "label": "Guardian 登记表" },
+    { "id": "nicechunk-backpack", "label": "背包程序" },
+    { "id": "developer-notes", "label": "开发说明" }
+  ],
+  "programs": [
+    {
+      "id": "nicechunk-core",
+      "codeKey": "core",
+      "name": "NiceChunk Genesis Core",
+      "kind": "创世配置层",
+      "programId": "9EhMCRYMJej1F21KzaA5Zao3khGGc5aJbDGbnxaogQHu",
+      "status": "开发网",
+      "role": "不可变世界配置与 NCK mint 校验。",
+      "source": "programs/nicechunk_core/src/lib.rs",
+      "sdk": "sdk/nicechunk-core.ts",
+      "magic": "NCKCFG01",
+      "accountSize": "GlobalConfig: 293 bytes",
+      "summary": "Core 程序只负责一次性初始化 GlobalConfig PDA。它写入编译期创世参数，包括世界种子、世界 ID、配置哈希、NCK mint、NCK decimals、创世供应量、费用、Chunk 限制和 Guardian 参数。它不负责铸造物品、不管理背包、不提供管理员更新配置，也不承载复杂玩法逻辑。",
+      "instructions": [
+        "0 initialize_global_config",
+        "校验 SPL Token mint 布局、decimals、初始化状态、创世供应量、mint authority 已关闭、freeze authority 已关闭。",
+        "即使 PDA 被提前转入 dust lamports，也可以安全 create 或 allocate GlobalConfig PDA。"
+      ],
+      "pdaSeeds": [
+        "GlobalConfig: [\"global-config\"]"
+      ],
+      "storage": [
+        "世界 ID 和 32 字节世界种子。",
+        "地形、资源规则和客户端世界配置哈希。",
+        "NCK mint、decimals、创世供应量和开发钱包。",
+        "Chunk 大小、section 高度、建造范围、最大地形高度、海平面、冷却和 Guardian 设置。"
+      ],
+      "notes": [
+        "这是当前开发网版本的不可变创世配置层。",
+        "未来的合成、库存、Chunk 状态、世界知识和声望系统应放在独立程序或 PDA 规格稳定后的后续模块。",
+        "开发网和测试网必须使用各自独立的 NCK mint，不应该把主网 mint 直接用于开发集群。"
+      ]
+    },
+    {
+      "id": "nicechunk-player",
+      "codeKey": "player",
+      "name": "NiceChunk Player",
+      "kind": "玩家身份与会话层",
+      "programId": "oeaRMVnPoV4iENnGCCtaEeRxU5be515s4YYe6aXQuKe",
+      "status": "开发网",
+      "role": "钱包拥有的玩家档案、坐标、装备槽、背包样式和挖矿会话授权。",
+      "source": "programs/nicechunk_player/src/lib.rs",
+      "sdk": "sdk/nicechunk-player.ts",
+      "magic": "NCKPLY01 / NCKSES01",
+      "accountSize": "PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
+      "summary": "Player 程序创建钱包绑定的玩家档案，并支持短期 session authority。session 让游戏可以提交重复的允许操作，例如破坏方块，而不需要每挖一个方块都打开钱包确认。",
+      "instructions": [
+        "0 initialize_player",
+        "1 update_position",
+        "2 set_equipment_slot",
+        "3 set_backpack_style",
+        "4 create_or_refresh_player_session"
+      ],
+      "pdaSeeds": [
+        "PlayerProfile: [\"player\", owner]",
+        "PlayerSession: [\"session\", owner, sessionAuthority]"
+      ],
+      "storage": [
+        "Owner 钱包、GlobalConfig 地址、world ID、bump 和时间戳。",
+        "基础属性：生命、能量、体力、挖掘力、建造力和防御。",
+        "当前坐标和 9 个装备槽。",
+        "Session authority、允许动作 bitmask、过期时间、最大动作次数和已用次数。"
+      ],
+      "notes": [
+        "玩家档案是公开状态。私密背包内容应在玩家打开背包流程时单独加载。",
+        "当前 session 模型用于减少连续挖矿时的钱包弹窗。",
+        "Session 受过期时间、允许动作和最大动作次数限制。"
+      ]
+    },
+    {
+      "id": "nicechunk-chunk",
+      "codeKey": "chunk",
+      "name": "NiceChunk Chunk",
+      "kind": "Chunk 状态与挖矿层",
+      "programId": "12rCvz9PZ64Uix1TCiHEGU4AN4ZS1h4jv5u7CkqTRdk5",
+      "status": "开发网",
+      "role": "校验单点生成方块，并按 Chunk 记录极简已破坏方块状态。",
+      "source": "programs/nicechunk_chunk/src/lib.rs",
+      "sdk": "sdk/nicechunk-chunk.ts",
+      "magic": "NCKCHK01 / NCBK",
+      "accountSize": "ChunkState: 8,280 bytes; ChunkBrokenState: 16-byte header + 3 bytes per record",
+      "summary": "Chunk 程序支持旧版 Chunk delta 账户，也支持当前优化后的挖矿路径。挖矿时，玩家提交一个世界方块坐标。程序推导所在 Chunk，校验生成方块，拒绝空气、水、基岩或已经被挖过的位置，然后追加一条压缩的已破坏方块记录。",
+      "instructions": [
+        "0 initialize_chunk",
+        "1 record_block_change",
+        "2 delegate_chunk",
+        "3 record_block_change_with_session",
+        "4 verify_generated_block",
+        "5 mine_block"
+      ],
+      "pdaSeeds": [
+        "ChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+        "ChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
+      ],
+      "storage": [
+        "旧版 ChunkState 最多记录 128 条 64 字节 block delta。",
+        "ChunkBrokenState 存 16 字节 header 和每条 3 字节的已挖记录。",
+        "记录会打包 local x、local z 和 y offset。初始容量 64，每次扩容 64，最大 2,048 条。",
+        "生成方块校验使用 GlobalConfig 中的世界种子、Chunk 大小、建造高度、最大地形高度和海平面。"
+      ],
+      "notes": [
+        "这是当前浏览器客户端使用的挖矿写入路径。",
+        "代码里保留了 MagicBlock delegation hook，但当前玩法路径不依赖 MagicBlock。",
+        "背包资源结算刻意拆成独立程序，方便挖矿状态和库存状态分别演进。"
+      ]
+    },
+    {
+      "id": "nicechunk-guardian",
+      "codeKey": "guardian",
+      "name": "NiceChunk Guardian Registry",
+      "kind": "守护者端点登记表",
+      "programId": "6frJyJSirfEwsztsxijcJLe29LSaceET1wanXSFwPQyE",
+      "status": "开发网",
+      "role": "登记 Guardian 区域、服务端点、NCK 国库支付、存活证明、结算和端点更新。",
+      "source": "programs/nicechunk_guardian/src/lib.rs",
+      "sdk": "sdk/nicechunk-guardian.ts",
+      "magic": "NCKGDR01 / NCKGRG01",
+      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion: 256 bytes",
+      "summary": "Guardian 程序记录区域实时基础设施的公开服务端点。Guardian 注册区域，向国库 token account 支付 NCK 注册金额，并周期性提交证明。登记表是非托管的，不替玩家签名或处理链上交易。",
+      "instructions": [
+        "0 initialize_registry",
+        "1 register_genesis_guardian",
+        "2 register_guardian",
+        "3 submit_guardian_proof",
+        "4 settle_guardian",
+        "5 update_guardian_endpoint"
+      ],
+      "pdaSeeds": [
+        "GuardianRegistry: [\"guardian-registry\", globalConfig]",
+        "GuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
+        "GuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]"
+      ],
+      "storage": [
+        "Registry 存 GlobalConfig、NCK mint、treasury token account、active count 和 genesis flag。",
+        "Region 存状态、区域坐标、owner/operator 钱包、endpoint host、port、TLS flag、质押金额、slash 总额、证明次数和时间戳。",
+        "区域大小是 100 x 100 个 Chunk。注册需要支付 100,000 NCK 到国库，NCK 为 6 decimals。",
+        "证明间隔是 3,600 秒。结算可以对未按时证明的节点每次扣 10%，直到移除。"
+      ],
+      "notes": [
+        "当前网页 Guardian 页面从开发网读取 registry 和 region PDA 数据。",
+        "端点更新限制在 guardian owner/operator 流程内。",
+        "注册支付进入国库 token account；该登记表不提供用户主动 unstake 或 withdraw。"
+      ]
+    },
+    {
+      "id": "nicechunk-backpack",
+      "codeKey": "backpack",
+      "name": "NiceChunk Backpack",
+      "kind": "库存侧资源记录层",
+      "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
+      "status": "开发网",
+      "role": "创建玩家背包账户，并在玩家/session 校验后追加挖矿资源记录。",
+      "source": "programs/nicechunk_backpack/src/lib.rs",
+      "sdk": "sdk/nicechunk-backpack.ts",
+      "magic": "NCKBPK01",
+      "accountSize": "BackpackAccount: 1,118 bytes",
+      "summary": "Backpack 程序是挖矿资源进入库存的一侧桥接。它为玩家创建紧凑的背包 PDA，并在有效 player session 授权后追加 10 字节资源记录。",
+      "instructions": [
+        "0 initialize_backpack",
+        "1 append_mined_resource"
+      ],
+      "pdaSeeds": [
+        "Backpack: [\"backpack\", creator, backpackId:u64_le]"
+      ],
+      "storage": [
+        "Backpack header 存 backpack ID、owner、capacity、item count、state、时间戳和 flags。",
+        "默认容量是 36 条记录，最大容量是 99 条记录。",
+        "每条 mined resource record 是 10 字节。",
+        "追加记录时会校验玩家档案 owner 和 break-block session action。"
+      ],
+      "notes": [
+        "背包内容和公开玩家档案分离。",
+        "该程序为 mining-to-inventory 流程预留，可在不改变 chunk broken-state 记录的情况下继续扩展。",
+        "它不实现市场结算、装备锻造或物品治理。"
+      ]
+    }
+  ]
+}
