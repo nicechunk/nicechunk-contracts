@@ -37,7 +37,12 @@
     "eyebrow": "目录",
     "title": "当前 NiceChunk 程序",
     "body": "下表列出当前仓库中已经存在、并接入开发网前端流程的合约。",
-    "columns": ["程序", "Program ID", "状态", "作用"]
+    "columns": [
+      "程序",
+      "Program ID",
+      "状态",
+      "作用"
+    ]
   },
   "flow": {
     "eyebrow": "当前流程",
@@ -62,6 +67,14 @@
       {
         "title": "追加资源记录",
         "body": "Backpack 程序已经预留好在 session 校验后追加挖掘资源记录，是挖矿到背包流程的库存侧桥接。"
+      },
+      {
+        "title": "List Resources or Assets",
+        "body": "The marketplace verifies either a backpack resource slot or a market Asset PDA, then locks the item inside a listing PDA before it can be bought."
+      },
+      {
+        "title": "Settle Market Orders",
+        "body": "A buyer pays in NCK or SOL, the program routes a 1% market fee to treasury, and the resource or Asset ownership is delivered to the buyer."
       }
     ]
   },
@@ -75,8 +88,8 @@
     "programIdsTitle": "Program IDs",
     "pdaTitle": "PDA seed 示例",
     "boundaryTitle": "当前边界",
-    "boundaryBody": "本页面记录当前开发网合约面，并不声称主网治理、市场结算、土地所有权、完整实时去中心化或完整玩法去中心化已经最终完成。",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]"
+    "boundaryBody": "This page documents the live devnet contract surface. It does not claim final mainnet governance, land ownership, complete realtime decentralization, or complete gameplay decentralization.",
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketAsset: [\"asset\", owner, assetId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]"
   },
   "labels": {
     "programId": "Program ID",
@@ -94,15 +107,46 @@
     "copied": "已复制"
   },
   "navigation": [
-    { "id": "overview", "label": "概览" },
-    { "id": "directory", "label": "目录" },
-    { "id": "integration-flow", "label": "当前流程" },
-    { "id": "nicechunk-core", "label": "创世 Core" },
-    { "id": "nicechunk-player", "label": "玩家程序" },
-    { "id": "nicechunk-chunk", "label": "Chunk / 挖矿" },
-    { "id": "nicechunk-guardian", "label": "Guardian 登记表" },
-    { "id": "nicechunk-backpack", "label": "背包程序" },
-    { "id": "developer-notes", "label": "开发说明" }
+    {
+      "id": "overview",
+      "label": "概览"
+    },
+    {
+      "id": "directory",
+      "label": "目录"
+    },
+    {
+      "id": "integration-flow",
+      "label": "当前流程"
+    },
+    {
+      "id": "nicechunk-core",
+      "label": "创世 Core"
+    },
+    {
+      "id": "nicechunk-player",
+      "label": "玩家程序"
+    },
+    {
+      "id": "nicechunk-chunk",
+      "label": "Chunk / 挖矿"
+    },
+    {
+      "id": "nicechunk-guardian",
+      "label": "Guardian 登记表"
+    },
+    {
+      "id": "nicechunk-backpack",
+      "label": "背包程序"
+    },
+    {
+      "id": "nicechunk-market",
+      "label": "Marketplace"
+    },
+    {
+      "id": "developer-notes",
+      "label": "开发说明"
+    }
   ],
   "programs": [
     {
@@ -257,16 +301,18 @@
       "kind": "库存侧资源记录层",
       "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
       "status": "开发网",
-      "role": "创建玩家背包账户，并在玩家/session 校验后追加挖矿资源记录。",
+      "role": "Creates player backpack accounts, appends mined resources, removes listed resources, and accepts marketplace-authorized resource delivery.",
       "source": "programs/nicechunk_backpack/src/lib.rs",
       "sdk": "sdk/nicechunk-backpack.ts",
       "magic": "NCKBPK01",
       "accountSize": "BackpackAccount: 1,118 bytes",
-      "summary": "Backpack 程序是挖矿资源进入库存的一侧桥接。它为玩家创建紧凑的背包 PDA，并在有效 player session 授权后追加 10 字节资源记录。",
+      "summary": "The backpack program is the inventory-side bridge for mined resources and marketplace escrow. It creates a compact backpack PDA for a player, appends 10-byte resource records when a valid player session authorizes mining, removes records for market listing escrow, and accepts resource delivery only from the marketplace authority PDA.",
       "instructions": [
         "0 initialize_backpack",
         "requires a PlayerProfile with no equipped backpack",
-        "1 append_mined_resource"
+        "1 append_mined_resource",
+        "2 remove_resource",
+        "3 append_market_resource"
       ],
       "pdaSeeds": [
         "Backpack: [\"backpack\", creator, backpackId:u64_le]"
@@ -278,9 +324,51 @@
         "追加记录时会校验玩家档案 owner 和 break-block session action。"
       ],
       "notes": [
-        "背包内容和公开玩家档案分离。",
-        "该程序为 mining-to-inventory 流程预留，可在不改变 chunk broken-state 记录的情况下继续扩展。",
-        "它不实现市场结算、装备锻造或物品治理。"
+        "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
+        "The marketplace program can remove a listed backpack resource and later restore or deliver it through a market-authority PDA.",
+        "Direct player appends are still restricted to validated mining sessions; players cannot mint arbitrary backpack records."
+      ]
+    },
+    {
+      "id": "nicechunk-market",
+      "codeKey": "market",
+      "name": "NiceChunk Marketplace",
+      "kind": "Resource and asset marketplace settlement layer",
+      "programId": "1PwPzFtdJ5gQqku5gBo4b6Wvo48Qe8NuXSogUP8TWpR",
+      "status": "Devnet",
+      "role": "Creates asset accounts and listings, escrows backpack resources or Asset PDAs, settles NCK or SOL payment, charges the market fee, and returns or delivers listed inventory.",
+      "source": "programs/nicechunk_market/src/lib.rs",
+      "sdk": "src/chain/nicechunkChain.js",
+      "magic": "NCKMKT01",
+      "accountSize": "ListingAccount: 216 bytes; MarketAsset: 256 bytes",
+      "summary": "The marketplace program is the current devnet trading surface for backpack resources and market Assets. A seller can create a MarketAsset PDA for equipment, clothing, building materials, or other hotbar items, then create a listing PDA. Backpack listings remove the selected resource from the seller backpack; Asset listings lock the Asset account to the listing. Cancellation restores the resource or unlocks the Asset to the seller; purchase transfers SOL or NCK, sends a 1% market fee to the treasury, and delivers the resource or Asset ownership to the buyer.",
+      "instructions": [
+        "0 create_listing",
+        "1 cancel_listing",
+        "2 buy_listing",
+        "3 initialize_asset",
+        "Backpack listings require backpack CPI escrow and restore/delivery accounts.",
+        "Asset listings require a market-owned 256-byte MarketAsset PDA that is locked to the listing until cancel or purchase.",
+        "Payment supports NCK and SOL with a 1% market fee."
+      ],
+      "pdaSeeds": [
+        "Listing: [\"listing\", seller, listingId:u64_le]",
+        "MarketAsset: [\"asset\", owner, assetId:u64_le]",
+        "MarketAuthority: [\"market-authority\"]"
+      ],
+      "storage": [
+        "Listing stores seller wallet, listing ID, category, currency, source kind, source slot, quantity, price, item hash, source inventory, timestamps, buyer, and final state.",
+        "Backpack listings store the source backpack public key and the 10-byte resource coordinate record.",
+        "MarketAsset v2 stores owner, asset ID, category, quantity, item hash, linked listing, timestamps, item code, stack count, durability, and up to 96 bytes of asset payload for forged item data.",
+        "Marketplace categories are raw materials, equipment, building materials, and clothing.",
+        "State is active, canceled, or sold for listings; active or listed for Assets."
+      ],
+      "notes": [
+        "Only the listing seller can cancel an active listing.",
+        "Buyers cannot purchase their own listings.",
+        "Only the marketplace PDA can restore or deliver escrowed backpack resources through the backpack program.",
+        "MarketAsset ownership moves to the buyer when an asset listing is purchased.",
+        "Treasury fee is 1% of the listing price in the chosen currency."
       ]
     }
   ]

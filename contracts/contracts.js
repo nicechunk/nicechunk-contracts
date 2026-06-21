@@ -40,6 +40,11 @@ import backpackErrors from "../programs/nicechunk_backpack/src/errors.rs?raw";
 import backpackLib from "../programs/nicechunk_backpack/src/lib.rs?raw";
 import backpackState from "../programs/nicechunk_backpack/src/state.rs?raw";
 import backpackSdk from "../sdk/nicechunk-backpack.ts?raw";
+import marketCargo from "../programs/nicechunk_market/Cargo.toml?raw";
+import marketClusterConfig from "../programs/nicechunk_market/src/cluster_config.rs?raw";
+import marketErrors from "../programs/nicechunk_market/src/errors.rs?raw";
+import marketLib from "../programs/nicechunk_market/src/lib.rs?raw";
+import marketState from "../programs/nicechunk_market/src/state.rs?raw";
 
 const languageStorageKey = "nicechunk.language";
 const dictionaries = {
@@ -104,6 +109,13 @@ const sourceTrees = {
     file("programs/nicechunk_backpack/src/lib.rs", "rust", backpackLib),
     file("programs/nicechunk_backpack/src/state.rs", "rust", backpackState),
     file("sdk/nicechunk-backpack.ts", "typescript", backpackSdk),
+  ],
+  market: [
+    file("programs/nicechunk_market/Cargo.toml", "toml", marketCargo),
+    file("programs/nicechunk_market/src/cluster_config.rs", "rust", marketClusterConfig),
+    file("programs/nicechunk_market/src/errors.rs", "rust", marketErrors),
+    file("programs/nicechunk_market/src/lib.rs", "rust", marketLib),
+    file("programs/nicechunk_market/src/state.rs", "rust", marketState),
   ],
 };
 

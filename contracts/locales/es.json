@@ -67,6 +67,14 @@
       {
         "title": "Anadir recursos",
         "body": "The backpack program is prepared to append mined resource records after session validation. It is the inventory-side bridge for the mining loop."
+      },
+      {
+        "title": "List Resources or Assets",
+        "body": "The marketplace verifies either a backpack resource slot or a market Asset PDA, then locks the item inside a listing PDA before it can be bought."
+      },
+      {
+        "title": "Settle Market Orders",
+        "body": "A buyer pays in NCK or SOL, the program routes a 1% market fee to treasury, and the resource or Asset ownership is delivered to the buyer."
       }
     ]
   },
@@ -80,8 +88,8 @@
     "programIdsTitle": "Program IDs",
     "pdaTitle": "Ejemplos de PDA seeds",
     "boundaryTitle": "Limite actual",
-    "boundaryBody": "Esta pagina documenta la superficie devnet activa. No afirma gobernanza mainnet final, liquidacion de mercado, propiedad de tierra ni descentralizacion completa del juego.",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]"
+    "boundaryBody": "This page documents the live devnet contract surface. It does not claim final mainnet governance, land ownership, complete realtime decentralization, or complete gameplay decentralization.",
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketAsset: [\"asset\", owner, assetId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]"
   },
   "labels": {
     "programId": "Program ID",
@@ -130,6 +138,10 @@
     {
       "id": "nicechunk-backpack",
       "label": "Backpack"
+    },
+    {
+      "id": "nicechunk-market",
+      "label": "Marketplace"
     },
     {
       "id": "developer-notes",
@@ -289,16 +301,18 @@
       "kind": "Inventory-side resource record layer",
       "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
       "status": "Devnet",
-      "role": "Creates player backpack accounts and appends mined resource records after player/session validation.",
+      "role": "Creates player backpack accounts, appends mined resources, removes listed resources, and accepts marketplace-authorized resource delivery.",
       "source": "programs/nicechunk_backpack/src/lib.rs",
       "sdk": "sdk/nicechunk-backpack.ts",
       "magic": "NCKBPK01",
       "accountSize": "BackpackAccount: 1,118 bytes",
-      "summary": "The backpack program is the inventory-side bridge for mined resources. It creates a compact backpack PDA for a player and appends 10-byte resource records when a valid player session authorizes the write.",
+      "summary": "The backpack program is the inventory-side bridge for mined resources and marketplace escrow. It creates a compact backpack PDA for a player, appends 10-byte resource records when a valid player session authorizes mining, removes records for market listing escrow, and accepts resource delivery only from the marketplace authority PDA.",
       "instructions": [
         "0 initialize_backpack",
         "requires a PlayerProfile with no equipped backpack",
-        "1 append_mined_resource"
+        "1 append_mined_resource",
+        "2 remove_resource",
+        "3 append_market_resource"
       ],
       "pdaSeeds": [
         "Backpack: [\"backpack\", creator, backpackId:u64_le]"
@@ -311,8 +325,50 @@
       ],
       "notes": [
         "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
-        "This program is prepared for the mining-to-inventory flow and can be expanded later without changing chunk broken-state records.",
-        "It does not implement marketplace settlement, equipment forging, or item governance."
+        "The marketplace program can remove a listed backpack resource and later restore or deliver it through a market-authority PDA.",
+        "Direct player appends are still restricted to validated mining sessions; players cannot mint arbitrary backpack records."
+      ]
+    },
+    {
+      "id": "nicechunk-market",
+      "codeKey": "market",
+      "name": "NiceChunk Marketplace",
+      "kind": "Resource and asset marketplace settlement layer",
+      "programId": "1PwPzFtdJ5gQqku5gBo4b6Wvo48Qe8NuXSogUP8TWpR",
+      "status": "Devnet",
+      "role": "Creates asset accounts and listings, escrows backpack resources or Asset PDAs, settles NCK or SOL payment, charges the market fee, and returns or delivers listed inventory.",
+      "source": "programs/nicechunk_market/src/lib.rs",
+      "sdk": "src/chain/nicechunkChain.js",
+      "magic": "NCKMKT01",
+      "accountSize": "ListingAccount: 216 bytes; MarketAsset: 256 bytes",
+      "summary": "The marketplace program is the current devnet trading surface for backpack resources and market Assets. A seller can create a MarketAsset PDA for equipment, clothing, building materials, or other hotbar items, then create a listing PDA. Backpack listings remove the selected resource from the seller backpack; Asset listings lock the Asset account to the listing. Cancellation restores the resource or unlocks the Asset to the seller; purchase transfers SOL or NCK, sends a 1% market fee to the treasury, and delivers the resource or Asset ownership to the buyer.",
+      "instructions": [
+        "0 create_listing",
+        "1 cancel_listing",
+        "2 buy_listing",
+        "3 initialize_asset",
+        "Backpack listings require backpack CPI escrow and restore/delivery accounts.",
+        "Asset listings require a market-owned 256-byte MarketAsset PDA that is locked to the listing until cancel or purchase.",
+        "Payment supports NCK and SOL with a 1% market fee."
+      ],
+      "pdaSeeds": [
+        "Listing: [\"listing\", seller, listingId:u64_le]",
+        "MarketAsset: [\"asset\", owner, assetId:u64_le]",
+        "MarketAuthority: [\"market-authority\"]"
+      ],
+      "storage": [
+        "Listing stores seller wallet, listing ID, category, currency, source kind, source slot, quantity, price, item hash, source inventory, timestamps, buyer, and final state.",
+        "Backpack listings store the source backpack public key and the 10-byte resource coordinate record.",
+        "MarketAsset v2 stores owner, asset ID, category, quantity, item hash, linked listing, timestamps, item code, stack count, durability, and up to 96 bytes of asset payload for forged item data.",
+        "Marketplace categories are raw materials, equipment, building materials, and clothing.",
+        "State is active, canceled, or sold for listings; active or listed for Assets."
+      ],
+      "notes": [
+        "Only the listing seller can cancel an active listing.",
+        "Buyers cannot purchase their own listings.",
+        "Only the marketplace PDA can restore or deliver escrowed backpack resources through the backpack program.",
+        "MarketAsset ownership moves to the buyer when an asset listing is purchased.",
+        "Treasury fee is 1% of the listing price in the chosen currency."
       ]
     }
   ]
