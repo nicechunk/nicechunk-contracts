@@ -20,6 +20,14 @@ This project is a source browser with product-quality navigation. The page impor
 
 That is the difference between this repository and the program repository. Programs own execution. The contract directory owns orientation: what exists, where the source lives, which SDK helper matches it, and how a frontend or auditor should start reading it.
 
+## Source Panel Stack
+
+![Source panel stack](docs/diagrams/source-panel-stack.svg)
+
+Each program panel should keep implementation and integration next to each other. The reader should be able to start from a program role, jump to `lib.rs`, inspect `state.rs`, compare errors, and then open the matching SDK helper without guessing which files belong together.
+
+This structure makes the contract directory more than a catalog. It becomes a practical audit index for the current development surface.
+
 ## System Principles
 
 - Show real source paths: the UI references actual program and SDK files rather than paraphrasing the implementation.
