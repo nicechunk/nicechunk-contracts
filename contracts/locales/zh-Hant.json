@@ -181,13 +181,14 @@
       "source": "programs/nicechunk_player/src/lib.rs",
       "sdk": "sdk/nicechunk-player.ts",
       "magic": "NCKPLY01 / NCKSES01",
-      "accountSize": "PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
+      "accountSize": "PlayerProfile: 449 bytes; legacy PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
       "summary": "Player 程序创建钱包绑定的玩家档案，并支持短期 session authority。session 让游戏可以提交重复的允许操作，例如破坏方块，而不需要每挖一个方块都打开钱包确认。",
       "instructions": [
         "0 initialize_player",
         "1 update_position",
         "2 set_equipment_slot",
         "3 set_backpack_style",
+        "5 set_equipped_backpack",
         "4 create_or_refresh_player_session"
       ],
       "pdaSeeds": [
@@ -195,13 +196,13 @@
         "PlayerSession: [\"session\", owner, sessionAuthority]"
       ],
       "storage": [
-        "Owner 钱包、GlobalConfig 地址、world ID、bump 和时间戳。",
+        "Owner 钱包、GlobalConfig 地址、world ID、已绑定背包公钥、bump 和时间戳。",
         "基础属性：生命、能量、体力、挖掘力、建造力和防御。",
-        "当前坐标和 9 个装备槽。",
+        "当前坐标、9 个装备槽和已绑定背包公钥。",
         "Session authority、允许动作 bitmask、过期时间、最大动作次数和已用次数。"
       ],
       "notes": [
-        "玩家档案是公开状态。私密背包内容应在玩家打开背包流程时单独加载。",
+        "玩家档案是公开状态。它保存已绑定背包公钥，私密背包内容应在玩家打开背包流程时单独加载。",
         "当前 session 模型用于减少连续挖矿时的钱包弹窗。",
         "Session 受过期时间、允许动作和最大动作次数限制。"
       ]
@@ -296,6 +297,7 @@
       "summary": "Backpack 程序是挖矿资源进入库存的一侧桥接。它为玩家创建紧凑的背包 PDA，并在有效 player session 授权后追加 10 字节资源记录。",
       "instructions": [
         "0 initialize_backpack",
+        "requires a PlayerProfile with no equipped backpack",
         "1 append_mined_resource"
       ],
       "pdaSeeds": [

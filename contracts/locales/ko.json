@@ -181,13 +181,14 @@
       "source": "programs/nicechunk_player/src/lib.rs",
       "sdk": "sdk/nicechunk-player.ts",
       "magic": "NCKPLY01 / NCKSES01",
-      "accountSize": "PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
+      "accountSize": "PlayerProfile: 449 bytes; legacy PlayerProfile: 417 bytes; PlayerSession: 184 bytes",
       "summary": "The player program creates a wallet-bound profile and a short-lived session authority. The session lets the game submit repeated allowed actions, such as block breaking, without opening the wallet for every single mined block.",
       "instructions": [
         "0 initialize_player",
         "1 update_position",
         "2 set_equipment_slot",
         "3 set_backpack_style",
+        "5 set_equipped_backpack",
         "4 create_or_refresh_player_session"
       ],
       "pdaSeeds": [
@@ -201,7 +202,7 @@
         "Session authority, allowed action bitmask, expiration time, max actions, and action count."
       ],
       "notes": [
-        "The profile is public state. Private backpack contents should be loaded separately when the player opens inventory flows.",
+        "The profile is public state. It stores the equipped backpack public key, while private backpack contents are loaded separately when the player opens inventory flows.",
         "The current session model is used to reduce repeated wallet prompts during mining.",
         "Sessions are bounded by expiration, allowed action flags, and max action count."
       ]
@@ -296,6 +297,7 @@
       "summary": "The backpack program is the inventory-side bridge for mined resources. It creates a compact backpack PDA for a player and appends 10-byte resource records when a valid player session authorizes the write.",
       "instructions": [
         "0 initialize_backpack",
+        "requires a PlayerProfile with no equipped backpack",
         "1 append_mined_resource"
       ],
       "pdaSeeds": [
@@ -308,7 +310,7 @@
         "Append validates the player profile owner and the break-block session action."
       ],
       "notes": [
-        "Backpack contents are separate from public player profile display.",
+        "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
         "This program is prepared for the mining-to-inventory flow and can be expanded later without changing chunk broken-state records.",
         "It does not implement marketplace settlement, equipment forging, or item governance."
       ]
