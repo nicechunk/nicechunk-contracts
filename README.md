@@ -12,6 +12,14 @@ The page is not the canonical source of the programs. Instead, it acts as a docu
 
 The contract directory is useful during active development because it keeps Rust program files, SDK files, and integration notes visible in one place.
 
+## Directory Architecture
+
+![Contract directory map](docs/diagrams/contract-directory-map.svg)
+
+This project is a source browser with product-quality navigation. The page imports raw Rust files, SDK files, localized explanations, program IDs, PDA seed notes, and integration steps so readers can move from a high-level role to the exact implementation path.
+
+That is the difference between this repository and the program repository. Programs own execution. The contract directory owns orientation: what exists, where the source lives, which SDK helper matches it, and how a frontend or auditor should start reading it.
+
 ## System Principles
 
 - Show real source paths: the UI references actual program and SDK files rather than paraphrasing the implementation.
