@@ -2,8 +2,8 @@
   "_meta": {
     "language": "zh-Hans",
     "label": "Simplified Chinese",
-    "version": "world-rule-locale-zh-Hans-ffbf650878179e03",
-    "contentHash": "ffbf650878179e03"
+    "version": "world-rule-locale-zh-Hans-95b509067198da38",
+    "contentHash": "95b509067198da38"
   },
   "siteFooter": {
     "tagline": "Solana 上的种子体素世界协议。",
@@ -236,8 +236,8 @@
     "blocks": [
       {
         "title": "深度层",
-        "code": "y <= 0 -> bedrock\ny < 45 -> deepStone\ny < surfaceY - 6 -> stone 或 basalt\n接近表面 -> biome subsurface\nsurfaceY -> biome surface",
-        "description": "方块类型先看垂直深度。基岩固定底部，深层使用 deep stone，地形深处使用普通 stone，接近表面时再交给生物群系规则。"
+        "code": "y <= 0 -> bedrock\ny < 45 -> deepStone，低频煤层会成片替换\ny < surfaceY - 6 -> stone 或 basalt\n接近表面 -> biome subsurface\nsurfaceY -> biome surface",
+        "description": "方块类型先看垂直深度。基岩固定底部，深层主要使用 deep stone，并会低频生成成片煤层；地形深处使用普通 stone，接近表面时再交给生物群系规则。"
       },
       {
         "title": "海洋、海滩、河流与湖泊表面",
@@ -321,8 +321,8 @@
       },
       {
         "title": "洞穴墙体",
-        "code": "相邻开放洞穴 -> cave wall\nif y < 45 -> deep cave\n深层或火山洞穴少量 lava\n腐化洞穴少量 toxic water\nwall = deepStone 或 stone，偶尔 gravel",
-        "description": "开放洞穴旁边的实体方块会变成可见洞壁。深层洞穴使用 deep stone 并更容易有发光菌丝，火山或腐化洞穴可能暴露危险流体。"
+        "code": "相邻开放洞穴 -> cave wall\nif y < 45 -> deep cave\n深层或火山洞穴少量 lava\n腐化洞穴少量 toxic water\nwall = 煤层、deepStone 或 stone，偶尔 gravel",
+        "description": "开放洞穴旁边的实体方块会变成可见洞壁。深层洞穴使用 deep stone，也可能暴露煤层，并更容易有发光菌丝；火山或腐化洞穴可能暴露危险流体。"
       },
       {
         "title": "洞穴装饰",

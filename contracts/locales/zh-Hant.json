@@ -224,7 +224,7 @@
       "codeKey": "chunk",
       "name": "NiceChunk Chunk",
       "kind": "Chunk 状态与挖矿层",
-      "programId": "12rCvz9PZ64Uix1TCiHEGU4AN4ZS1h4jv5u7CkqTRdk5",
+      "programId": "7JD6kASAfQeiVLUi51mrfWSbeh96ntRJnRiFQKCqUVhn",
       "status": "开发网",
       "role": "校验单点生成方块，并按 Chunk 记录极简已破坏方块状态。",
       "source": "programs/nicechunk_chunk/src/lib.rs",

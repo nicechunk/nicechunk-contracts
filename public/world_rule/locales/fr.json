@@ -2,8 +2,8 @@
   "_meta": {
     "language": "fr",
     "label": "French",
-    "version": "world-rule-locale-fr-4cd340f8a6847eb4",
-    "contentHash": "4cd340f8a6847eb4"
+    "version": "world-rule-locale-fr-cb0c025ec70a80fe",
+    "contentHash": "cb0c025ec70a80fe"
   },
   "siteFooter": {
     "tagline": "Un protocole de monde voxel seedé sur Solana.",
@@ -236,8 +236,8 @@
     "blocks": [
       {
         "title": "Depth Layers",
-        "code": "y <= 0 -> bedrock\ny < 45 -> deepStone\ny < surfaceY - 6 -> stone or basalt\nnear surface -> biome subsurface\nsurfaceY -> biome surface",
-        "description": "Block type depends on vertical depth first. Bedrock anchors the bottom, deep stone fills low layers, ordinary stone fills deeper terrain, and biome-specific layers appear near the top."
+        "code": "y <= 0 -> bedrock\ny < 45 -> deepStone with low-frequency coal seams\ny < surfaceY - 6 -> stone or basalt\nnear surface -> biome subsurface\nsurfaceY -> biome surface",
+        "description": "Block type depends on vertical depth first. Bedrock anchors the bottom, deep stone fills low layers with uncommon coal seams, ordinary stone fills deeper terrain, and biome-specific layers appear near the top."
       },
       {
         "title": "Ocean, Beach, River, And Lake Surfaces",
@@ -321,8 +321,8 @@
       },
       {
         "title": "Cave Wall Blocks",
-        "code": "adjacent open cave -> cave wall\nif y < 45 -> deep cave\nrare lava in deep or volcanic caves\nrare toxic water in corrupted caves\nwall = deepStone or stone, sometimes gravel",
-        "description": "A solid cell beside an open cave becomes an exposed cave wall. Deep caves use deep stone and glow mycelium more often; volcanic or corrupted caves can expose dangerous fluids."
+        "code": "adjacent open cave -> cave wall\nif y < 45 -> deep cave\nrare lava in deep or volcanic caves\nrare toxic water in corrupted caves\nwall = coal seam, deepStone, or stone, sometimes gravel",
+        "description": "A solid cell beside an open cave becomes an exposed cave wall. Deep caves use deep stone, can expose coal seams, and grow glow mycelium more often; volcanic or corrupted caves can expose dangerous fluids."
       },
       {
         "title": "Cave Decoration",

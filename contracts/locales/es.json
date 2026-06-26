@@ -224,7 +224,7 @@
       "codeKey": "chunk",
       "name": "NiceChunk Chunk",
       "kind": "Chunk state and mining layer",
-      "programId": "12rCvz9PZ64Uix1TCiHEGU4AN4ZS1h4jv5u7CkqTRdk5",
+      "programId": "7JD6kASAfQeiVLUi51mrfWSbeh96ntRJnRiFQKCqUVhn",
       "status": "Devnet",
       "role": "Verifies generated single blocks and records compact broken-block state per chunk.",
       "source": "programs/nicechunk_chunk/src/lib.rs",
