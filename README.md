@@ -4,6 +4,12 @@
 
 Developer-facing contract directory and source browser.
 
+## Official Links
+
+GitHub: [https://github.com/nicechunk/nicechunk-contracts](https://github.com/nicechunk/nicechunk-contracts)
+
+Website: [https://nicechunk.com/contracts/](https://nicechunk.com/contracts/)
+
 ## Project Overview
 
 This repository contains the contract directory UI for NiceChunk. It presents program IDs, PDA seeds, instruction surfaces, integration flow, and source files in a browser-readable format.
