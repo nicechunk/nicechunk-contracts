@@ -1,6 +1,9 @@
 import "./style.css";
 import "../src/site-header.css";
+import { Buffer } from "buffer";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { finishSiteLoading, setSiteLoadingProgress } from "../src/site-ui.js";
+import { createNicechunkRpcFetch, getNicechunkRpcUrl } from "../src/rpcConfig.js";
 import enDictionary from "./locales/en.json";
 import esDictionary from "./locales/es.json";
 import frDictionary from "./locales/fr.json";
@@ -40,13 +43,22 @@ import backpackErrors from "../programs/nicechunk_backpack/src/errors.rs?raw";
 import backpackLib from "../programs/nicechunk_backpack/src/lib.rs?raw";
 import backpackState from "../programs/nicechunk_backpack/src/state.rs?raw";
 import backpackSdk from "../sdk/nicechunk-backpack.ts?raw";
+import smeltingCargo from "../programs/nicechunk_smelting/Cargo.toml?raw";
+import smeltingClusterConfig from "../programs/nicechunk_smelting/src/cluster_config.rs?raw";
+import smeltingErrors from "../programs/nicechunk_smelting/src/errors.rs?raw";
+import smeltingLib from "../programs/nicechunk_smelting/src/lib.rs?raw";
+import smeltingState from "../programs/nicechunk_smelting/src/state.rs?raw";
+import smeltingSdk from "../sdk/nicechunk-smelting.ts?raw";
 import marketCargo from "../programs/nicechunk_market/Cargo.toml?raw";
 import marketClusterConfig from "../programs/nicechunk_market/src/cluster_config.rs?raw";
 import marketErrors from "../programs/nicechunk_market/src/errors.rs?raw";
 import marketLib from "../programs/nicechunk_market/src/lib.rs?raw";
 import marketState from "../programs/nicechunk_market/src/state.rs?raw";
 
+if (!globalThis.Buffer) globalThis.Buffer = Buffer;
+
 const languageStorageKey = "nicechunk.language";
+const solanaDevnetRpcUrl = "https://api.devnet.solana.com";
 const dictionaries = {
   en: enDictionary,
   es: esDictionary,
@@ -110,6 +122,14 @@ const sourceTrees = {
     file("programs/nicechunk_backpack/src/state.rs", "rust", backpackState),
     file("sdk/nicechunk-backpack.ts", "typescript", backpackSdk),
   ],
+  smelting: [
+    file("programs/nicechunk_smelting/Cargo.toml", "toml", smeltingCargo),
+    file("programs/nicechunk_smelting/src/cluster_config.rs", "rust", smeltingClusterConfig),
+    file("programs/nicechunk_smelting/src/errors.rs", "rust", smeltingErrors),
+    file("programs/nicechunk_smelting/src/lib.rs", "rust", smeltingLib),
+    file("programs/nicechunk_smelting/src/state.rs", "rust", smeltingState),
+    file("sdk/nicechunk-smelting.ts", "typescript", smeltingSdk),
+  ],
   market: [
     file("programs/nicechunk_market/Cargo.toml", "toml", marketCargo),
     file("programs/nicechunk_market/src/cluster_config.rs", "rust", marketClusterConfig),
@@ -119,12 +139,39 @@ const sourceTrees = {
   ],
 };
 
+const pdaAccountTypes = [
+  { id: "all", programKey: null, sizes: [], decoder: null },
+  { id: "global-config", programKey: "core", sizes: [293], decoder: decodeGlobalConfigAccount },
+  { id: "player-profile", programKey: "player", sizes: [449, 417], decoder: decodePlayerProfileAccount },
+  { id: "player-session", programKey: "player", sizes: [184], decoder: decodePlayerSessionAccount },
+  { id: "chunk-broken", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeChunkBrokenAccount },
+  { id: "resource-drop-table", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeResourceDropTableAccount },
+  { id: "guardian-registry", programKey: "guardian", sizes: [160], decoder: decodeGuardianRegistryAccount },
+  { id: "guardian-region", programKey: "guardian", sizes: [256], decoder: decodeGuardianRegionAccount },
+  { id: "backpack", programKey: "backpack", sizes: [6464, 1118], decoder: decodeBackpackAccount },
+  { id: "recipe-table", programKey: "smelting", sizes: [9552], decoder: decodeRecipeTableAccount },
+  { id: "market-listing", programKey: "market", sizes: [216], decoder: decodeMarketListingAccount },
+  { id: "market-asset", programKey: "market", sizes: [256], decoder: decodeMarketAssetAccount },
+];
+
+const programAccountTypeMap = new Map();
+for (const type of pdaAccountTypes) {
+  if (!type.programKey) continue;
+  if (!programAccountTypeMap.has(type.programKey)) programAccountTypeMap.set(type.programKey, []);
+  programAccountTypeMap.get(type.programKey).push(type.id);
+}
+
 const contractsNav = document.querySelector("#contractsNav");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
 const programDetails = document.querySelector("#programDetails");
 const programIdsCode = document.querySelector("#programIdsCode");
 const pdaCode = document.querySelector("#pdaCode");
+const chainBrowserType = document.querySelector("#chainBrowserType");
+const chainBrowserRefresh = document.querySelector("#chainBrowserRefresh");
+const chainBrowserStatus = document.querySelector("#chainBrowserStatus");
+const chainBrowserStats = document.querySelector("#chainBrowserStats");
+const chainBrowserResults = document.querySelector("#chainBrowserResults");
 const languagePicker = document.querySelector(".contracts-language");
 const languageTrigger = document.querySelector(".contracts-language-trigger");
 const languageCurrent = document.querySelector(".contracts-language-current");
@@ -133,6 +180,7 @@ const sections = [...document.querySelectorAll("[data-contract-section]")];
 
 let activeLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)) || "en";
 let dictionary = dictionaries[activeLanguage] || dictionaries.en;
+const contractsConnections = new Map();
 
 initContractsPage();
 
@@ -144,6 +192,8 @@ function initContractsPage() {
   renderFlow();
   renderProgramDetails();
   renderCodeBlocks();
+  renderChainBrowserControls();
+  setupChainBrowser();
   setupLanguageSwitcher();
   setupScrollLinks();
   setupSectionObserver();
@@ -265,7 +315,8 @@ function createProgramPanel(program) {
         <h3></h3>
       </div>
       <div class="program-heading-actions">
-        <button class="code-toggle" type="button" aria-expanded="true">
+        <div class="program-view-tabs" role="tablist"></div>
+        <button class="code-toggle" type="button" aria-expanded="true" hidden>
           <span aria-hidden="true">&lt;/&gt;</span>
           <strong></strong>
         </button>
@@ -292,7 +343,9 @@ function createProgramPanel(program) {
         <ul class="compact-list notes"></ul>
       </div>
     </div>
-    <div class="code-explorer"></div>
+    <div class="program-view program-code-view" data-program-view-panel="code"></div>
+    <div class="program-view program-pda-view" data-program-view-panel="pda" hidden></div>
+    <div class="program-view program-live-view" data-program-view-panel="live" hidden></div>
   `;
 
   panel.querySelector(".eyebrow").textContent = program.kind;
@@ -302,20 +355,10 @@ function createProgramPanel(program) {
   codeButton.querySelector("strong").textContent = dictionary.labels.viewCode;
   codeButton.setAttribute("aria-label", `${dictionary.labels.viewCode}: ${program.name}`);
   panel.querySelector(".program-summary").textContent = program.summary;
-  const codeExplorer = panel.querySelector(".code-explorer");
-  codeExplorer.replaceChildren(createCodeExplorer(program));
-  codeExplorer.dataset.ready = "true";
-  codeButton.addEventListener("click", () => {
-    const explorer = panel.querySelector(".code-explorer");
-    const isOpen = !explorer.hidden;
-    explorer.hidden = isOpen;
-    codeButton.setAttribute("aria-expanded", String(!isOpen));
-    panel.classList.toggle("code-open", !isOpen);
-    if (!isOpen && !explorer.dataset.ready) {
-      explorer.replaceChildren(createCodeExplorer(program));
-      explorer.dataset.ready = "true";
-    }
-  });
+  panel.querySelector(".program-code-view").replaceChildren(createCodeExplorer(program));
+  panel.querySelector(".program-pda-view").replaceChildren(createPdaStructureView(program));
+  panel.querySelector(".program-live-view").replaceChildren(createProgramLiveView(program));
+  renderProgramViewTabs(panel, program);
 
   const factGrid = panel.querySelector(".fact-grid");
   factGrid.replaceChildren(
@@ -340,6 +383,157 @@ function createProgramPanel(program) {
   headings[3].textContent = dictionary.labels.notes;
 
   return panel;
+}
+
+function renderProgramViewTabs(panel, program) {
+  const tabs = panel.querySelector(".program-view-tabs");
+  if (!tabs) return;
+  const views = [
+    { id: "code", label: dictionary.labels.viewCode, icon: "</>" },
+    { id: "pda", label: dictionary.labels.viewPda, icon: "PDA" },
+    { id: "live", label: dictionary.labels.viewLive, icon: "RPC" },
+  ];
+  tabs.replaceChildren(
+    ...views.map((view, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "program-view-tab";
+      button.dataset.programView = view.id;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-selected", String(index === 0));
+      button.innerHTML = "<span></span><strong></strong>";
+      button.querySelector("span").textContent = view.icon;
+      button.querySelector("strong").textContent = view.label;
+      button.addEventListener("click", () => setProgramView(panel, program, view.id));
+      return button;
+    }),
+  );
+  setProgramView(panel, program, "code");
+}
+
+function setProgramView(panel, program, viewId) {
+  panel.querySelectorAll("[data-program-view-panel]").forEach((view) => {
+    view.hidden = view.dataset.programViewPanel !== viewId;
+  });
+  panel.querySelectorAll(".program-view-tab").forEach((button) => {
+    const active = button.dataset.programView === viewId;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  panel.classList.toggle("code-open", viewId === "code");
+  if (viewId === "live") {
+    const status = panel.querySelector("[data-program-live-status]");
+    if (status && !status.dataset.touched) {
+      status.textContent = dictionary.chainBrowser.programPrompt;
+    }
+  }
+}
+
+function createPdaStructureView(program) {
+  const root = document.createElement("div");
+  root.className = "pda-structure-grid";
+  const schemas = program.pdaAccounts?.length ? program.pdaAccounts : createFallbackPdaSchemas(program);
+  root.replaceChildren(...schemas.map(createPdaSchemaCard));
+  return root;
+}
+
+function createFallbackPdaSchemas(program) {
+  return program.pdaSeeds.map((seed, index) => ({
+    name: seed.split(":")[0] || `${program.name} PDA ${index + 1}`,
+    seeds: seed,
+    size: program.accountSize || "-",
+    purpose: program.storage[index] || program.summary,
+    fields: program.storage.slice(0, 4),
+  }));
+}
+
+function createPdaSchemaCard(schema) {
+  const card = document.createElement("article");
+  card.className = "pda-schema-card";
+  card.innerHTML = `
+    <div class="pda-schema-head">
+      <strong></strong>
+      <span></span>
+    </div>
+    <p></p>
+    <dl></dl>
+    <h4></h4>
+    <ul class="compact-list"></ul>
+  `;
+  card.querySelector("strong").textContent = schema.name;
+  card.querySelector(".pda-schema-head span").textContent = schema.size || "-";
+  card.querySelector("p").textContent = schema.purpose || "";
+  const facts = [
+    [dictionary.labels.pdaSeeds, schema.seeds],
+    [dictionary.labels.accountSize, schema.size],
+    [dictionary.labels.magic, schema.magic],
+  ].filter(([, value]) => value);
+  const dl = card.querySelector("dl");
+  dl.replaceChildren(
+    ...facts.flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label;
+      dd.textContent = value;
+      return [dt, dd];
+    }),
+  );
+  card.querySelector("h4").textContent = dictionary.labels.fields;
+  fillList(card.querySelector("ul"), schema.fields?.length ? schema.fields : [schema.purpose || "-"]);
+  return card;
+}
+
+function createProgramLiveView(program) {
+  const root = document.createElement("div");
+  root.className = "program-live-browser";
+  root.innerHTML = `
+    <div class="program-live-head">
+      <div>
+        <strong></strong>
+        <p></p>
+      </div>
+      <div class="program-live-actions"></div>
+    </div>
+    <div class="chain-browser-status" data-program-live-status role="status" aria-live="polite"></div>
+    <div class="chain-browser-results compact" data-program-live-results></div>
+  `;
+  root.querySelector("strong").textContent = dictionary.chainBrowser.programTitle;
+  root.querySelector("p").textContent = dictionary.chainBrowser.programBody;
+  const actions = root.querySelector(".program-live-actions");
+  const types = programAccountTypeMap.get(program.codeKey) ?? [];
+  actions.replaceChildren(
+    ...types.map((typeId) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "program-live-action";
+      button.textContent = typeLabel(typeId);
+      button.addEventListener("click", () => loadProgramLiveAccounts(root, typeId));
+      return button;
+    }),
+  );
+  if (!types.length) {
+    const empty = document.createElement("span");
+    empty.className = "program-live-empty";
+    empty.textContent = dictionary.chainBrowser.noKnownTypes;
+    actions.append(empty);
+  }
+  return root;
+}
+
+async function loadProgramLiveAccounts(root, typeId) {
+  const status = root.querySelector("[data-program-live-status]");
+  const results = root.querySelector("[data-program-live-results]");
+  status.dataset.touched = "true";
+  setStatus(status, formatText(dictionary.chainBrowser.loadingType, { type: typeLabel(typeId) }));
+  results.replaceChildren();
+  try {
+    const records = await scanAccountType(typeId);
+    setStatus(status, formatText(dictionary.chainBrowser.loadedType, { count: records.length, type: typeLabel(typeId) }));
+    results.replaceChildren(...records.slice(0, 12).map(createAccountCard));
+    if (!records.length) results.append(createEmptyState(dictionary.chainBrowser.empty));
+  } catch (error) {
+    setStatus(status, formatText(dictionary.chainBrowser.error, { message: error.message }));
+  }
 }
 
 function createCodeExplorer(program) {
@@ -451,6 +645,296 @@ function renderCodeBlocks() {
   }
 }
 
+function renderChainBrowserControls() {
+  if (!chainBrowserType) return;
+  chainBrowserType.replaceChildren(
+    ...pdaAccountTypes.map((type) => {
+      const option = document.createElement("option");
+      option.value = type.id;
+      option.textContent = typeLabel(type.id);
+      return option;
+    }),
+  );
+}
+
+function setupChainBrowser() {
+  chainBrowserRefresh?.addEventListener("click", () => {
+    void loadChainBrowserSelection();
+  });
+  chainBrowserType?.addEventListener("change", () => {
+    void loadChainBrowserSelection();
+  });
+  setStatus(chainBrowserStatus, dictionary.chainBrowser.ready);
+}
+
+async function loadChainBrowserSelection() {
+  if (!chainBrowserType || !chainBrowserResults) return;
+  const typeId = chainBrowserType.value || "all";
+  setStatus(chainBrowserStatus, typeId === "all" ? dictionary.chainBrowser.loadingAll : formatText(dictionary.chainBrowser.loadingType, { type: typeLabel(typeId) }));
+  chainBrowserStats?.replaceChildren();
+  chainBrowserResults.replaceChildren();
+  try {
+    const records = typeId === "all" ? await scanAllAccountTypes() : await scanAccountType(typeId);
+    const grouped = groupRecordsByType(records);
+    renderChainBrowserStats(grouped, records.length);
+    chainBrowserResults.replaceChildren(...records.slice(0, 80).map(createAccountCard));
+    if (!records.length) chainBrowserResults.append(createEmptyState(dictionary.chainBrowser.empty));
+    setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.loaded, { count: records.length }));
+  } catch (error) {
+    setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.error, { message: error.message }));
+  }
+}
+
+async function scanAllAccountTypes() {
+  const results = [];
+  for (const type of pdaAccountTypes.filter((item) => item.id !== "all")) {
+    try {
+      results.push(...await scanAccountType(type.id));
+    } catch (error) {
+      results.push({
+        typeId: type.id,
+        accountType: typeLabel(type.id),
+        publicKey: dictionary.chainBrowser.scanFailed,
+        programId: programIdForKey(type.programKey),
+        decoded: { error: error.message },
+        lamports: 0,
+        dataLength: 0,
+        executable: false,
+      });
+    }
+  }
+  return results;
+}
+
+async function scanAccountType(typeId) {
+  const type = pdaAccountTypes.find((item) => item.id === typeId);
+  if (!type || type.id === "all") return scanAllAccountTypes();
+  const programId = programIdForKey(type.programKey);
+  if (!programId) throw new Error(`Missing program id for ${type.programKey}.`);
+  if (type.id === "global-config") {
+    const [globalConfig] = PublicKey.findProgramAddressSync([Buffer.from("global-config")], programId);
+    const account = await withRpcFallback((conn) => conn.getAccountInfo(globalConfig, "confirmed"), 15_000);
+    return account ? [decodeAccountRecord(type, globalConfig, account, programId)].filter(Boolean) : [];
+  }
+  const accounts = await fetchProgramAccountsBySizes(programId, type.sizes);
+  return accounts
+    .map(({ pubkey, account }) => decodeAccountRecord(type, pubkey, account, programId))
+    .filter(Boolean)
+    .sort((a, b) => b.lamports - a.lamports);
+}
+
+async function fetchProgramAccountsBySizes(programId, sizes) {
+  if (!sizes?.length) {
+    return withRpcFallback((conn) => conn.getProgramAccounts(programId, { commitment: "confirmed" }), 20_000);
+  }
+  const exactSizes = sizes.filter((size) => Number.isInteger(size));
+  const rangeSizes = sizes.filter((size) => typeof size === "object");
+  const exactResults = [];
+  for (const size of exactSizes) {
+    exactResults.push(...await withRpcFallback((conn) => conn.getProgramAccounts(programId, {
+      commitment: "confirmed",
+      filters: [{ dataSize: size }],
+    }), 20_000));
+  }
+  if (!rangeSizes.length) return dedupeProgramAccounts(exactResults);
+  const all = await withRpcFallback((conn) => conn.getProgramAccounts(programId, { commitment: "confirmed" }), 20_000);
+  return dedupeProgramAccounts([
+    ...exactResults,
+    ...all.filter(({ account }) => rangeSizes.some((range) => account.data.length >= (range.min ?? 0) && account.data.length <= (range.max ?? Number.MAX_SAFE_INTEGER))),
+  ]);
+}
+
+function dedupeProgramAccounts(accounts) {
+  const seen = new Set();
+  const deduped = [];
+  for (const record of accounts) {
+    const key = record.pubkey.toBase58();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(record);
+  }
+  return deduped;
+}
+
+function decodeAccountRecord(type, pubkey, account, programId) {
+  try {
+    const decoded = type.decoder(account.data);
+    if (!decoded) return null;
+    return {
+      typeId: type.id,
+      accountType: typeLabel(type.id),
+      publicKey: pubkey.toBase58(),
+      programId: programId.toBase58(),
+      decoded,
+      lamports: account.lamports,
+      dataLength: account.data.length,
+      executable: account.executable,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function renderChainBrowserStats(grouped, total) {
+  if (!chainBrowserStats) return;
+  const totalCard = document.createElement("article");
+  totalCard.className = "chain-stat-card";
+  totalCard.innerHTML = "<span></span><strong></strong>";
+  totalCard.querySelector("span").textContent = dictionary.chainBrowser.total;
+  totalCard.querySelector("strong").textContent = String(total);
+  const cards = [totalCard];
+  for (const [typeId, records] of grouped.entries()) {
+    const card = document.createElement("article");
+    card.className = "chain-stat-card";
+    card.innerHTML = "<span></span><strong></strong>";
+    card.querySelector("span").textContent = typeLabel(typeId);
+    card.querySelector("strong").textContent = String(records.length);
+    cards.push(card);
+  }
+  chainBrowserStats.replaceChildren(...cards);
+}
+
+function createAccountCard(record) {
+  const card = document.createElement("article");
+  card.className = "account-card";
+  const summary = accountSummary(record);
+  card.innerHTML = `
+    <div class="account-card-head">
+      <div>
+        <span></span>
+        <strong></strong>
+      </div>
+      <em></em>
+    </div>
+    <dl class="account-facts"></dl>
+    <pre class="account-json"><code></code></pre>
+  `;
+  card.querySelector(".account-card-head span").textContent = record.accountType;
+  card.querySelector(".account-card-head strong").textContent = record.publicKey;
+  card.querySelector(".account-card-head em").textContent = `${record.dataLength} B`;
+  const facts = [
+    [dictionary.chainBrowser.program, record.programId],
+    [dictionary.chainBrowser.lamports, String(record.lamports)],
+    ...summary,
+  ];
+  card.querySelector(".account-facts").replaceChildren(
+    ...facts.flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label;
+      dd.textContent = value ?? "-";
+      return [dt, dd];
+    }),
+  );
+  card.querySelector("code").textContent = JSON.stringify(record.decoded, null, 2);
+  return card;
+}
+
+function accountSummary(record) {
+  const data = record.decoded ?? {};
+  const labels = dictionary.chainBrowser.summary;
+  switch (record.typeId) {
+    case "player-profile":
+      return [[labels.owner, data.owner], [labels.position, formatPosition(data.position)], [labels.backpack, data.equippedBackpack]];
+    case "player-session":
+      return [[labels.owner, data.owner], [labels.authority, data.sessionAuthority], [labels.expiresAt, data.expiresAt]];
+    case "backpack":
+      return [[labels.owner, data.owner], [labels.items, `${data.itemCount}/${data.capacity}`], [labels.updatedSlot, data.updatedSlot]];
+    case "recipe-table":
+      return [[labels.authority, data.authority], [labels.recipes, String(data.recipeCount)], [labels.updatedSlot, data.updatedSlot]];
+    case "market-listing":
+      return [[labels.seller, data.seller], [labels.state, data.stateLabel], [labels.price, data.price]];
+    case "market-asset":
+      return [[labels.owner, data.owner], [labels.state, data.stateLabel], [labels.item, data.itemId || String(data.itemCode)]];
+    case "guardian-region":
+      return [[labels.owner, data.owner], [labels.endpoint, data.endpoint], [labels.proofs, String(data.proofCount)]];
+    case "guardian-registry":
+      return [[labels.active, String(data.activeCount)], [labels.total, String(data.totalRegistrations)], [labels.treasury, data.treasuryToken]];
+    case "chunk-broken":
+      return [[labels.minY, String(data.minY)], [labels.records, `${data.count}/${data.capacity}`], [labels.version, String(data.version)]];
+    case "resource-drop-table":
+      return [[labels.rules, String(data.ruleCount)], [labels.version, String(data.version)]];
+    case "global-config":
+      return [[labels.world, String(data.worldId)], [labels.seed, data.worldSeedHex], [labels.nckMint, data.nckMint]];
+    default:
+      return [];
+  }
+}
+
+function createEmptyState(message) {
+  const empty = document.createElement("div");
+  empty.className = "chain-empty-state";
+  empty.textContent = message;
+  return empty;
+}
+
+function groupRecordsByType(records) {
+  const grouped = new Map();
+  for (const record of records) {
+    if (!grouped.has(record.typeId)) grouped.set(record.typeId, []);
+    grouped.get(record.typeId).push(record);
+  }
+  return grouped;
+}
+
+function getContractRpcUrls() {
+  return [...new Set([getNicechunkRpcUrl(), solanaDevnetRpcUrl].filter(Boolean))];
+}
+
+function getContractsConnection(rpcUrl) {
+  if (!contractsConnections.has(rpcUrl)) {
+    contractsConnections.set(rpcUrl, new Connection(rpcUrl, {
+      commitment: "confirmed",
+      fetch: createNicechunkRpcFetch("contracts-pda-browser"),
+    }));
+  }
+  return contractsConnections.get(rpcUrl);
+}
+
+async function withRpcFallback(operation, timeoutMs) {
+  const urls = getContractRpcUrls();
+  const errors = [];
+  for (const [index, rpcUrl] of urls.entries()) {
+    const timeout = index === 0 && urls.length > 1 && rpcUrl.includes("onfinality.io") ? 5_000 : timeoutMs;
+    try {
+      return await withTimeout(operation(getContractsConnection(rpcUrl)), timeout, dictionary.chainBrowser.timeout);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  throw errors.at(-1) ?? new Error(dictionary.chainBrowser.timeout);
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error(message || "RPC request timed out.")), timeoutMs);
+    }),
+  ]);
+}
+
+function programIdForKey(programKey) {
+  const program = dictionary.programs.find((item) => item.codeKey === programKey) ?? dictionaries.en.programs.find((item) => item.codeKey === programKey);
+  return program?.programId ? new PublicKey(program.programId) : null;
+}
+
+function typeLabel(typeId) {
+  return dictionary.chainBrowser.types?.[typeId] ?? dictionaries.en.chainBrowser.types?.[typeId] ?? typeId;
+}
+
+function setStatus(element, message) {
+  if (element) element.textContent = message || "";
+}
+
+function formatText(template, replacements) {
+  return String(template || "").replace(/\{(\w+)\}/g, (_, key) => replacements[key] ?? "");
+}
+
+function formatPosition(position) {
+  return position ? `${position.x}, ${position.y}, ${position.z}` : "-";
+}
+
 function setupLanguageSwitcher() {
   renderLanguageMenu();
   updateLanguagePicker();
@@ -498,6 +982,7 @@ function renderLanguageMenu() {
         renderFlow();
         renderProgramDetails();
         renderCodeBlocks();
+        renderChainBrowserControls();
         updateLanguagePicker();
         setLanguageMenuOpen(false);
       });
@@ -519,6 +1004,370 @@ function updateLanguagePicker() {
 function setLanguageMenuOpen(open) {
   languagePicker?.classList.toggle("open", open);
   languageTrigger?.setAttribute("aria-expanded", String(open));
+}
+
+function decodeGlobalConfigAccount(data) {
+  assertMagic(data, "NCKCFG01", 293);
+  return {
+    magic: "NCKCFG01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    initialized: data.readUInt8(11) === 1,
+    nckMint: readPubkey(data, 12),
+    nckDecimals: data.readUInt8(44),
+    nckGenesisSupply: data.readBigUInt64LE(45).toString(),
+    developmentWallet: readPubkey(data, 53),
+    worldId: data.readUInt16LE(85),
+    worldSeedHex: Buffer.from(data.subarray(87, 119)).toString("hex"),
+    terrainConfigHash: Buffer.from(data.subarray(119, 151)).toString("hex"),
+    resourceRuleHash: Buffer.from(data.subarray(151, 183)).toString("hex"),
+    clientWorldConfigHash: Buffer.from(data.subarray(183, 215)).toString("hex"),
+    chunkSize: data.readUInt16LE(259),
+    sectionHeight: data.readUInt16LE(261),
+    minBuildY: data.readInt16LE(263),
+    maxBuildY: data.readInt16LE(265),
+    maxTerrainHeight: data.readInt16LE(267),
+    seaLevel: data.readInt16LE(269),
+    guardianRegionSizeChunks: data.readUInt16LE(271),
+    guardianRealtimeRadiusChunks: data.readUInt16LE(273),
+    mineCooldownSlots: data.readUInt16LE(275),
+    genesisSlot: data.readBigUInt64LE(277).toString(),
+    createdAt: data.readBigInt64LE(285).toString(),
+  };
+}
+
+function decodePlayerProfileAccount(data) {
+  if (data.length !== 449 && data.length !== 417) throw new Error("Invalid PlayerProfile length.");
+  assertMagic(data, "NCKPLY01");
+  return {
+    magic: "NCKPLY01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    initialized: data.readUInt8(11) === 1,
+    owner: readPubkey(data, 12),
+    globalConfig: readPubkey(data, 44),
+    worldId: data.readUInt16LE(76),
+    position: {
+      x: data.readInt32LE(78),
+      y: data.readInt32LE(82),
+      z: data.readInt32LE(86),
+    },
+    health: data.readUInt16LE(90),
+    energy: data.readUInt16LE(92),
+    stamina: data.readUInt16LE(94),
+    equippedBackpack: data.length === 449 ? readOptionalPubkey(data, 393) : null,
+    createdSlot: data.readBigUInt64LE(data.length === 449 ? 425 : 393).toString(),
+    updatedSlot: data.readBigUInt64LE(data.length === 449 ? 433 : 401).toString(),
+  };
+}
+
+function decodePlayerSessionAccount(data) {
+  assertMagic(data, "NCKSES01", 184);
+  return {
+    magic: "NCKSES01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    initialized: data.readUInt8(11) === 1,
+    owner: readPubkey(data, 12),
+    sessionAuthority: readPubkey(data, 44),
+    playerProfile: readPubkey(data, 76),
+    globalConfig: readPubkey(data, 108),
+    worldId: data.readUInt16LE(140),
+    allowedActions: data.readUInt16LE(142),
+    expiresAt: data.readBigInt64LE(144).toString(),
+    createdSlot: data.readBigUInt64LE(152).toString(),
+    updatedSlot: data.readBigUInt64LE(160).toString(),
+    createdAt: data.readBigInt64LE(168).toString(),
+    maxActions: data.readUInt32LE(176),
+    usedActions: data.readUInt32LE(180),
+  };
+}
+
+function decodeChunkBrokenAccount(data) {
+  if (data.length < 16 || data.subarray(0, 4).toString("utf8") !== "NCBK") throw new Error("Invalid ChunkBroken magic.");
+  const count = data.readUInt16LE(6);
+  const capacity = data.readUInt16LE(8);
+  if (data.length !== 16 + capacity * 3) throw new Error("Invalid ChunkBroken length.");
+  return {
+    magic: "NCBK",
+    version: data.readUInt8(4),
+    bump: data.readUInt8(5),
+    count,
+    capacity,
+    minY: data.readInt16LE(10),
+    samplePackedRecords: Array.from({ length: Math.min(count, 12) }, (_, index) => Buffer.from(data.subarray(16 + index * 3, 19 + index * 3)).toString("hex")),
+  };
+}
+
+function decodeResourceDropTableAccount(data) {
+  if (data.length < 16) throw new Error("Invalid ResourceDropTable length.");
+  assertMagic(data, "NCKDRP01");
+  const ruleCount = data.readUInt8(10);
+  if (!ruleCount || data.length !== 16 + ruleCount * 15) throw new Error("Invalid ResourceDropTable record length.");
+  return {
+    magic: "NCKDRP01",
+    version: data.readUInt8(8),
+    bump: data.readUInt8(9),
+    ruleCount,
+    rules: Array.from({ length: ruleCount }, (_, index) => {
+      const offset = 16 + index * 15;
+      return {
+        sourceBlockId: data.readUInt16LE(offset),
+        dropBlockId: data.readUInt16LE(offset + 2),
+        chanceBps: data.readUInt16LE(offset + 4),
+        minAltitude: data.readInt16LE(offset + 6),
+        maxAltitude: data.readInt16LE(offset + 8),
+        minDepth: data.readInt16LE(offset + 10),
+        maxDepth: data.readInt16LE(offset + 12),
+        salt: data.readUInt8(offset + 14),
+      };
+    }),
+  };
+}
+
+function decodeGuardianRegistryAccount(data) {
+  assertMagic(data, "NCKGDR01", 160);
+  return {
+    magic: "NCKGDR01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    treasuryBump: data.readUInt8(11),
+    globalConfig: readPubkey(data, 12),
+    nckMint: readPubkey(data, 44),
+    treasuryToken: readPubkey(data, 76),
+    activeCount: data.readBigUInt64LE(108).toString(),
+    totalRegistrations: data.readBigUInt64LE(116).toString(),
+    genesisRegistered: data.readUInt8(124) === 1,
+    regionSizeChunks: data.readUInt16LE(126),
+    stakeAmount: data.readBigUInt64LE(128).toString(),
+    slashAmount: data.readBigUInt64LE(136).toString(),
+    createdSlot: data.readBigUInt64LE(144).toString(),
+    createdAt: data.readBigInt64LE(152).toString(),
+  };
+}
+
+function decodeGuardianRegionAccount(data) {
+  assertMagic(data, "NCKGRG01", 256);
+  const hostLength = Math.min(data.readUInt8(132), 64);
+  const host = new TextDecoder().decode(data.subarray(133, 133 + hostLength));
+  const port = data.readUInt16LE(197);
+  const useTls = data.readUInt8(199) === 1;
+  return {
+    magic: "NCKGRG01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    status: data.readUInt8(11),
+    statusLabel: data.readUInt8(11) === 1 ? "active" : data.readUInt8(11) === 2 ? "removed" : "empty",
+    regionX: data.readInt32LE(12),
+    regionY: data.readInt32LE(16),
+    minChunkX: data.readInt32LE(20),
+    minChunkY: data.readInt32LE(24),
+    maxChunkX: data.readInt32LE(28),
+    maxChunkY: data.readInt32LE(32),
+    owner: readPubkey(data, 36),
+    operator: readPubkey(data, 68),
+    globalConfig: readPubkey(data, 100),
+    host,
+    port,
+    useTls,
+    endpoint: `${useTls ? "https" : "http"}://${host}:${port}`,
+    stakeAmount: data.readBigUInt64LE(200).toString(),
+    totalSlashed: data.readBigUInt64LE(208).toString(),
+    penaltyCount: data.readUInt32LE(216),
+    registeredAt: data.readBigInt64LE(220).toString(),
+    lastProofAt: data.readBigInt64LE(228).toString(),
+    penaltyCursorAt: data.readBigInt64LE(236).toString(),
+    proofCount: data.readBigUInt64LE(244).toString(),
+    updatedSlot: data.readUInt32LE(252),
+  };
+}
+
+function decodeBackpackAccount(data) {
+  if (data.length !== 6464 && data.length !== 1118) throw new Error("Invalid Backpack length.");
+  assertMagic(data, "NCKBPK01");
+  const version = data.readUInt16LE(8);
+  const recordLength = version === 1 ? 10 : 64;
+  const capacity = data.readUInt8(52);
+  const itemCount = data.readUInt8(53);
+  const readableCount = Math.min(itemCount, capacity, 99);
+  return {
+    magic: "NCKBPK01",
+    version,
+    bump: data.readUInt8(10),
+    initialized: data.readUInt8(11) === 1,
+    backpackId: data.readBigUInt64LE(12).toString(),
+    owner: readPubkey(data, 20),
+    capacity,
+    itemCount,
+    state: data.readUInt8(54),
+    flags: data.readUInt8(55),
+    placed: { x: data.readInt32LE(56), y: data.readInt16LE(60), z: data.readInt32LE(62) },
+    createdSlot: data.readBigUInt64LE(66).toString(),
+    updatedSlot: data.readBigUInt64LE(74).toString(),
+    createdAt: data.readBigInt64LE(82).toString(),
+    sampleSlots: Array.from({ length: Math.min(readableCount, 10) }, (_, index) => decodeBackpackSlotSummary(data, 128 + index * recordLength, recordLength, index)),
+  };
+}
+
+function decodeBackpackSlotSummary(data, offset, recordLength, index) {
+  if (recordLength === 10) {
+    return { index, kind: "block", resource: decodeBackpackResourceSummary(data, offset) };
+  }
+  const kindCode = data.readUInt8(offset);
+  return {
+    index,
+    kind: kindCode === 2 ? "item" : "block",
+    category: data.readUInt8(offset + 1),
+    quantity: data.readUInt32LE(offset + 4),
+    resource: decodeBackpackResourceSummary(data, offset + 8),
+    itemCode: data.readUInt16LE(offset + 18),
+    itemId: data.readBigUInt64LE(offset + 20).toString(),
+    itemPda: readOptionalPubkey(data, offset + 28),
+    volumeMm3: data.readUInt32LE(offset + 60),
+  };
+}
+
+function decodeBackpackResourceSummary(data, offset) {
+  const packedY = data.readInt16LE(offset + 4);
+  return {
+    worldX: data.readInt32LE(offset),
+    worldY: packedY >> 9,
+    blockId: packedY & 0x1ff,
+    worldZ: data.readInt32LE(offset + 6),
+  };
+}
+
+function decodeRecipeTableAccount(data) {
+  assertMagic(data, "NCKSMR01", 9552);
+  const recipeCount = data.readUInt16LE(52);
+  return {
+    magic: "NCKSMR01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    initialized: data.readUInt8(11) === 1,
+    tableId: data.readBigUInt64LE(12).toString(),
+    authority: readPubkey(data, 20),
+    recipeCount,
+    createdSlot: data.readBigUInt64LE(54).toString(),
+    updatedSlot: data.readBigUInt64LE(62).toString(),
+    createdAt: data.readBigInt64LE(70).toString(),
+    sampleRecipes: Array.from({ length: 12 }, (_, index) => decodeRecipeRecordSummary(data, 96 + index * 788, index)).filter(Boolean).slice(0, 8),
+  };
+}
+
+function decodeRecipeRecordSummary(data, offset, index) {
+  const recipeId = data.readBigUInt64LE(offset);
+  if (recipeId === 0n) return null;
+  return {
+    index,
+    recipeId: recipeId.toString(),
+    enabled: data.readUInt8(offset + 8) === 1,
+    minHeatTier: data.readUInt8(offset + 9),
+    inputCount: data.readUInt8(offset + 10),
+    outputCount: data.readUInt8(offset + 11),
+    updatedSlot: data.readBigUInt64LE(offset + 780).toString(),
+  };
+}
+
+function decodeMarketListingAccount(data) {
+  assertMagic(data, "NCKMKT01", 216);
+  const currency = data.readUInt8(53) === 2 ? "SOL" : "NCK";
+  const priceBaseUnits = data.readBigUInt64LE(61);
+  const state = data.readUInt8(11);
+  return {
+    magic: "NCKMKT01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    state,
+    stateLabel: state === 1 ? "active" : state === 2 ? "canceled" : state === 3 ? "sold" : "unknown",
+    seller: readPubkey(data, 12),
+    listingId: data.readBigUInt64LE(44).toString(),
+    categoryCode: data.readUInt8(52),
+    currency,
+    sourceKind: data.readUInt8(54) === 2 ? "asset" : "backpack",
+    sourceIndex: data.readUInt16LE(55),
+    quantity: data.readUInt32LE(57),
+    priceBaseUnits: priceBaseUnits.toString(),
+    price: formatMarketBaseUnits(priceBaseUnits, currency),
+    itemHash: Buffer.from(data.subarray(69, 101)).toString("hex"),
+    sourceInventory: readPubkey(data, 101),
+    sourceRecord: { worldX: data.readInt32LE(133), worldY: data.readInt16LE(137), worldZ: data.readInt32LE(139) },
+    createdSlot: data.readBigUInt64LE(143).toString(),
+    updatedSlot: data.readBigUInt64LE(151).toString(),
+    createdAt: data.readBigInt64LE(159).toString(),
+    buyer: readOptionalPubkey(data, 167),
+    soldSlot: data.readBigUInt64LE(199).toString(),
+    soldAt: data.readBigInt64LE(207).toString(),
+  };
+}
+
+function decodeMarketAssetAccount(data) {
+  assertMagic(data, "NCKAST01", 256);
+  const state = data.readUInt8(11);
+  const itemCode = data.readUInt16LE(145);
+  const payloadLength = Math.min(data.readUInt16LE(155), 96);
+  return {
+    magic: "NCKAST01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    state,
+    stateLabel: state === 1 ? "active" : state === 2 ? "listed" : "unknown",
+    owner: readPubkey(data, 12),
+    assetId: data.readBigUInt64LE(44).toString(),
+    categoryCode: data.readUInt8(52),
+    quantity: data.readUInt32LE(53),
+    itemHash: Buffer.from(data.subarray(57, 89)).toString("hex"),
+    listing: readOptionalPubkey(data, 89),
+    createdSlot: data.readBigUInt64LE(121).toString(),
+    updatedSlot: data.readBigUInt64LE(129).toString(),
+    createdAt: data.readBigInt64LE(137).toString(),
+    itemCode,
+    itemId: marketAssetItemId(itemCode, data.subarray(157, 157 + payloadLength)),
+    stackCount: data.readUInt32LE(147),
+    durability: data.readUInt32LE(151),
+    payloadLength,
+    payloadHex: Buffer.from(data.subarray(157, 157 + payloadLength)).toString("hex"),
+  };
+}
+
+function assertMagic(data, magic, expectedLength = null) {
+  if (expectedLength !== null && data.length !== expectedLength) throw new Error(`Invalid ${magic} length.`);
+  if (data.subarray(0, magic.length).toString("utf8") !== magic) throw new Error(`Invalid ${magic} magic.`);
+}
+
+function readPubkey(data, offset) {
+  return new PublicKey(data.subarray(offset, offset + 32)).toBase58();
+}
+
+function readOptionalPubkey(data, offset) {
+  const bytes = data.subarray(offset, offset + 32);
+  return bytes.some((byte) => byte !== 0) ? new PublicKey(bytes).toBase58() : null;
+}
+
+function formatMarketBaseUnits(amount, currency) {
+  const decimals = currency === "SOL" ? 9n : 6n;
+  const divisor = 10n ** decimals;
+  const whole = amount / divisor;
+  const fraction = amount % divisor;
+  const trimmed = fraction.toString().padStart(Number(decimals), "0").replace(/0+$/, "");
+  return `${whole.toString()}${trimmed ? `.${trimmed}` : ""} ${currency}`;
+}
+
+function marketAssetItemId(itemCode, payload) {
+  const known = new Map([
+    [1, "iron_pickaxe"],
+    [2, "dirt"],
+    [3, "stone"],
+    [4, "sand"],
+    [5, "trunk"],
+    [6, "leaves"],
+    [7, "red_flower"],
+    [8, "forged_item"],
+    [9, "backpack_resource"],
+  ]);
+  if (known.has(itemCode)) return known.get(itemCode);
+  if (itemCode !== 65535) return null;
+  return new TextDecoder().decode(payload).replace(/\0+$/, "") || null;
 }
 
 function setupScrollLinks() {

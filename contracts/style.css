@@ -384,7 +384,10 @@ a.directory-row:hover {
 
 .status-pill,
 .code-toggle,
-.source-copy {
+.source-copy,
+.program-view-tab,
+.program-live-action,
+.chain-browser-controls button {
   flex: 0 0 auto;
   padding: 7px 10px;
   border: 1px solid rgba(140, 255, 0, 0.22);
@@ -398,7 +401,10 @@ a.directory-row:hover {
 }
 
 .code-toggle,
-.source-copy {
+.source-copy,
+.program-view-tab,
+.program-live-action,
+.chain-browser-controls button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -410,19 +416,36 @@ a.directory-row:hover {
 
 .code-toggle:hover,
 .source-copy:hover,
-.code-toggle[aria-expanded="true"] {
+.code-toggle[aria-expanded="true"],
+.program-view-tab:hover,
+.program-view-tab.active,
+.program-live-action:hover,
+.chain-browser-controls button:hover {
   border-color: rgba(140, 255, 0, 0.32);
   color: var(--green);
   background: rgba(140, 255, 0, 0.09);
 }
 
-.code-toggle span {
+.code-toggle span,
+.program-view-tab span {
   font-family:
     "SFMono-Regular",
     Consolas,
     "Liberation Mono",
     monospace;
   font-size: 11px;
+}
+
+.program-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.program-view {
+  min-width: 0;
+  margin-top: 22px;
 }
 
 .program-summary {
@@ -506,6 +529,265 @@ a.directory-row:hover {
   border-radius: 999px;
   background: var(--green);
   content: "";
+}
+
+.pda-structure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pda-schema-card,
+.account-card,
+.chain-stat-card {
+  min-width: 0;
+  border: 1px solid rgba(152, 203, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(8, 12, 18, 0.38);
+}
+
+.pda-schema-card {
+  padding: 16px;
+}
+
+.pda-schema-head,
+.account-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pda-schema-head strong,
+.account-card-head strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #f5f9ff;
+  font-size: 15px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pda-schema-head span,
+.account-card-head em {
+  flex: 0 0 auto;
+  color: var(--green);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.pda-schema-card p,
+.program-live-head p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pda-schema-card dl,
+.account-facts {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.36fr) minmax(0, 1fr);
+  gap: 7px 12px;
+  min-width: 0;
+  margin: 14px 0;
+}
+
+.pda-schema-card dt,
+.account-facts dt {
+  color: rgba(218, 231, 238, 0.52);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pda-schema-card dd,
+.account-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--blue);
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pda-schema-card h4 {
+  margin: 14px 0 10px;
+  color: #f5f9ff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.program-live-browser,
+.chain-browser-shell {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.program-live-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.program-live-head strong {
+  color: #f5f9ff;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.program-live-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.program-live-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chain-browser-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.chain-browser-controls label {
+  display: grid;
+  gap: 7px;
+  min-width: min(100%, 320px);
+}
+
+.chain-browser-controls label span {
+  color: rgba(218, 231, 238, 0.6);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chain-browser-controls select {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(152, 203, 255, 0.18);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(8, 12, 18, 0.9);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chain-browser-status {
+  min-height: 22px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chain-browser-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chain-stat-card {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+.chain-stat-card span {
+  overflow: hidden;
+  color: rgba(218, 231, 238, 0.58);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chain-stat-card strong {
+  color: var(--green);
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.chain-browser-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chain-browser-results.compact {
+  grid-template-columns: 1fr;
+}
+
+.account-card {
+  overflow: hidden;
+  padding: 14px;
+}
+
+.account-card-head span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-json {
+  max-height: 260px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid rgba(152, 203, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(232, 241, 255, 0.88);
+  background: rgba(0, 0, 0, 0.24);
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.account-json code {
+  display: block;
+  min-width: max-content;
+}
+
+.chain-empty-state {
+  grid-column: 1 / -1;
+  padding: 18px;
+  border: 1px dashed rgba(152, 203, 255, 0.18);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(8, 12, 18, 0.32);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .developer-grid {
@@ -694,8 +976,14 @@ a.directory-row:hover {
   }
 
   .flow-grid,
-  .program-columns {
+  .program-columns,
+  .pda-structure-grid,
+  .chain-browser-results {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chain-browser-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .directory-row {
@@ -768,7 +1056,10 @@ a.directory-row:hover {
   .flow-grid,
   .program-columns,
   .fact-grid,
-  .developer-grid {
+  .developer-grid,
+  .pda-structure-grid,
+  .chain-browser-stats,
+  .chain-browser-results {
     grid-template-columns: 1fr;
   }
 
@@ -778,6 +1069,29 @@ a.directory-row:hover {
 
   .program-heading-actions {
     justify-content: start;
+  }
+
+  .program-view-tabs,
+  .program-live-head,
+  .program-live-actions {
+    justify-content: start;
+  }
+
+  .program-live-head {
+    display: grid;
+  }
+
+  .pda-schema-card dl,
+  .account-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .pda-schema-card dd,
+  .account-facts dd,
+  .pda-schema-head strong,
+  .account-card-head strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .status-pill {
