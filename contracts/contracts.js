@@ -4,15 +4,6 @@ import { Buffer } from "buffer";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { finishSiteLoading, setSiteLoadingProgress } from "../src/site-ui.js";
 import { createNicechunkRpcFetch, getNicechunkRpcUrl } from "../src/rpcConfig.js";
-import enDictionary from "./locales/en.json";
-import esDictionary from "./locales/es.json";
-import frDictionary from "./locales/fr.json";
-import deDictionary from "./locales/de.json";
-import jaDictionary from "./locales/ja.json";
-import ruDictionary from "./locales/ru.json";
-import koDictionary from "./locales/ko.json";
-import zhHantDictionary from "./locales/zh-Hant.json";
-import zhHansDictionary from "./locales/zh-Hans.json";
 import coreCargo from "../programs/nicechunk_core/Cargo.toml?raw";
 import coreClusterConfig from "../programs/nicechunk_core/src/cluster_config.rs?raw";
 import coreErrors from "../programs/nicechunk_core/src/errors.rs?raw";
@@ -58,18 +49,8 @@ import marketState from "../programs/nicechunk_market/src/state.rs?raw";
 if (!globalThis.Buffer) globalThis.Buffer = Buffer;
 
 const languageStorageKey = "nicechunk.language";
+const buildVersion = typeof __BUILD_VERSION__ === "string" ? __BUILD_VERSION__ : String(Date.now());
 const solanaDevnetRpcUrl = "https://api.devnet.solana.com";
-const dictionaries = {
-  en: enDictionary,
-  es: esDictionary,
-  fr: frDictionary,
-  de: deDictionary,
-  ja: jaDictionary,
-  ru: ruDictionary,
-  ko: koDictionary,
-  "zh-Hant": zhHantDictionary,
-  "zh-Hans": zhHansDictionary,
-};
 const plannedLanguages = [
   { code: "en", englishName: "English", nativeName: "English", enabled: true },
   { code: "es", englishName: "Spanish", nativeName: "Español", enabled: true },
@@ -81,6 +62,8 @@ const plannedLanguages = [
   { code: "zh-Hant", englishName: "Traditional Chinese", nativeName: "Traditional Chinese", enabled: true },
   { code: "zh-Hans", englishName: "Simplified Chinese", nativeName: "Simplified Chinese", enabled: true },
 ];
+const languageCodes = new Set(plannedLanguages.map((language) => language.code));
+const dictionaryCache = new Map();
 const sourceTrees = {
   core: [
     file("programs/nicechunk_core/Cargo.toml", "toml", coreCargo),
@@ -185,14 +168,16 @@ const languageMenu = document.querySelector(".contracts-language-menu");
 const sections = [...document.querySelectorAll("[data-contract-section]")];
 
 let activeLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)) || "en";
-let dictionary = dictionaries[activeLanguage] || dictionaries.en;
+let dictionary = {};
+let fallbackDictionary = {};
 const contractsConnections = new Map();
 let chainBrowserRecords = [];
 
-initContractsPage();
+void initContractsPage();
 
-function initContractsPage() {
+async function initContractsPage() {
   setSiteLoadingProgress(36);
+  dictionary = await loadDictionary(activeLanguage);
   applyTranslations(document);
   renderNavigation();
   renderDirectory();
@@ -232,7 +217,7 @@ function applyTranslations(root) {
 function text(path) {
   const value = path.split(".").reduce((current, part) => (current && Object.hasOwn(current, part) ? current[part] : undefined), dictionary);
   if (value !== undefined) return value;
-  return path.split(".").reduce((current, part) => (current && Object.hasOwn(current, part) ? current[part] : undefined), dictionaries.en) ?? "";
+  return path.split(".").reduce((current, part) => (current && Object.hasOwn(current, part) ? current[part] : undefined), fallbackDictionary) ?? "";
 }
 
 function file(path, language, code) {
@@ -1108,12 +1093,14 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 function programIdForKey(programKey) {
-  const program = dictionary.programs.find((item) => item.codeKey === programKey) ?? dictionaries.en.programs.find((item) => item.codeKey === programKey);
+  const program =
+    dictionary.programs?.find((item) => item.codeKey === programKey)
+    ?? fallbackDictionary.programs?.find((item) => item.codeKey === programKey);
   return program?.programId ? new PublicKey(program.programId) : null;
 }
 
 function typeLabel(typeId) {
-  return dictionary.chainBrowser.types?.[typeId] ?? dictionaries.en.chainBrowser.types?.[typeId] ?? typeId;
+  return dictionary.chainBrowser?.types?.[typeId] ?? fallbackDictionary.chainBrowser?.types?.[typeId] ?? typeId;
 }
 
 function setStatus(element, message) {
@@ -1160,14 +1147,14 @@ function renderLanguageMenu() {
       option.querySelector(".docs-language-option-name").textContent = language.englishName;
       option.querySelector(".docs-language-option-native").textContent = `(${language.nativeName})`;
       option.querySelector(".docs-language-option-status").textContent = language.enabled ? "" : "Coming Soon";
-      option.addEventListener("click", () => {
+      option.addEventListener("click", async () => {
         const nextLanguage = normalizeLanguage(option.dataset.contractsLanguage);
         if (!nextLanguage || nextLanguage === activeLanguage) {
           setLanguageMenuOpen(false);
           return;
         }
         activeLanguage = nextLanguage;
-        dictionary = dictionaries[activeLanguage] || dictionaries.en;
+        dictionary = await loadDictionary(activeLanguage);
         localStorage.setItem(languageStorageKey, activeLanguage);
         applyTranslations(document);
         renderNavigation();
@@ -1201,6 +1188,20 @@ function updateLanguagePicker() {
 function setLanguageMenuOpen(open) {
   languagePicker?.classList.toggle("open", open);
   languageTrigger?.setAttribute("aria-expanded", String(open));
+}
+
+async function loadDictionary(language) {
+  const normalized = normalizeLanguage(language);
+  if (dictionaryCache.has(normalized)) return dictionaryCache.get(normalized);
+  const response = await fetch(`/contracts/locales/${normalized}.json?v=${encodeURIComponent(buildVersion)}`, { cache: "no-store" });
+  if (!response.ok) {
+    if (normalized !== "en") return loadDictionary("en");
+    return {};
+  }
+  const nextDictionary = await response.json();
+  dictionaryCache.set(normalized, nextDictionary);
+  if (normalized === "en") fallbackDictionary = nextDictionary;
+  return nextDictionary;
 }
 
 function decodeGlobalConfigAccount(data) {
@@ -1600,5 +1601,8 @@ function setupSectionObserver() {
 function normalizeLanguage(language) {
   if (!language) return "en";
   if (language === "zh" || language === "zh-CN" || language === "zh-Hans") return "zh-Hans";
-  return dictionaries[language] ? language : "en";
+  if (language === "zh-TW" || language === "zh-HK" || language === "zh-MO") return "zh-Hant";
+  if (languageCodes.has(language)) return language;
+  const base = language.split("-")[0];
+  return languageCodes.has(base) ? base : "en";
 }
