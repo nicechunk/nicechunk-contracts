@@ -106,13 +106,14 @@
     "pdaSeeds": "PDA Seeds",
     "storage": "儲存資料",
     "notes": "對接說明",
-    "viewCode": "代码",
-    "sourceTree": "原始碼樹",
-    "copyCode": "复制",
-    "copied": "已复制",
-    "viewPda": "PDA 结构",
-    "viewLive": "链上 PDA",
-    "fields": "字段"
+    "viewCode": "程式碼",
+    "sourceTree": "源碼樹",
+    "copyCode": "複製",
+    "copied": "已複製",
+    "viewPda": "PDA 結構",
+    "viewLive": "鏈上 PDA",
+    "fields": "欄位",
+    "copyAddress": "複製地址"
   },
   "navigation": [
     {
@@ -126,6 +127,10 @@
     {
       "id": "integration-flow",
       "label": "当前流程"
+    },
+    {
+      "id": "transparency-ledger",
+      "label": "透明帳本"
     },
     {
       "id": "nicechunk-core",
@@ -161,7 +166,7 @@
     },
     {
       "id": "chain-pda-browser",
-      "label": "链上 PDA 浏览器"
+      "label": "鏈上 PDA 瀏覽器"
     }
   ],
   "programs": [
@@ -608,24 +613,24 @@
     }
   ],
   "chainBrowser": {
-    "eyebrow": "链上 PDA 浏览器",
+    "eyebrow": "鏈上 PDA 瀏覽器",
     "title": "直接从 RPC 读取公开开发网状态。",
-    "body": "扫描 NiceChunk 程序账户，解码已知 PDA 布局，查看玩家、背包、熔炼配方、市场挂单、Guardian 区域和 Chunk 变化，不依赖私有数据库。",
+    "body": "掃描 NiceChunk 程式帳戶，解碼已知 PDA 佈局，查看玩家、背包、熔煉配方、市場掛單、Guardian 區域和 Chunk 變化，不依賴私有資料庫。",
     "typeLabel": "PDA 分组",
     "refresh": "刷新",
     "ready": "选择一个 PDA 分组并刷新，即可读取公开开发网状态。",
     "loadingAll": "正在从开发网 RPC 扫描所有已知 NiceChunk PDA 分组...",
     "loadingType": "正在从开发网 RPC 扫描 {type}...",
-    "loaded": "已加载 {count} 个可解码 PDA 账户。",
-    "loadedType": "已加载 {count} 个 {type} 账户。",
+    "loaded": "已載入 {count} 個可解碼 PDA 帳戶。",
+    "loadedType": "已載入 {count} 個 {type} 帳戶。",
     "error": "RPC 扫描失败：{message}",
-    "empty": "这个分组暂时没有可解码账户。",
-    "total": "已解码总数",
+    "empty": "這個分組暫時沒有可解碼帳戶。",
+    "total": "已解碼總數",
     "program": "程序",
     "lamports": "Lamports",
     "scanFailed": "扫描失败",
-    "programTitle": "实时账户扫描",
-    "programBody": "读取这个程序拥有的公开 PDA 账户。扫描是只读操作，使用当前配置的 Solana RPC 端点。",
+    "programTitle": "即時帳戶掃描",
+    "programBody": "讀取這個程式擁有的公開 PDA 帳戶。掃描是唯讀操作，使用目前配置的 Solana RPC 端點。",
     "programPrompt": "选择这个程序的一个 PDA 分组。",
     "noKnownTypes": "这个程序暂时没有已知数据 PDA 分组。",
     "types": {
@@ -640,7 +645,8 @@
       "backpack": "Backpack",
       "recipe-table": "RecipeTable",
       "market-listing": "MarketplaceListing",
-      "market-asset": "MarketAsset"
+      "market-asset": "MarketAsset",
+      "forged-items": "鍛造物品記錄"
     },
     "summary": {
       "owner": "Owner",
@@ -667,8 +673,194 @@
       "world": "世界",
       "seed": "种子",
       "nckMint": "NCK mint",
-      "minY": "最低 Y"
+      "minY": "最低 Y",
+      "source": "來源",
+      "forgedItems": "鍛造物品"
     },
-    "timeout": "RPC 请求超时，请稍后重试或切换更稳定的 RPC。"
+    "timeout": "RPC 请求超时，请稍后重试或切换更稳定的 RPC。",
+    "searchLabel": "搜尋",
+    "searchPlaceholder": "按地址、擁有者、物品或解碼 JSON 篩選",
+    "filtered": "正在顯示 {shown}/{total} 個已解碼帳戶。",
+    "visibleLabel": "可見資料",
+    "trustLabel": "信任價值",
+    "quickTypes": [
+      "player-profile",
+      "backpack",
+      "forged-items",
+      "recipe-table",
+      "guardian-region",
+      "market-listing"
+    ],
+    "typeInfo": {
+      "all": {
+        "title": "全部已知 PDA 分組",
+        "body": "掃描本頁可解碼的每個 NiceChunk 帳戶家族。這是公開 RPC 讀取，不是後端匯出。",
+        "visible": "程式擁有者、PDA 地址、解碼後的頭部欄位，以及有邊界帳戶資料中的安全樣本。",
+        "trust": "玩家可以在一個畫面中對比官網、源碼、PDA 佈局和開發網即時狀態。"
+      },
+      "global-config": {
+        "title": "GlobalConfig",
+        "body": "目前開發網世界的不可變創世配置。",
+        "visible": "NCK mint、世界 ID、世界種子雜湊材料、配置雜湊、Chunk 限制和守護者參數。",
+        "trust": "證明世界種子、資源配置或核心限制不是由私有伺服器偷偷改變。"
+      },
+      "player-profile": {
+        "title": "PlayerProfile",
+        "body": "錢包擁有的公開玩家身份狀態。",
+        "visible": "Owner 錢包、位置、屬性、裝備摘要、已裝備背包指標和更新 slot。",
+        "trust": "玩家可以看到有哪些身份存在，以及每個公開檔案指向哪個背包。"
+      },
+      "player-session": {
+        "title": "PlayerSession",
+        "body": "用於減少連續玩法操作錢包彈窗的短期 authority。",
+        "visible": "Owner、session authority、允許動作標記、過期時間、最大動作數和已用動作數。",
+        "trust": "證明 session 權限是有邊界的，而不是無限制隱藏操作鑰匙。"
+      },
+      "chunk-broken": {
+        "title": "ChunkBrokenState",
+        "body": "每個 Chunk 中玩家已經破壞方塊的壓縮記錄。",
+        "visible": "版本、容量、minY、數量，以及 packed broken-block 記錄樣本。",
+        "trust": "在不把完整地形上鏈的情況下，讓挖礦地形變化可審計。"
+      },
+      "resource-drop-table": {
+        "title": "ResourceDropTable",
+        "body": "挖礦獎勵使用的有邊界資源掉落規則表。",
+        "visible": "來源方塊、掉落方塊、機率基點、海拔/深度範圍和 salt。",
+        "trust": "玩家可以檢查掉落規則，而不是信任黑箱獎勵邏輯。"
+      },
+      "guardian-registry": {
+        "title": "GuardianRegistry",
+        "body": "即時服務覆蓋的全域註冊表。",
+        "visible": "國庫 token、活躍數量、註冊總數、質押金額、懲罰金額和區域大小。",
+        "trust": "證明服務經濟和覆蓋規則是公開 PDA 資料。"
+      },
+      "guardian-region": {
+        "title": "GuardianRegion",
+        "body": "已註冊即時區域端點和證明狀態。",
+        "visible": "區域邊界、擁有者、操作者、端點、TLS 標記、質押、懲罰和證明計數。",
+        "trust": "玩家可以驗證誰在服務某個區域，以及是否持續提交存活證明。"
+      },
+      "backpack": {
+        "title": "Backpack",
+        "body": "玩家擁有的庫存 PDA，用於方塊資源、材料槽和物品引用。",
+        "visible": "擁有者、背包 ID、容量、物品數量、放置位置、更新 slot 和安全樣本槽位。",
+        "trust": "庫存可以從公開帳戶資料檢查，而不是只能相信遊戲 UI。"
+      },
+      "recipe-table": {
+        "title": "RecipeTable",
+        "body": "Smelting 程式使用的 authority-owned 熔煉配方表。",
+        "visible": "Authority、配方數量、更新 slot、熱量等級、輸入數量、輸出數量和 recipe ID。",
+        "trust": "玩家在消耗背包資源前，可以檢查哪些配方真實存在。"
+      },
+      "market-listing": {
+        "title": "MarketplaceListing",
+        "body": "背包資源或市場資產的公開掛單狀態。",
+        "visible": "賣家、掛單 ID、類別、幣種、來源類型、數量、價格、買家和最終狀態。",
+        "trust": "市場託管和結算可以被審計，不需要信任私有訂單簿。"
+      },
+      "market-asset": {
+        "title": "MarketAsset",
+        "body": "裝備、材料、服裝或物品 payload 的可交易資產帳戶。",
+        "visible": "擁有者、資產 ID、狀態、類別、數量、物品雜湊、關聯掛單、item code 和有邊界 payload。",
+        "trust": "資產有明確擁有者和掛單狀態，購買前可以核驗。"
+      },
+      "forged-items": {
+        "title": "鍛造物品記錄",
+        "body": "一個便利掃描，會從已上線的 Backpack 和 MarketAsset 帳戶中找出鍛造產物。",
+        "visible": "來源帳戶類型、擁有者、背包或資產身份、鍛造樣本槽、item code、item ID，以及可用 payload。",
+        "trust": "透過真實帳戶資料展示鍛造結果，同時誠實說明獨立鍛造 PDA 家族尚未上線。"
+      }
+    }
+  },
+  "transparency": {
+    "eyebrow": "透明帳本",
+    "title": "玩家可以從合約程式碼一路審計到公開 PDA 狀態。",
+    "body": "NiceChunk 把公開狀態當成遊戲介面的一部分。玩家應該能檢查有哪些玩家、哪些背包和資產、哪些配方正在生效、哪些區域正在提供即時服務，以及哪些規則或帳戶仍處於規劃階段。",
+    "cards": [
+      {
+        "kicker": "身份",
+        "title": "玩家是公開帳戶記錄，不是私有資料庫裡的隱藏列。",
+        "body": "PlayerProfile 和 PlayerSession PDA 會公開錢包、位置、已裝備背包指標、session authority，以及客戶端被允許使用的邊界。",
+        "points": [
+          "錢包歸屬可見。",
+          "Session 限制可檢查。",
+          "已裝備背包連結公開。"
+        ]
+      },
+      {
+        "kicker": "庫存",
+        "title": "背包和市場資產都是可讀取的儲存物件。",
+        "body": "Backpack、MarketplaceListing 和 MarketAsset 帳戶會顯示物品數量、擁有者、狀態、價格和安全樣本 payload，方便玩家審計庫存流轉。",
+        "points": [
+          "背包歸屬明確。",
+          "掛單展示託管狀態。",
+          "鍛造物品透過 item slot 或 asset payload 顯示。"
+        ]
+      },
+      {
+        "kicker": "世界",
+        "title": "地形和挖礦狀態綁定到可驗證的世界配置。",
+        "body": "GlobalConfig 固定世界種子和配置雜湊，ChunkBrokenState 與 ResourceDropTable 公開哪些方塊被挖過、以及哪些額外掉落規則存在。",
+        "points": [
+          "世界種子和雜湊公開。",
+          "破壞方塊記錄壓縮但可讀。",
+          "掉落表是有邊界的 PDA 資料。"
+        ]
+      },
+      {
+        "kicker": "文明",
+        "title": "治理在變得強大之前必須先可見。",
+        "body": "目前合約公開了未來文明規則必須綁定的表面：配方表、資源規則、守護者、市場策略和玩家資產。",
+        "points": [
+          "已上線表面和規劃中能力分開說明。",
+          "配置變化應該指向 PDA 資料。",
+          "舊玩家資產需要更強保護。"
+        ]
+      }
+    ],
+    "map": [
+      {
+        "surface": "玩家",
+        "status": "已上線 PDA",
+        "audit": "讀取 PlayerProfile 帳戶，可查看錢包、位置、裝備槽和已裝備背包指標。",
+        "typeId": "player-profile",
+        "action": "查看玩家"
+      },
+      {
+        "surface": "背包",
+        "status": "已上線 PDA",
+        "audit": "讀取 Backpack 帳戶，可檢查擁有者、容量、物品數量、方塊資源和 item/material 槽位。",
+        "typeId": "backpack",
+        "action": "查看背包"
+      },
+      {
+        "surface": "鍛造產物",
+        "status": "聚合 PDA 檢視",
+        "audit": "從 Backpack item slots 和 MarketAsset payload 中讀取鍛造記錄，不虛構一個尚未上線的獨立鍛造程式。",
+        "typeId": "forged-items",
+        "action": "查看鍛造"
+      },
+      {
+        "surface": "熔煉配方",
+        "status": "已上線 PDA",
+        "audit": "讀取 RecipeTable 帳戶，可檢查配方表、熱量等級、輸入數量、輸出數量和更新 slot。",
+        "typeId": "recipe-table",
+        "action": "查看配方"
+      },
+      {
+        "surface": "守護者服務",
+        "status": "已上線 PDA",
+        "audit": "讀取 GuardianRegion 和 GuardianRegistry 帳戶，可審計即時區域擁有者、端點、質押、證明次數和懲罰。",
+        "typeId": "guardian-region",
+        "action": "查看守護者"
+      },
+      {
+        "surface": "市場結算",
+        "status": "已上線 PDA",
+        "audit": "讀取 Listing 和 MarketAsset，可檢查賣家、買家、價格、幣種、託管來源、狀態和結算 slot。",
+        "typeId": "market-listing",
+        "action": "查看市場"
+      }
+    ]
   }
 }

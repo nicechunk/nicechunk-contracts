@@ -112,7 +112,8 @@
     "copied": "Скопировано",
     "viewPda": "PDA Structure",
     "viewLive": "Live PDAs",
-    "fields": "Fields"
+    "fields": "Fields",
+    "copyAddress": "Copy address"
   },
   "navigation": [
     {
@@ -126,6 +127,10 @@
     {
       "id": "integration-flow",
       "label": "Live Flow"
+    },
+    {
+      "id": "transparency-ledger",
+      "label": "Transparency"
     },
     {
       "id": "nicechunk-core",
@@ -640,7 +645,8 @@
       "backpack": "Backpack",
       "recipe-table": "RecipeTable",
       "market-listing": "MarketplaceListing",
-      "market-asset": "MarketAsset"
+      "market-asset": "MarketAsset",
+      "forged-items": "Forged item records"
     },
     "summary": {
       "owner": "Owner",
@@ -667,8 +673,194 @@
       "world": "World",
       "seed": "Seed",
       "nckMint": "NCK mint",
-      "minY": "Min Y"
+      "minY": "Min Y",
+      "source": "Source",
+      "forgedItems": "Forged items"
     },
-    "timeout": "RPC request timed out. Try again later or switch to a more stable RPC endpoint."
+    "timeout": "RPC request timed out. Try again later or switch to a more stable RPC endpoint.",
+    "searchLabel": "Search",
+    "searchPlaceholder": "Filter by address, owner, item, or decoded JSON",
+    "filtered": "Showing {shown} of {total} decoded accounts.",
+    "visibleLabel": "Visible data",
+    "trustLabel": "Trust value",
+    "quickTypes": [
+      "player-profile",
+      "backpack",
+      "forged-items",
+      "recipe-table",
+      "guardian-region",
+      "market-listing"
+    ],
+    "typeInfo": {
+      "all": {
+        "title": "All known PDA groups",
+        "body": "Scans each decoded NiceChunk account family exposed by this page. This is a public RPC read, not a backend export.",
+        "visible": "Program owner, PDA address, decoded header fields, and safe samples from bounded account data.",
+        "trust": "Lets players compare the website, source code, PDA layout, and live devnet state from one screen."
+      },
+      "global-config": {
+        "title": "GlobalConfig",
+        "body": "The immutable genesis configuration for this devnet world.",
+        "visible": "NCK mint, world ID, world seed hash material, config hashes, chunk limits, and guardian parameters.",
+        "trust": "Shows the world is not secretly changing seed, resource config, or core limits from a private server."
+      },
+      "player-profile": {
+        "title": "PlayerProfile",
+        "body": "Wallet-owned public player identity state.",
+        "visible": "Owner wallet, position, attributes, equipment summary, equipped backpack pointer, and update slots.",
+        "trust": "Players can see which identities exist and which backpack each public profile points to."
+      },
+      "player-session": {
+        "title": "PlayerSession",
+        "body": "Short-lived authority used to reduce repeated wallet prompts during allowed gameplay actions.",
+        "visible": "Owner, session authority, allowed action flags, expiration, max actions, and used action count.",
+        "trust": "Shows that session power is bounded instead of an unlimited hidden operator key."
+      },
+      "chunk-broken": {
+        "title": "ChunkBrokenState",
+        "body": "Compact per-chunk mining record for blocks that players have already broken.",
+        "visible": "Version, capacity, minY, count, and sample packed broken-block records.",
+        "trust": "Makes mined terrain changes auditable without storing full terrain on-chain."
+      },
+      "resource-drop-table": {
+        "title": "ResourceDropTable",
+        "body": "Bounded resource drop rule table used by mining rewards.",
+        "visible": "Source block, drop block, chance basis points, altitude/depth bounds, and salt.",
+        "trust": "Lets players inspect drop rules instead of trusting opaque reward logic."
+      },
+      "guardian-registry": {
+        "title": "GuardianRegistry",
+        "body": "Global registry for realtime service coverage.",
+        "visible": "Treasury token, active count, registrations, stake amount, slash amount, and region size.",
+        "trust": "Shows service economics and coverage rules are public PDA data."
+      },
+      "guardian-region": {
+        "title": "GuardianRegion",
+        "body": "Registered realtime region endpoint and proof state.",
+        "visible": "Region bounds, owner, operator, endpoint, TLS flag, stake, penalties, and proof counters.",
+        "trust": "Players can verify who serves a region and whether liveness proofs are being submitted."
+      },
+      "backpack": {
+        "title": "Backpack",
+        "body": "Player-owned inventory PDA for block resources, material slots, and item references.",
+        "visible": "Owner, backpack ID, capacity, item count, placement, update slots, and safe sample slots.",
+        "trust": "Inventory is inspectable from public account data instead of only from the game UI."
+      },
+      "recipe-table": {
+        "title": "RecipeTable",
+        "body": "Authority-owned smelting recipe table used by the smelting program.",
+        "visible": "Authority, recipe count, update slot, heat tiers, input counts, output counts, and recipe IDs.",
+        "trust": "Players can inspect which recipes exist before spending backpack resources."
+      },
+      "market-listing": {
+        "title": "MarketplaceListing",
+        "body": "Public listing state for backpack resources or market assets.",
+        "visible": "Seller, listing ID, category, currency, source kind, quantity, price, buyer, and final state.",
+        "trust": "Market escrow and settlement can be audited without trusting a private order book."
+      },
+      "market-asset": {
+        "title": "MarketAsset",
+        "body": "Owned tradable asset account for equipment, materials, clothing, or item payloads.",
+        "visible": "Owner, asset ID, state, category, quantity, item hash, linked listing, item code, and bounded payload.",
+        "trust": "Assets have explicit owners and listing state that can be checked before purchase."
+      },
+      "forged-items": {
+        "title": "Forged item records",
+        "body": "A convenience scan that finds forged outputs inside live Backpack and MarketAsset accounts.",
+        "visible": "Source account type, owner, backpack or asset identity, forged sample slots, item code, item ID, and payload where available.",
+        "trust": "Shows forged results through real account data while staying honest that a dedicated forging PDA family is not yet live."
+      }
+    }
+  },
+  "transparency": {
+    "eyebrow": "Transparency Ledger",
+    "title": "Players can audit the world from contract code to public PDA state.",
+    "body": "NiceChunk treats public state as part of the game interface. Players should be able to inspect who exists, which backpacks and assets exist, what recipes are active, which regions serve realtime play, and which rules or accounts are still only planned.",
+    "cards": [
+      {
+        "kicker": "Identity",
+        "title": "Players are public account records, not hidden rows in a private database.",
+        "body": "PlayerProfile and PlayerSession PDAs expose the wallet, position, equipped backpack pointer, session authority, and limits that the client is allowed to use.",
+        "points": [
+          "Wallet ownership is visible.",
+          "Session limits are inspectable.",
+          "Equipped backpack links are public."
+        ]
+      },
+      {
+        "kicker": "Inventory",
+        "title": "Backpacks and market assets are readable storage objects.",
+        "body": "Backpack, MarketplaceListing, and MarketAsset accounts show item counts, owners, states, prices, and sample item payloads so players can audit inventory movement.",
+        "points": [
+          "Backpack ownership is explicit.",
+          "Listings expose escrow state.",
+          "Forged items surface through item slots or asset payloads."
+        ]
+      },
+      {
+        "kicker": "World",
+        "title": "Terrain and mining state are tied to verifiable world config.",
+        "body": "GlobalConfig fixes the world seed and config hashes, while ChunkBrokenState and ResourceDropTable expose what has been mined and which extra-drop rules exist.",
+        "points": [
+          "World seed and hashes are public.",
+          "Broken-block records are compact but readable.",
+          "Drop tables are bounded PDA data."
+        ]
+      },
+      {
+        "kicker": "Civilization",
+        "title": "Governance should be visible before it becomes powerful.",
+        "body": "The current contracts expose the surfaces that future civilization rules must bind to: recipe tables, resource rules, guardians, market policy, and player-owned assets.",
+        "points": [
+          "Live surfaces are separated from planned ones.",
+          "Configuration changes should target PDA data.",
+          "Old player assets need stronger protection."
+        ]
+      }
+    ],
+    "map": [
+      {
+        "surface": "Players",
+        "status": "Live PDA",
+        "audit": "Read PlayerProfile accounts to see wallets, positions, equipment slots, and equipped backpack pointers.",
+        "typeId": "player-profile",
+        "action": "View players"
+      },
+      {
+        "surface": "Backpacks",
+        "status": "Live PDA",
+        "audit": "Read Backpack accounts to inspect owners, capacity, item counts, block resources, and item/material slots.",
+        "typeId": "backpack",
+        "action": "View backpacks"
+      },
+      {
+        "surface": "Forged outputs",
+        "status": "Aggregated PDA view",
+        "audit": "Read forged records from Backpack item slots and MarketAsset payloads without inventing a separate live forging program.",
+        "typeId": "forged-items",
+        "action": "View forged items"
+      },
+      {
+        "surface": "Smelting recipes",
+        "status": "Live PDA",
+        "audit": "Read RecipeTable accounts to inspect active recipe tables, heat tiers, input counts, output counts, and update slots.",
+        "typeId": "recipe-table",
+        "action": "View recipes"
+      },
+      {
+        "surface": "Guardian service",
+        "status": "Live PDA",
+        "audit": "Read GuardianRegion and GuardianRegistry accounts to audit realtime region owners, endpoints, stake, proof counts, and penalties.",
+        "typeId": "guardian-region",
+        "action": "View guardians"
+      },
+      {
+        "surface": "Market settlement",
+        "status": "Live PDA",
+        "audit": "Read listings and market assets to inspect seller, buyer, price, currency, escrow source, state, and settlement slots.",
+        "typeId": "market-listing",
+        "action": "View market"
+      }
+    ]
   }
 }

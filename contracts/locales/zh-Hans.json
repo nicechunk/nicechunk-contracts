@@ -112,7 +112,8 @@
     "copied": "已复制",
     "viewPda": "PDA 结构",
     "viewLive": "链上 PDA",
-    "fields": "字段"
+    "fields": "字段",
+    "copyAddress": "复制地址"
   },
   "navigation": [
     {
@@ -126,6 +127,10 @@
     {
       "id": "integration-flow",
       "label": "当前流程"
+    },
+    {
+      "id": "transparency-ledger",
+      "label": "透明账本"
     },
     {
       "id": "nicechunk-core",
@@ -640,7 +645,8 @@
       "backpack": "Backpack",
       "recipe-table": "RecipeTable",
       "market-listing": "MarketplaceListing",
-      "market-asset": "MarketAsset"
+      "market-asset": "MarketAsset",
+      "forged-items": "锻造物品记录"
     },
     "summary": {
       "owner": "Owner",
@@ -667,8 +673,194 @@
       "world": "世界",
       "seed": "种子",
       "nckMint": "NCK mint",
-      "minY": "最低 Y"
+      "minY": "最低 Y",
+      "source": "来源",
+      "forgedItems": "锻造物品"
     },
-    "timeout": "RPC 请求超时，请稍后重试或切换更稳定的 RPC。"
+    "timeout": "RPC 请求超时，请稍后重试或切换更稳定的 RPC。",
+    "searchLabel": "搜索",
+    "searchPlaceholder": "按地址、拥有者、物品或解码 JSON 过滤",
+    "filtered": "正在显示 {shown}/{total} 个已解码账户。",
+    "visibleLabel": "可见数据",
+    "trustLabel": "信任价值",
+    "quickTypes": [
+      "player-profile",
+      "backpack",
+      "forged-items",
+      "recipe-table",
+      "guardian-region",
+      "market-listing"
+    ],
+    "typeInfo": {
+      "all": {
+        "title": "全部已知 PDA 分组",
+        "body": "扫描本页可解码的每个 NiceChunk 账户家族。这是公开 RPC 读取，不是后端导出。",
+        "visible": "程序拥有者、PDA 地址、解码后的头部字段，以及有边界账户数据中的安全样本。",
+        "trust": "玩家可以在一个屏幕中对比官网、源码、PDA 布局和开发网实时状态。"
+      },
+      "global-config": {
+        "title": "GlobalConfig",
+        "body": "当前开发网世界的不可变创世配置。",
+        "visible": "NCK mint、世界 ID、世界种子哈希材料、配置哈希、Chunk 限制和守护者参数。",
+        "trust": "证明世界种子、资源配置或核心限制不是由私有服务器偷偷改变。"
+      },
+      "player-profile": {
+        "title": "PlayerProfile",
+        "body": "钱包拥有的公开玩家身份状态。",
+        "visible": "Owner 钱包、位置、属性、装备摘要、已装备背包指针和更新 slot。",
+        "trust": "玩家可以看到有哪些身份存在，以及每个公开档案指向哪个背包。"
+      },
+      "player-session": {
+        "title": "PlayerSession",
+        "body": "用于减少连续玩法操作钱包弹窗的短期 authority。",
+        "visible": "Owner、session authority、允许动作标记、过期时间、最大动作数和已用动作数。",
+        "trust": "证明 session 权限是有边界的，而不是无限制隐藏操作钥匙。"
+      },
+      "chunk-broken": {
+        "title": "ChunkBrokenState",
+        "body": "每个 Chunk 中玩家已经破坏方块的压缩记录。",
+        "visible": "版本、容量、minY、数量，以及 packed broken-block 记录样本。",
+        "trust": "在不把完整地形上链的情况下，让挖矿地形变化可审计。"
+      },
+      "resource-drop-table": {
+        "title": "ResourceDropTable",
+        "body": "挖矿奖励使用的有边界资源掉落规则表。",
+        "visible": "来源方块、掉落方块、概率基点、海拔/深度范围和 salt。",
+        "trust": "玩家可以检查掉落规则，而不是信任黑箱奖励逻辑。"
+      },
+      "guardian-registry": {
+        "title": "GuardianRegistry",
+        "body": "实时服务覆盖的全局注册表。",
+        "visible": "国库 token、活跃数量、注册总数、质押金额、惩罚金额和区域大小。",
+        "trust": "证明服务经济和覆盖规则是公开 PDA 数据。"
+      },
+      "guardian-region": {
+        "title": "GuardianRegion",
+        "body": "已注册实时区域端点和证明状态。",
+        "visible": "区域边界、拥有者、操作者、端点、TLS 标记、质押、惩罚和证明计数。",
+        "trust": "玩家可以验证谁在服务某个区域，以及是否持续提交存活证明。"
+      },
+      "backpack": {
+        "title": "Backpack",
+        "body": "玩家拥有的库存 PDA，用于方块资源、材料槽和物品引用。",
+        "visible": "拥有者、背包 ID、容量、物品数量、放置位置、更新 slot 和安全样本槽位。",
+        "trust": "库存可以从公开账户数据检查，而不是只能相信游戏 UI。"
+      },
+      "recipe-table": {
+        "title": "RecipeTable",
+        "body": "Smelting 程序使用的 authority-owned 熔炼配方表。",
+        "visible": "Authority、配方数量、更新 slot、热量等级、输入数量、输出数量和 recipe ID。",
+        "trust": "玩家在消耗背包资源前，可以检查哪些配方真实存在。"
+      },
+      "market-listing": {
+        "title": "MarketplaceListing",
+        "body": "背包资源或市场资产的公开挂单状态。",
+        "visible": "卖家、挂单 ID、类别、币种、来源类型、数量、价格、买家和最终状态。",
+        "trust": "市场托管和结算可以被审计，不需要信任私有订单簿。"
+      },
+      "market-asset": {
+        "title": "MarketAsset",
+        "body": "装备、材料、服装或物品 payload 的可交易资产账户。",
+        "visible": "拥有者、资产 ID、状态、类别、数量、物品哈希、关联挂单、item code 和有边界 payload。",
+        "trust": "资产有明确拥有者和挂单状态，购买前可以核验。"
+      },
+      "forged-items": {
+        "title": "锻造物品记录",
+        "body": "一个便利扫描，会从已上线的 Backpack 和 MarketAsset 账户中找出锻造产物。",
+        "visible": "来源账户类型、拥有者、背包或资产身份、锻造样本槽、item code、item ID，以及可用 payload。",
+        "trust": "通过真实账户数据展示锻造结果，同时诚实说明独立锻造 PDA 家族尚未上线。"
+      }
+    }
+  },
+  "transparency": {
+    "eyebrow": "透明账本",
+    "title": "玩家可以从合约代码一直审计到公开 PDA 状态。",
+    "body": "NiceChunk 把公开状态当成游戏界面的一部分。玩家应该能检查有哪些玩家、哪些背包和资产、哪些配方正在生效、哪些区域正在提供实时服务，以及哪些规则或账户仍处于规划阶段。",
+    "cards": [
+      {
+        "kicker": "身份",
+        "title": "玩家是公开账户记录，不是私有数据库里的隐藏行。",
+        "body": "PlayerProfile 和 PlayerSession PDA 会公开钱包、位置、已装备背包指针、session authority，以及客户端被允许使用的边界。",
+        "points": [
+          "钱包归属可见。",
+          "Session 限制可检查。",
+          "已装备背包链接公开。"
+        ]
+      },
+      {
+        "kicker": "库存",
+        "title": "背包和市场资产都是可读取的存储对象。",
+        "body": "Backpack、MarketplaceListing 和 MarketAsset 账户会显示物品数量、拥有者、状态、价格和安全样本 payload，方便玩家审计库存流转。",
+        "points": [
+          "背包归属明确。",
+          "挂单展示托管状态。",
+          "锻造物品通过 item slot 或 asset payload 显示。"
+        ]
+      },
+      {
+        "kicker": "世界",
+        "title": "地形和挖矿状态绑定到可验证的世界配置。",
+        "body": "GlobalConfig 固定世界种子和配置哈希，ChunkBrokenState 与 ResourceDropTable 公开哪些方块被挖过、以及哪些额外掉落规则存在。",
+        "points": [
+          "世界种子和哈希公开。",
+          "破坏方块记录压缩但可读。",
+          "掉落表是有边界的 PDA 数据。"
+        ]
+      },
+      {
+        "kicker": "文明",
+        "title": "治理在变得强大之前必须先可见。",
+        "body": "当前合约公开了未来文明规则必须绑定的表面：配方表、资源规则、守护者、市场策略和玩家资产。",
+        "points": [
+          "已上线表面和规划中能力分开说明。",
+          "配置变化应该指向 PDA 数据。",
+          "旧玩家资产需要更强保护。"
+        ]
+      }
+    ],
+    "map": [
+      {
+        "surface": "玩家",
+        "status": "已上线 PDA",
+        "audit": "读取 PlayerProfile 账户，可查看钱包、位置、装备槽和已装备背包指针。",
+        "typeId": "player-profile",
+        "action": "查看玩家"
+      },
+      {
+        "surface": "背包",
+        "status": "已上线 PDA",
+        "audit": "读取 Backpack 账户，可检查拥有者、容量、物品数量、方块资源和 item/material 槽位。",
+        "typeId": "backpack",
+        "action": "查看背包"
+      },
+      {
+        "surface": "锻造产物",
+        "status": "聚合 PDA 视图",
+        "audit": "从 Backpack item slots 和 MarketAsset payload 中读取锻造记录，不虚构一个尚未上线的独立锻造程序。",
+        "typeId": "forged-items",
+        "action": "查看锻造"
+      },
+      {
+        "surface": "熔炼配方",
+        "status": "已上线 PDA",
+        "audit": "读取 RecipeTable 账户，可检查配方表、热量等级、输入数量、输出数量和更新 slot。",
+        "typeId": "recipe-table",
+        "action": "查看配方"
+      },
+      {
+        "surface": "守护者服务",
+        "status": "已上线 PDA",
+        "audit": "读取 GuardianRegion 和 GuardianRegistry 账户，可审计实时区域拥有者、端点、质押、证明次数和惩罚。",
+        "typeId": "guardian-region",
+        "action": "查看守护者"
+      },
+      {
+        "surface": "市场结算",
+        "status": "已上线 PDA",
+        "audit": "读取 Listing 和 MarketAsset，可检查卖家、买家、价格、币种、托管来源、状态和结算 slot。",
+        "typeId": "market-listing",
+        "action": "查看市场"
+      }
+    ]
   }
 }

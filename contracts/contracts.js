@@ -152,6 +152,7 @@ const pdaAccountTypes = [
   { id: "recipe-table", programKey: "smelting", sizes: [9552], decoder: decodeRecipeTableAccount },
   { id: "market-listing", programKey: "market", sizes: [216], decoder: decodeMarketListingAccount },
   { id: "market-asset", programKey: "market", sizes: [256], decoder: decodeMarketAssetAccount },
+  { id: "forged-items", programKey: null, sizes: [], decoder: null, virtual: true },
 ];
 
 const programAccountTypeMap = new Map();
@@ -164,11 +165,16 @@ for (const type of pdaAccountTypes) {
 const contractsNav = document.querySelector("#contractsNav");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
+const transparencyGrid = document.querySelector("#transparencyGrid");
+const transparencyMap = document.querySelector("#transparencyMap");
 const programDetails = document.querySelector("#programDetails");
 const programIdsCode = document.querySelector("#programIdsCode");
 const pdaCode = document.querySelector("#pdaCode");
 const chainBrowserType = document.querySelector("#chainBrowserType");
+const chainBrowserSearch = document.querySelector("#chainBrowserSearch");
 const chainBrowserRefresh = document.querySelector("#chainBrowserRefresh");
+const chainBrowserQuickLinks = document.querySelector("#chainBrowserQuickLinks");
+const chainBrowserInfo = document.querySelector("#chainBrowserInfo");
 const chainBrowserStatus = document.querySelector("#chainBrowserStatus");
 const chainBrowserStats = document.querySelector("#chainBrowserStats");
 const chainBrowserResults = document.querySelector("#chainBrowserResults");
@@ -181,6 +187,7 @@ const sections = [...document.querySelectorAll("[data-contract-section]")];
 let activeLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)) || "en";
 let dictionary = dictionaries[activeLanguage] || dictionaries.en;
 const contractsConnections = new Map();
+let chainBrowserRecords = [];
 
 initContractsPage();
 
@@ -190,9 +197,12 @@ function initContractsPage() {
   renderNavigation();
   renderDirectory();
   renderFlow();
+  renderTransparencyLedger();
   renderProgramDetails();
   renderCodeBlocks();
   renderChainBrowserControls();
+  renderChainBrowserQuickLinks();
+  renderChainBrowserInfo(chainBrowserType?.value || "all");
   setupChainBrowser();
   setupLanguageSwitcher();
   setupScrollLinks();
@@ -211,6 +221,10 @@ function applyTranslations(root) {
   root.querySelectorAll("[data-contracts-i18n-aria-label]").forEach((element) => {
     const value = text(element.dataset.contractsI18nAriaLabel);
     if (value) element.setAttribute("aria-label", value);
+  });
+  root.querySelectorAll("[data-contracts-i18n-placeholder]").forEach((element) => {
+    const value = text(element.dataset.contractsI18nPlaceholder);
+    if (value) element.setAttribute("placeholder", value);
   });
   document.documentElement.lang = activeLanguage;
 }
@@ -288,6 +302,53 @@ function renderFlow() {
       return card;
     }),
   );
+}
+
+function renderTransparencyLedger() {
+  if (transparencyGrid) {
+    transparencyGrid.replaceChildren(
+      ...dictionary.transparency.cards.map((card) => {
+        const panel = document.createElement("article");
+        panel.className = "transparency-card";
+        panel.innerHTML = `
+          <span></span>
+          <strong></strong>
+          <p></p>
+          <ul class="compact-list"></ul>
+        `;
+        panel.children[0].textContent = card.kicker;
+        panel.children[1].textContent = card.title;
+        panel.children[2].textContent = card.body;
+        fillList(panel.querySelector("ul"), card.points);
+        return panel;
+      }),
+    );
+  }
+  if (transparencyMap) {
+    transparencyMap.replaceChildren(
+      ...dictionary.transparency.map.map((row) => {
+        const item = document.createElement("article");
+        item.className = "transparency-map-row";
+        item.innerHTML = `
+          <strong></strong>
+          <span></span>
+          <p></p>
+          <button type="button"></button>
+        `;
+        item.querySelector("strong").textContent = row.surface;
+        item.querySelector("span").textContent = row.status;
+        item.querySelector("p").textContent = row.audit;
+        const button = item.querySelector("button");
+        button.textContent = row.action;
+        button.addEventListener("click", () => {
+          if (chainBrowserType) chainBrowserType.value = row.typeId;
+          document.getElementById("chain-pda-browser")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          void loadChainBrowserSelection();
+        });
+        return item;
+      }),
+    );
+  }
 }
 
 function renderProgramDetails() {
@@ -657,12 +718,63 @@ function renderChainBrowserControls() {
   );
 }
 
+function renderChainBrowserQuickLinks() {
+  if (!chainBrowserQuickLinks) return;
+  const quickTypes = dictionary.chainBrowser.quickTypes ?? ["player-profile", "backpack", "forged-items", "recipe-table", "guardian-region", "market-listing"];
+  chainBrowserQuickLinks.replaceChildren(
+    ...quickTypes.map((typeId) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "chain-browser-quick-link";
+      button.textContent = typeLabel(typeId);
+      button.addEventListener("click", () => {
+        if (chainBrowserType) chainBrowserType.value = typeId;
+        void loadChainBrowserSelection();
+      });
+      return button;
+    }),
+  );
+}
+
+function renderChainBrowserInfo(typeId) {
+  if (!chainBrowserInfo) return;
+  const info = dictionary.chainBrowser.typeInfo?.[typeId] ?? dictionary.chainBrowser.typeInfo?.all;
+  if (!info) {
+    chainBrowserInfo.replaceChildren();
+    return;
+  }
+  chainBrowserInfo.innerHTML = `
+    <strong></strong>
+    <p></p>
+    <dl></dl>
+  `;
+  chainBrowserInfo.querySelector("strong").textContent = info.title;
+  chainBrowserInfo.querySelector("p").textContent = info.body;
+  const facts = [
+    [dictionary.chainBrowser.visibleLabel, info.visible],
+    [dictionary.chainBrowser.trustLabel, info.trust],
+  ].filter(([, value]) => value);
+  chainBrowserInfo.querySelector("dl").replaceChildren(
+    ...facts.flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label;
+      dd.textContent = value;
+      return [dt, dd];
+    }),
+  );
+}
+
 function setupChainBrowser() {
   chainBrowserRefresh?.addEventListener("click", () => {
     void loadChainBrowserSelection();
   });
   chainBrowserType?.addEventListener("change", () => {
+    renderChainBrowserInfo(chainBrowserType.value || "all");
     void loadChainBrowserSelection();
+  });
+  chainBrowserSearch?.addEventListener("input", () => {
+    renderChainBrowserRecords();
   });
   setStatus(chainBrowserStatus, dictionary.chainBrowser.ready);
 }
@@ -675,14 +787,36 @@ async function loadChainBrowserSelection() {
   chainBrowserResults.replaceChildren();
   try {
     const records = typeId === "all" ? await scanAllAccountTypes() : await scanAccountType(typeId);
-    const grouped = groupRecordsByType(records);
-    renderChainBrowserStats(grouped, records.length);
-    chainBrowserResults.replaceChildren(...records.slice(0, 80).map(createAccountCard));
-    if (!records.length) chainBrowserResults.append(createEmptyState(dictionary.chainBrowser.empty));
-    setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.loaded, { count: records.length }));
+    chainBrowserRecords = records;
+    renderChainBrowserRecords();
   } catch (error) {
+    chainBrowserRecords = [];
     setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.error, { message: error.message }));
   }
+}
+
+function renderChainBrowserRecords() {
+  if (!chainBrowserResults) return;
+  const query = (chainBrowserSearch?.value || "").trim().toLowerCase();
+  const records = query ? chainBrowserRecords.filter((record) => accountMatchesQuery(record, query)) : chainBrowserRecords;
+  const grouped = groupRecordsByType(records);
+  renderChainBrowserStats(grouped, records.length);
+  chainBrowserResults.replaceChildren(...records.slice(0, 80).map(createAccountCard));
+  if (!records.length) chainBrowserResults.append(createEmptyState(dictionary.chainBrowser.empty));
+  if (query) {
+    setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.filtered, { shown: records.length, total: chainBrowserRecords.length }));
+  } else {
+    setStatus(chainBrowserStatus, formatText(dictionary.chainBrowser.loaded, { count: chainBrowserRecords.length }));
+  }
+}
+
+function accountMatchesQuery(record, query) {
+  return [
+    record.accountType,
+    record.publicKey,
+    record.programId,
+    JSON.stringify(record.decoded ?? {}),
+  ].some((value) => String(value || "").toLowerCase().includes(query));
 }
 
 async function scanAllAccountTypes() {
@@ -709,6 +843,7 @@ async function scanAllAccountTypes() {
 async function scanAccountType(typeId) {
   const type = pdaAccountTypes.find((item) => item.id === typeId);
   if (!type || type.id === "all") return scanAllAccountTypes();
+  if (type.id === "forged-items") return scanForgedItemAccounts();
   const programId = programIdForKey(type.programKey);
   if (!programId) throw new Error(`Missing program id for ${type.programKey}.`);
   if (type.id === "global-config") {
@@ -721,6 +856,50 @@ async function scanAccountType(typeId) {
     .map(({ pubkey, account }) => decodeAccountRecord(type, pubkey, account, programId))
     .filter(Boolean)
     .sort((a, b) => b.lamports - a.lamports);
+}
+
+async function scanForgedItemAccounts() {
+  const [assetRecords, backpackRecords] = await Promise.all([
+    scanAccountType("market-asset"),
+    scanAccountType("backpack"),
+  ]);
+  const forgedAssets = assetRecords.filter((record) => isForgedAsset(record.decoded)).map((record) => ({
+    ...record,
+    typeId: "forged-items",
+    accountType: typeLabel("forged-items"),
+    decoded: {
+      sourceAccountType: record.accountType,
+      sourcePublicKey: record.publicKey,
+      ...record.decoded,
+    },
+  }));
+  const forgedBackpacks = backpackRecords.flatMap((record) => {
+    const slots = (record.decoded.sampleSlots ?? []).filter(isForgedBackpackSlot);
+    if (!slots.length) return [];
+    return [{
+      ...record,
+      typeId: "forged-items",
+      accountType: typeLabel("forged-items"),
+      decoded: {
+        sourceAccountType: record.accountType,
+        sourcePublicKey: record.publicKey,
+        owner: record.decoded.owner,
+        backpackId: record.decoded.backpackId,
+        itemCount: record.decoded.itemCount,
+        capacity: record.decoded.capacity,
+        forgedSampleSlots: slots,
+      },
+    }];
+  });
+  return [...forgedAssets, ...forgedBackpacks];
+}
+
+function isForgedAsset(decoded) {
+  return decoded?.itemCode === 8 || decoded?.itemId === "forged_item";
+}
+
+function isForgedBackpackSlot(slot) {
+  return slot?.kind === "item" && (slot.itemCode === 8 || slot.itemId === "forged_item");
 }
 
 async function fetchProgramAccountsBySizes(programId, sizes) {
@@ -806,12 +985,24 @@ function createAccountCard(record) {
       </div>
       <em></em>
     </div>
+    <div class="account-card-actions">
+      <button type="button" class="account-copy"></button>
+    </div>
     <dl class="account-facts"></dl>
     <pre class="account-json"><code></code></pre>
   `;
   card.querySelector(".account-card-head span").textContent = record.accountType;
   card.querySelector(".account-card-head strong").textContent = record.publicKey;
   card.querySelector(".account-card-head em").textContent = `${record.dataLength} B`;
+  const copyButton = card.querySelector(".account-copy");
+  copyButton.textContent = dictionary.labels.copyAddress;
+  copyButton.addEventListener("click", async () => {
+    await navigator.clipboard?.writeText(record.publicKey);
+    copyButton.textContent = dictionary.labels.copied;
+    window.setTimeout(() => {
+      copyButton.textContent = dictionary.labels.copyAddress;
+    }, 1200);
+  });
   const facts = [
     [dictionary.chainBrowser.program, record.programId],
     [dictionary.chainBrowser.lamports, String(record.lamports)],
@@ -846,6 +1037,8 @@ function accountSummary(record) {
       return [[labels.seller, data.seller], [labels.state, data.stateLabel], [labels.price, data.price]];
     case "market-asset":
       return [[labels.owner, data.owner], [labels.state, data.stateLabel], [labels.item, data.itemId || String(data.itemCode)]];
+    case "forged-items":
+      return [[labels.source, data.sourceAccountType], [labels.owner, data.owner], [labels.forgedItems, String(data.forgedSampleSlots?.length ?? data.itemId ?? data.itemCode ?? "-")]];
     case "guardian-region":
       return [[labels.owner, data.owner], [labels.endpoint, data.endpoint], [labels.proofs, String(data.proofCount)]];
     case "guardian-registry":
@@ -980,9 +1173,13 @@ function renderLanguageMenu() {
         renderNavigation();
         renderDirectory();
         renderFlow();
+        renderTransparencyLedger();
         renderProgramDetails();
         renderCodeBlocks();
         renderChainBrowserControls();
+        renderChainBrowserQuickLinks();
+        renderChainBrowserInfo(chainBrowserType?.value || "all");
+        renderChainBrowserRecords();
         updateLanguagePicker();
         setLanguageMenuOpen(false);
       });

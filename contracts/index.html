@@ -93,6 +93,18 @@
           <div class="flow-grid" id="flowGrid"></div>
         </section>
 
+        <section class="contracts-section" id="transparency-ledger" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="transparency.eyebrow">Transparency Ledger</p>
+            <h2 data-contracts-i18n="transparency.title">Players can audit the world from contract code to public PDA state.</h2>
+            <p data-contracts-i18n="transparency.body">
+              NiceChunk treats public state as part of the game interface. Players should be able to inspect who exists, which backpacks and assets exist, what recipes are active, which regions serve realtime play, and which rules or accounts are still only planned.
+            </p>
+          </div>
+          <div class="transparency-grid" id="transparencyGrid"></div>
+          <div class="transparency-map" id="transparencyMap"></div>
+        </section>
+
         <section class="contracts-section" id="program-details" data-contract-section>
           <div class="section-heading">
             <p class="eyebrow blue" data-contracts-i18n="details.eyebrow">Program Details</p>
@@ -115,8 +127,14 @@
                 <span data-contracts-i18n="chainBrowser.typeLabel">PDA group</span>
                 <select id="chainBrowserType"></select>
               </label>
+              <label>
+                <span data-contracts-i18n="chainBrowser.searchLabel">Search</span>
+                <input id="chainBrowserSearch" type="search" autocomplete="off" data-contracts-i18n-placeholder="chainBrowser.searchPlaceholder" placeholder="Filter by address, owner, item, or decoded JSON" />
+              </label>
               <button id="chainBrowserRefresh" type="button" data-contracts-i18n="chainBrowser.refresh">Refresh</button>
             </div>
+            <div class="chain-browser-quick" id="chainBrowserQuickLinks"></div>
+            <div class="chain-browser-info" id="chainBrowserInfo"></div>
             <div class="chain-browser-status" id="chainBrowserStatus" role="status" aria-live="polite"></div>
             <div class="chain-browser-stats" id="chainBrowserStats"></div>
             <div class="chain-browser-results" id="chainBrowserResults"></div>

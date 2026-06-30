@@ -316,17 +316,21 @@ a.directory-row:hover {
 
 .flow-card,
 .note-panel,
-.program-panel {
+.program-panel,
+.transparency-card,
+.transparency-map-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.035);
 }
 
-.flow-card {
+.flow-card,
+.transparency-card {
   padding: 18px;
 }
 
-.flow-card span {
+.flow-card span,
+.transparency-card span {
   display: block;
   margin-bottom: 18px;
   color: var(--green);
@@ -334,18 +338,97 @@ a.directory-row:hover {
   font-weight: 950;
 }
 
-.flow-card strong {
+.flow-card strong,
+.transparency-card strong {
   display: block;
   color: #f5f9ff;
   font-size: 15px;
   line-height: 1.35;
 }
 
-.flow-card p {
+.flow-card p,
+.transparency-card p {
   margin: 9px 0 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.transparency-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transparency-card .compact-list {
+  margin-top: 14px;
+}
+
+.transparency-map {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.transparency-map-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.75fr) minmax(130px, 0.45fr) minmax(0, 1.45fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 13px;
+}
+
+.transparency-map-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f5f9ff;
+  font-size: 13px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transparency-map-row span {
+  min-width: 0;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.transparency-map-row p {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.transparency-map-row button,
+.chain-browser-quick-link,
+.account-copy {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgba(152, 203, 255, 0.24);
+  border-radius: 999px;
+  color: var(--blue);
+  background: rgba(152, 203, 255, 0.065);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.transparency-map-row button:hover,
+.chain-browser-quick-link:hover,
+.account-copy:hover {
+  border-color: rgba(140, 255, 0, 0.32);
+  color: var(--green);
+  background: rgba(140, 255, 0, 0.09);
 }
 
 .program-stack {
@@ -683,7 +766,8 @@ a.directory-row:hover {
   text-transform: uppercase;
 }
 
-.chain-browser-controls select {
+.chain-browser-controls select,
+.chain-browser-controls input {
   min-height: 40px;
   padding: 0 12px;
   border: 1px solid rgba(152, 203, 255, 0.18);
@@ -693,6 +777,62 @@ a.directory-row:hover {
   font: inherit;
   font-size: 13px;
   font-weight: 800;
+}
+
+.chain-browser-controls input {
+  min-width: min(100%, 360px);
+}
+
+.chain-browser-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chain-browser-info {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(140, 255, 0, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(140, 255, 0, 0.06), rgba(152, 203, 255, 0.04)),
+    rgba(8, 12, 18, 0.38);
+}
+
+.chain-browser-info strong {
+  color: #f5f9ff;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.chain-browser-info p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chain-browser-info dl {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.22fr) minmax(0, 1fr);
+  gap: 7px 12px;
+  margin: 0;
+}
+
+.chain-browser-info dt {
+  color: rgba(218, 231, 238, 0.52);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.chain-browser-info dd {
+  margin: 0;
+  color: var(--blue);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .chain-browser-status {
@@ -744,6 +884,12 @@ a.directory-row:hover {
 .account-card {
   overflow: hidden;
   padding: 14px;
+}
+
+.account-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .account-card-head span {
@@ -976,10 +1122,20 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .transparency-grid,
   .program-columns,
   .pda-structure-grid,
   .chain-browser-results {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .transparency-map-row {
+    grid-template-columns: minmax(150px, 0.8fr) minmax(120px, 0.5fr) minmax(0, 1fr);
+  }
+
+  .transparency-map-row button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .chain-browser-stats {
@@ -1054,6 +1210,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .transparency-grid,
   .program-columns,
   .fact-grid,
   .developer-grid,
@@ -1061,6 +1218,15 @@ a.directory-row:hover {
   .chain-browser-stats,
   .chain-browser-results {
     grid-template-columns: 1fr;
+  }
+
+  .transparency-map-row {
+    grid-template-columns: 1fr;
+  }
+
+  .transparency-map-row strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .program-heading {
@@ -1082,7 +1248,8 @@ a.directory-row:hover {
   }
 
   .pda-schema-card dl,
-  .account-facts {
+  .account-facts,
+  .chain-browser-info dl {
     grid-template-columns: 1fr;
   }
 
