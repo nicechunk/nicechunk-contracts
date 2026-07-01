@@ -336,14 +336,14 @@
         },
         {
           "name": "ResourceDropTable",
-          "seeds": "[\"resource-drops\", tableId:u64_le]",
-          "magic": "NCKDRP01",
-          "size": "16 + ruleCount * 15 字节",
+          "seeds": "[\"resource-drops-v2\", globalConfig]",
+          "magic": "NCKDRP02",
+          "size": "16 + ruleCount * 23 字节",
           "purpose": "奖励挖矿的有界额外掉落规则。",
           "fields": [
-            "sourceBlockId、dropBlockId、chanceBps",
-            "海拔与深度边界",
-            "salt 用于隔离确定性结果"
+            "sourceBlockId, dropBlockId, baseChanceBps",
+            "altitude and depth bounds",
+            "salt plus min/max drop volume in mm³"
           ]
         }
       ]
@@ -724,8 +724,8 @@
       },
       "resource-drop-table": {
         "title": "ResourceDropTable",
-        "body": "挖礦獎勵使用的有邊界資源掉落規則表。",
-        "visible": "來源方塊、掉落方塊、機率基點、海拔/深度範圍和 salt。",
+        "body": "挖矿奖励使用的有界 v2 资源掉落规则表。",
+        "visible": "来源方块、掉落方块、基础概率基点、海拔/深度范围、salt 和掉落体积范围。",
         "trust": "玩家可以檢查掉落規則，而不是信任黑箱獎勵邏輯。"
       },
       "guardian-registry": {

@@ -1299,16 +1299,16 @@ function decodeChunkBrokenAccount(data) {
 
 function decodeResourceDropTableAccount(data) {
   if (data.length < 16) throw new Error("Invalid ResourceDropTable length.");
-  assertMagic(data, "NCKDRP01");
+  assertMagic(data, "NCKDRP02");
   const ruleCount = data.readUInt8(10);
-  if (!ruleCount || data.length !== 16 + ruleCount * 15) throw new Error("Invalid ResourceDropTable record length.");
+  if (!ruleCount || data.length !== 16 + ruleCount * 23) throw new Error("Invalid ResourceDropTable record length.");
   return {
-    magic: "NCKDRP01",
+    magic: "NCKDRP02",
     version: data.readUInt8(8),
     bump: data.readUInt8(9),
     ruleCount,
     rules: Array.from({ length: ruleCount }, (_, index) => {
-      const offset = 16 + index * 15;
+      const offset = 16 + index * 23;
       return {
         sourceBlockId: data.readUInt16LE(offset),
         dropBlockId: data.readUInt16LE(offset + 2),
@@ -1318,6 +1318,8 @@ function decodeResourceDropTableAccount(data) {
         minDepth: data.readInt16LE(offset + 10),
         maxDepth: data.readInt16LE(offset + 12),
         salt: data.readUInt8(offset + 14),
+        minVolumeMm3: data.readUInt32LE(offset + 15),
+        maxVolumeMm3: data.readUInt32LE(offset + 19),
       };
     }),
   };
