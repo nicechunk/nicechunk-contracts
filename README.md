@@ -29,6 +29,56 @@ The workspace currently includes these Solana programs:
 | `nicechunk_civilization` | Civilization rule books, signatures, tallies, execution receipts, value snapshots, and citizen power. |
 | `nicechunk_building` | Player build sites, NCM3 building manifests, upload shards, resize flow, legacy migration, and Guardian blueprint publishing. |
 
+## Contract Logic Map
+
+The contract surface is easiest to read as a set of trust boundaries and evidence accounts rather than a linear transaction list:
+
+```mermaid
+flowchart LR
+  wallet["Player wallet<br/>owner signer"] --> playerGate["Player Program<br/>profile + session guard"]
+  session["Session authority<br/>ephemeral signer"] --> playerGate
+  core["Genesis Core<br/>GlobalConfig anchor"] --> playerGate
+  core --> chunkGate["Chunk Program<br/>world mutation gate"]
+  core --> buildingGate["Building Program<br/>foundation + NCM3 manifest gate"]
+  core --> backpackGate["Backpack Program<br/>inventory custody gate"]
+
+  playerGate --> profile[(PlayerProfile PDA)]
+  playerGate --> sessionPda[(PlayerSession PDA)]
+  chunkGate --> broken[(ChunkBrokenState PDA)]
+  chunkGate --> drops[(ResourceDropTable PDA)]
+
+  buildingGate --> site[(BuildSite PDA)]
+  buildingGate --> manifest[(BuildingManifest PDA)]
+  buildingGate --> shards[(BuildingShard PDA)]
+  buildingGate --> blueprint[Guardian blueprint authority]
+  blueprint --> guardian[(GuardianRegion PDA)]
+
+  backpackGate --> backpack[(Backpack PDA)]
+  backpack --> smeltingGate["Smelting Program<br/>recipe + authority gate"]
+  smeltingGate --> recipes[(RecipeTable PDA)]
+  smeltingGate --> backpack
+  backpack --> marketGate["Marketplace Program<br/>escrow + settlement gate"]
+  marketGate --> listing[(MarketplaceListing PDA)]
+  listing --> backpack
+
+  civilizationGate["Civilization Program<br/>rule signature + tally gate"] --> rules[(RuleBook / Rule PDA)]
+  civilizationGate --> tally[(Tally PDA)]
+  civilizationGate --> receipt[(ExecutionReceipt PDA)]
+  chunkGate -. adapter proof .-> civilizationGate
+  smeltingGate -. adapter proof .-> civilizationGate
+
+  classDef signer fill:#1f2937,stroke:#f5f9ff,color:#f5f9ff
+  classDef program fill:#10200c,stroke:#8cff00,color:#f5f9ff
+  classDef pda fill:#0b1724,stroke:#98cbff,color:#f5f9ff
+  classDef proof fill:#1b1328,stroke:#d0a4ff,color:#f5f9ff
+  class wallet,session signer
+  class core,playerGate,chunkGate,buildingGate,backpackGate,smeltingGate,marketGate program
+  class profile,sessionPda,broken,drops,site,manifest,shards,guardian,backpack,recipes,listing,rules,tally,receipt pda
+  class civilizationGate,blueprint proof
+```
+
+The hosted contract directory expands this map into the visual `Contract Logic Atlas`, with account layouts, PDA seeds, source panels, and RPC decoders for the active devnet surface.
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.
@@ -79,25 +129,21 @@ The `contracts/` page imports real Rust and SDK source files with Vite raw impor
 
 ## Validation
 
-Install dependencies:
+Install the exact dependency graph:
 
 ```bash
-npm install
+npm ci
 ```
 
-Build the browser contract directory:
+Run the local release-equivalent gate:
 
 ```bash
-npm run build
+npm run validate:release
 ```
 
-Run the focused TypeScript contract tests:
+`validate:release` runs dependency audit, license audit, focused TypeScript contract tests, and the production Vite build for the contract directory.
 
-```bash
-npm run test:core
-```
-
-Check the Rust workspace:
+When a Rust toolchain is available, also check the workspace:
 
 ```bash
 cargo check --workspace

@@ -842,7 +842,7 @@ body {
   }
 
   .site-header .site-nav .header-whitepaper-action {
-    order: 1;
+    order: 1 !important;
   }
 
   .site-header .site-nav a {

@@ -33,12 +33,13 @@ Fill these fields before publishing a release note:
 
 ### Release Evidence Checklist
 
-Before publishing a release note for this split, cite:
+Before publishing a release note for this split, cite the commands that apply to this repository:
 
 ~~~bash
-npm run validate:repo
-npm run audit:split-remotes
-npm run audit:maturity
+npm ci
+npm run validate:release
+# Optional Rust workspace check when cargo is installed:
+cargo check --workspace
 ~~~
 
-If this split contains `package.json`, also run the relevant local scripts such as `npm run audit:deps`, `npm run audit:licenses`, `npm run build`, or the split-specific `validate:release` script when present.
+If a listed command is deferred because a local toolchain is unavailable, record that explicitly with the exact missing command or binary.
