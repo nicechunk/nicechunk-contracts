@@ -190,6 +190,10 @@
       "label": "CPI Authority"
     },
     {
+      "id": "account-lifecycle",
+      "label": "Account Lifecycle"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },
@@ -763,7 +767,7 @@
       "storage": [
         "Listing stores seller wallet, listing ID, currency, source backpack index, price, the full source slot snapshot, timestamps, buyer, and final settlement fields.",
         "The source slot is copied from Backpack v3 slot data during create_listing; category, quantity, itemCode, durability, grade, itemLevel, and quality are never accepted from user payload.",
-        "Listing state is active, canceled, or sold."
+        "A purchased listing remains a sold settlement record. A canceled listing restores the escrowed slot, zeroes its data, and refunds listing lamports to the seller."
       ],
       "notes": [
         "Only the listing seller can cancel an active listing.",

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "zh-Hans",
     "label": "Simplified Chinese",
-    "version": "contracts-locale-zh-Hans-dfe0a3a7f3226835",
-    "contentHash": "dfe0a3a7f3226835"
+    "version": "contracts-locale-zh-Hans-9956c2e0bbd23460",
+    "contentHash": "9956c2e0bbd23460"
   },
   "meta": {
     "title": "NiceChunk 合约"
@@ -194,6 +194,10 @@
     {
       "id": "cpi-authority",
       "label": "CPI 权限账本"
+    },
+    {
+      "id": "account-lifecycle",
+      "label": "账户生命周期"
     },
     {
       "id": "audit-matrix",
@@ -769,7 +773,7 @@
       "storage": [
         "Listing 保存卖家钱包、listing ID、币种、来源背包索引、价格、完整来源 slot 快照、时间戳、买家和最终结算字段。",
         "来源 slot 在 create_listing 时从 Backpack v3 slot 数据复制；category、quantity、itemCode、durability、grade、itemLevel 和 quality 都不接受用户 payload。",
-        "Listing 状态为 active、canceled 或 sold。"
+        "购买后的 listing 会保留为 sold 结算记录。取消后的 listing 会恢复托管 slot、清零数据，并把 listing lamports 退还给卖家。"
       ],
       "notes": [
         "只有挂单卖家可以取消活跃挂单。",
@@ -3789,6 +3793,533 @@
           "Civilization callee is tag 3 only",
           "RuleBook target prevents generic execution",
           "Receipt state is public and separately decodable"
+        ]
+      }
+    ]
+  },
+  "accountLifecycle": {
+    "eyebrow": "账户生命周期图谱",
+    "title": "追踪 PDA 状态如何从租金资助进入迁移、扩容、关闭或持久结算。",
+    "body": "这些图解释当前合约如何处理预先打入 lamports 的 PDA、租金补足、realloc 扩容、legacy 迁移和退款路径，避免临时账户变成看不见的状态。",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "付款方或权限方"
+      },
+      {
+        "kind": "program",
+        "label": "生命周期分支"
+      },
+      {
+        "kind": "pda",
+        "label": "PDA 账户状态"
+      },
+      {
+        "kind": "proof",
+        "label": "持久证据"
+      },
+      {
+        "kind": "offchain",
+        "label": "旧版或临时输入"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "rent-safe-pda-birth",
+        "kicker": "租金安全的 PDA 创建",
+        "title": "预资助账户只有在 seed、租金、allocate 和 assign 校验一致后才会被接管。",
+        "body": "Core、Player、Guardian、Chunk、Backpack、Smelting、Market、Civilization 和 Building 都使用这一类创建模式：空账户直接创建；已有 lamports 的 PDA 先补租金，再 allocate 和 assign。",
+        "lanes": [
+          {
+            "label": "External signer",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "lifecycle-payer",
+                "kind": "wallet",
+                "label": "Payer / owner / session authority",
+                "badge": "signer",
+                "detail": "Funds rent and must satisfy the program-specific owner, session, treasury, or seller authority checks before a PDA is created.",
+                "evidence": "payer or authority AccountMeta"
+              }
+            ]
+          },
+          {
+            "label": "Seed gate",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "lifecycle-seed-check",
+                "kind": "program",
+                "label": "find_program_address",
+                "badge": "seed + bump",
+                "detail": "The program re-derives the expected PDA before any create, allocate, assign, or write step.",
+                "evidence": "validate_*_pda helpers"
+              },
+              {
+                "id": "lifecycle-rent-target",
+                "kind": "program",
+                "label": "Rent minimum",
+                "badge": "minimum_balance",
+                "detail": "The target length is converted into rent-exempt lamports before funding or top-up.",
+                "evidence": "Rent::get()?.minimum_balance(len)"
+              }
+            ]
+          },
+          {
+            "label": "System account state",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "lifecycle-empty-pda",
+                "kind": "offchain",
+                "label": "Empty PDA",
+                "badge": "lamports == 0",
+                "detail": "Creates the PDA with system create_account and the program-derived signer seeds.",
+                "evidence": "create_account + invoke_signed"
+              },
+              {
+                "id": "lifecycle-prefunded-pda",
+                "kind": "offchain",
+                "label": "Pre-funded PDA",
+                "badge": "dust safe",
+                "detail": "If the PDA already has lamports, the payer only tops up the rent delta before allocate and assign.",
+                "evidence": "transfer delta + allocate + assign"
+              }
+            ]
+          },
+          {
+            "label": "Initialized evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "lifecycle-owned-state",
+                "kind": "pda",
+                "label": "Program-owned PDA",
+                "badge": "initialized",
+                "detail": "The final account is owned by the expected program and packed with the current magic, version, owner, and GlobalConfig fields.",
+                "evidence": "GlobalConfig / Profile / Registry / Listing / BuildSite"
+              },
+              {
+                "id": "lifecycle-audit-proof",
+                "kind": "proof",
+                "label": "Lifecycle audit proof",
+                "badge": "public",
+                "detail": "A reviewer can compare seed family, owner, data length, magic bytes, bump, and updated slot to verify the account birth path.",
+                "evidence": "RPC account owner + data length + decoder"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "lifecycle-payer",
+            "to": "lifecycle-seed-check",
+            "label": "requests",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-seed-check",
+            "to": "lifecycle-rent-target",
+            "label": "sets length",
+            "kind": "read"
+          },
+          {
+            "from": "lifecycle-rent-target",
+            "to": "lifecycle-empty-pda",
+            "label": "create",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-rent-target",
+            "to": "lifecycle-prefunded-pda",
+            "label": "top up",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-empty-pda",
+            "to": "lifecycle-owned-state",
+            "label": "packs",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-prefunded-pda",
+            "to": "lifecycle-owned-state",
+            "label": "allocate/assign",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-owned-state",
+            "to": "lifecycle-audit-proof",
+            "label": "decodes",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Dust-funded PDAs are handled explicitly",
+          "Rent delta is paid before allocate or realloc",
+          "Seed and bump are checked before ownership changes",
+          "Decoded account length is part of the proof"
+        ]
+      },
+      {
+        "id": "growth-and-migration-ledger",
+        "kicker": "扩容与迁移账本",
+        "title": "扩容账户会先保留旧证据，再暴露更大的当前布局。",
+        "body": "当前代码里有多处非平凡迁移：ChunkBroken 按容量增长，FoundationChunk 从 v1 迁到 v2，Player 账户升级到当前长度，Building 把旧 Chunk-owned build site 迁入 BuildSite v2。",
+        "lanes": [
+          {
+            "label": "Existing state",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "lifecycle-chunk-broken-old",
+                "kind": "pda",
+                "label": "ChunkBrokenState",
+                "badge": "capacity",
+                "detail": "Starts with an initial record capacity and grows when single, batch, or range mining needs more room.",
+                "evidence": "CHUNK_BROKEN_INITIAL_CAPACITY / GROW_BY"
+              },
+              {
+                "id": "lifecycle-foundation-v1",
+                "kind": "pda",
+                "label": "FoundationChunk v1",
+                "badge": "legacy index",
+                "detail": "Older chunk occupancy records are decoded, converted to v2, and filtered when a replacement supersedes them.",
+                "evidence": "FoundationRecordV2::from_legacy"
+              },
+              {
+                "id": "lifecycle-player-legacy",
+                "kind": "pda",
+                "label": "Player layout drift",
+                "badge": "profile/equipment/appearance",
+                "detail": "Player profile, equipment, and appearance accounts can be topped up and reallocated to current lengths.",
+                "evidence": "ensure_*_current helpers"
+              },
+              {
+                "id": "lifecycle-buildsite-legacy",
+                "kind": "offchain",
+                "label": "Legacy BuildSite",
+                "badge": "136 bytes",
+                "detail": "A Chunk-owned legacy build site is decoded and re-packed into the Building program BuildSite v2 PDA.",
+                "evidence": "migrate_legacy_build_site"
+              }
+            ]
+          },
+          {
+            "label": "Growth action",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "lifecycle-rent-realloc",
+                "kind": "program",
+                "label": "fund_account_to_rent_exempt + realloc",
+                "badge": "grow",
+                "detail": "The payer funds the rent delta before reallocation so the larger account remains rent-exempt.",
+                "evidence": "minimum_balance(next_len)"
+              },
+              {
+                "id": "lifecycle-preserve-records",
+                "kind": "program",
+                "label": "Convert and preserve records",
+                "badge": "migration",
+                "detail": "Legacy records are migrated into the larger layout instead of being dropped during the version change.",
+                "evidence": "pack_empty then append migrated records"
+              },
+              {
+                "id": "lifecycle-building-resize",
+                "kind": "program",
+                "label": "BuildSite resize staging",
+                "badge": "staged",
+                "detail": "Resize checks active building fit, stores staged dimensions, then chunk indexing catches up through Building tag 1.",
+                "evidence": "begin_build_site_resize + registeredChunks"
+              }
+            ]
+          },
+          {
+            "label": "Compatibility gate",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "lifecycle-fit-proof",
+                "kind": "proof",
+                "label": "Fit and version proof",
+                "badge": "bounds",
+                "detail": "Growth is bounded by max capacity, world height, footprint, active revision, and matching GlobalConfig.",
+                "evidence": "capacity caps + building_axis_fits + validate_global_config"
+              }
+            ]
+          },
+          {
+            "label": "Current state",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "lifecycle-current-state",
+                "kind": "pda",
+                "label": "Current PDA layout",
+                "badge": "decodable",
+                "detail": "The resulting state is still public and decodable as ChunkBroken, FoundationChunk v2, Player current layout, or BuildSite v2.",
+                "evidence": "RPC decoder + magic/version bytes"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "lifecycle-chunk-broken-old",
+            "to": "lifecycle-rent-realloc",
+            "label": "grows",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-foundation-v1",
+            "to": "lifecycle-preserve-records",
+            "label": "migrates",
+            "kind": "proof"
+          },
+          {
+            "from": "lifecycle-player-legacy",
+            "to": "lifecycle-rent-realloc",
+            "label": "upgrades",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-buildsite-legacy",
+            "to": "lifecycle-preserve-records",
+            "label": "re-packs",
+            "kind": "proof"
+          },
+          {
+            "from": "lifecycle-building-resize",
+            "to": "lifecycle-fit-proof",
+            "label": "checks",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-rent-realloc",
+            "to": "lifecycle-fit-proof",
+            "label": "bounded by",
+            "kind": "read"
+          },
+          {
+            "from": "lifecycle-preserve-records",
+            "to": "lifecycle-current-state",
+            "label": "writes",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-fit-proof",
+            "to": "lifecycle-current-state",
+            "label": "permits",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "ChunkBroken growth is capacity capped",
+          "FoundationChunk v1 records survive v2 migration",
+          "Player current layout upgrades are rent-funded",
+          "BuildSite resize is staged, not an unchecked overwrite"
+        ]
+      },
+      {
+        "id": "closure-and-settlement-ledger",
+        "kicker": "关闭与结算账本",
+        "title": "临时账户取消时返还租金；已成交状态则保留为持久结算证据。",
+        "body": "不是所有终态动作都意味着同一种账户结果。Appearance 关闭、Building 上传取消、Market 取消会回收 lamports；Marketplace 购买会保留 sold listing 作为结算证据。",
+        "lanes": [
+          {
+            "label": "Terminal branch",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "lifecycle-close-appearance",
+                "kind": "program",
+                "label": "Player [9]",
+                "badge": "close_player_appearance",
+                "detail": "Only the treasury authority can close a PlayerAppearance PDA and receive its lamports.",
+                "evidence": "NICECHUNK_TREASURY_AUTHORITY"
+              },
+              {
+                "id": "lifecycle-cancel-building",
+                "kind": "program",
+                "label": "Building [5]",
+                "badge": "cancel_building_upload",
+                "detail": "Cancels an uploading revision, zeroes and closes program-owned shard accounts, and closes the manifest.",
+                "evidence": "close_program_account"
+              },
+              {
+                "id": "lifecycle-cancel-listing",
+                "kind": "program",
+                "label": "Market [1]",
+                "badge": "cancel_listing",
+                "detail": "Restores the escrowed Backpack slot, clears listing data, and refunds listing lamports to the seller.",
+                "evidence": "data.fill(0) + lamports to seller"
+              },
+              {
+                "id": "lifecycle-buy-listing",
+                "kind": "program",
+                "label": "Market [2]",
+                "badge": "buy_listing",
+                "detail": "Transfers payment, delivers the slot to the buyer, and marks the listing sold without closing it.",
+                "evidence": "ListingAccount::mark_sold"
+              }
+            ]
+          },
+          {
+            "label": "Authority gate",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "lifecycle-treasury-authority",
+                "kind": "wallet",
+                "label": "Treasury authority",
+                "badge": "recipient",
+                "detail": "Appearance close requires the recipient to be the treasury authority signer.",
+                "evidence": "recipient == treasury_authority"
+              },
+              {
+                "id": "lifecycle-session-recipient",
+                "kind": "wallet",
+                "label": "Session authority",
+                "badge": "refund",
+                "detail": "Building upload cancellation returns manifest and shard lamports to the session authority account.",
+                "evidence": "close_program_account(account, session_authority)"
+              },
+              {
+                "id": "lifecycle-seller-recipient",
+                "kind": "wallet",
+                "label": "Seller",
+                "badge": "refund or payment",
+                "detail": "Cancel refunds listing rent to the seller; purchase pays seller proceeds and leaves sold-state evidence.",
+                "evidence": "seller writable"
+              }
+            ]
+          },
+          {
+            "label": "Lifecycle result",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "lifecycle-zeroed-closed",
+                "kind": "pda",
+                "label": "Zeroed closed account",
+                "badge": "lamports 0",
+                "detail": "Closed Appearance, canceled Building upload artifacts, and canceled Listings are zeroed and no longer durable semantic records.",
+                "evidence": "data.fill(0), lamports = 0"
+              },
+              {
+                "id": "lifecycle-sold-listing",
+                "kind": "proof",
+                "label": "Sold listing record",
+                "badge": "durable",
+                "detail": "A purchased listing remains as a program-owned settlement record with buyer, sold slot, and sold time fields.",
+                "evidence": "buyer, soldSlot, soldAt"
+              },
+              {
+                "id": "lifecycle-restored-inventory",
+                "kind": "proof",
+                "label": "Restored or delivered Backpack slot",
+                "badge": "custody proof",
+                "detail": "Cancel restores to seller Backpack; purchase delivers to buyer Backpack through market-authority.",
+                "evidence": "Backpack [3] via MarketAuthority"
+              }
+            ]
+          },
+          {
+            "label": "Audit boundary",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "lifecycle-terminal-proof",
+                "kind": "proof",
+                "label": "Terminal-state audit",
+                "badge": "not one-size-fits-all",
+                "detail": "Reviewers should distinguish canceled-and-closed accounts from sold records that intentionally remain decodable.",
+                "evidence": "owner + lamports + decoder result"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "lifecycle-close-appearance",
+            "to": "lifecycle-treasury-authority",
+            "label": "requires",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-treasury-authority",
+            "to": "lifecycle-zeroed-closed",
+            "label": "receives rent",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-cancel-building",
+            "to": "lifecycle-session-recipient",
+            "label": "refunds",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-session-recipient",
+            "to": "lifecycle-zeroed-closed",
+            "label": "closes",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-cancel-listing",
+            "to": "lifecycle-seller-recipient",
+            "label": "refunds",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-cancel-listing",
+            "to": "lifecycle-restored-inventory",
+            "label": "restores",
+            "kind": "proof"
+          },
+          {
+            "from": "lifecycle-cancel-listing",
+            "to": "lifecycle-zeroed-closed",
+            "label": "zeros",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-buy-listing",
+            "to": "lifecycle-seller-recipient",
+            "label": "pays",
+            "kind": "guard"
+          },
+          {
+            "from": "lifecycle-buy-listing",
+            "to": "lifecycle-restored-inventory",
+            "label": "delivers",
+            "kind": "proof"
+          },
+          {
+            "from": "lifecycle-buy-listing",
+            "to": "lifecycle-sold-listing",
+            "label": "marks sold",
+            "kind": "write"
+          },
+          {
+            "from": "lifecycle-zeroed-closed",
+            "to": "lifecycle-terminal-proof",
+            "label": "distinguish",
+            "kind": "read"
+          },
+          {
+            "from": "lifecycle-sold-listing",
+            "to": "lifecycle-terminal-proof",
+            "label": "decodes",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Canceled marketplace listings are closed and zeroed",
+          "Purchased listings remain durable sold records",
+          "Building cancel refunds upload artifact rent",
+          "Appearance close is treasury-authority gated"
         ]
       }
     ]

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "fr",
     "label": "French",
-    "version": "contracts-locale-fr-5e6818e355f7b89f",
-    "contentHash": "5e6818e355f7b89f"
+    "version": "contracts-locale-fr-2e0a0e8c82bf98fc",
+    "contentHash": "2e0a0e8c82bf98fc"
   },
   "meta": {
     "title": "Contrats NiceChunk"
@@ -194,6 +194,10 @@
     {
       "id": "cpi-authority",
       "label": "CPI Authority"
+    },
+    {
+      "id": "account-lifecycle",
+      "label": "Account Lifecycle"
     },
     {
       "id": "audit-matrix",
@@ -769,7 +773,7 @@
       "storage": [
         "Listing stores seller wallet, listing ID, currency, source backpack index, price, the full source slot snapshot, timestamps, buyer, and final settlement fields.",
         "The source slot is copied from Backpack v3 slot data during create_listing; category, quantity, itemCode, durability, grade, itemLevel, and quality are never accepted from user payload.",
-        "Listing state is active, canceled, or sold."
+        "A purchased listing remains a sold settlement record. A canceled listing restores the escrowed slot, zeroes its data, and refunds listing lamports to the seller."
       ],
       "notes": [
         "Only the listing seller can cancel an active listing.",

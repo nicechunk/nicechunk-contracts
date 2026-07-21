@@ -139,6 +139,21 @@ The hosted contract directory also includes a `CPI Authority Ledger` for game-fa
 | `nicechunk_market` tags `0`, `1`, `2` | `nicechunk_backpack` tags `2` and `3`; `nicechunk_player` tag `2` when clearing display equipment | Seller signer removes or clears; `MarketAuthority`: `["market-authority"]` restores or delivers the slot snapshot | `MarketplaceListing` stores seller, buyer, currency, price, fee state, and the full 80-byte source slot. |
 | `nicechunk_chunk` tags `10` and `13`; `nicechunk_smelting` tag `4` | `nicechunk_civilization` tag `3` `execute_rule_receipt` | `CivilizationAdapterAuthority`: `["civilization-adapter", ruleBook]` derived under the target program ID | `ExecutionReceipt` PDA proves target-bound rule execution before target rule state mutates. |
 
+## Account Lifecycle Map
+
+The contract directory now includes an `Account Lifecycle Map` for PDA creation, growth, migration, closure, refund, and sold-state retention. Reviewers should treat account lifecycle as a separate audit surface from instruction dispatch.
+
+| Lifecycle surface | Current behavior | Reviewer check |
+| --- | --- | --- |
+| Rent-safe PDA creation | Empty PDAs are created with `create_account`; pre-funded PDAs are topped up to rent exemption, then `allocate` and `assign` are signed by the derived PDA seeds. | Verify seed family, bump, owner program, data length, and magic/version bytes after initialization. |
+| ChunkBroken growth | `ChunkBrokenState` grows by capacity after rent top-up and `realloc`, with max-capacity checks. | Confirm the record count never exceeds capacity and the account remains rent-exempt at the larger length. |
+| FoundationChunk migration | Legacy FoundationChunk records are decoded, converted to v2 records, optionally filtered by a replacement, and re-packed after `realloc`. | Confirm old occupancy evidence survives v1 to v2 migration and replacement only removes superseded records. |
+| Player layout upgrade | Player profile, equipment, and appearance accounts can be topped up and reallocated to current lengths. | Compare current account length and owner before trusting decoded profile, equipment, or appearance fields. |
+| Building legacy migration and resize | Legacy 136-byte BuildSites are decoded from the Chunk-owned PDA and re-packed into Building-owned BuildSite v2; resize stores staged dimensions and waits for chunk indexing. | Confirm owner, GlobalConfig, foundation ID, footprint, active/pending revision, and registered chunk counters. |
+| Building upload cancellation | Canceling an upload closes program-owned shard accounts and the manifest, returning lamports to the session authority. | Treat canceled upload artifacts as closed transient accounts, not durable building state. |
+| PlayerAppearance close | `close_player_appearance` is treasury-authority gated, zeroes data, and returns lamports to the treasury authority recipient. | Confirm the recipient is the treasury authority signer before considering the close valid. |
+| Marketplace terminal states | Cancel restores the escrowed Backpack slot, zeroes listing data, and refunds listing lamports to the seller; purchase marks the Listing sold and keeps it as settlement evidence. | Distinguish canceled-and-closed listings from sold listings that intentionally remain decodable. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.
