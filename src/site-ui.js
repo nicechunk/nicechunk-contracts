@@ -78,7 +78,6 @@ const unifiedNavItems = [
   { key: "contracts", href: "/contracts/" },
   { key: "civilization", href: "/civilization/" },
   { key: "trust", href: "/trust/" },
-  { key: "whitepaper", href: "/whitepaper/" },
   { key: "docs", href: "/docs/" },
 ];
 
@@ -304,6 +303,16 @@ function ensureUnifiedNavigation() {
     });
 
     container.replaceChildren(...orderedLinks);
+  });
+
+  document.querySelectorAll(".site-header .nav-actions").forEach((container) => {
+    let link = container.querySelector('a[href="/whitepaper/"], [data-site-nav-key="whitepaper"]');
+    if (!link) link = document.createElement("a");
+    link.href = "/whitepaper/";
+    link.classList.add("header-action", "header-whitepaper-action");
+    link.dataset.siteNavKey = "whitepaper";
+    link.classList.toggle("active", isActiveNavPath("/whitepaper/"));
+    container.prepend(link);
   });
 
   updateUnifiedNavigationLabels();

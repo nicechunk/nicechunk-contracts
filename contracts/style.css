@@ -361,6 +361,297 @@ a.directory-row:hover {
   line-height: 1.6;
 }
 
+.flow-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+}
+
+.flow-card dt {
+  color: rgba(218, 231, 238, 0.52);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.flow-card dd {
+  margin: -4px 0 0;
+  color: rgba(152, 203, 255, 0.9);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.logic-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 18px;
+}
+
+.logic-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(152, 203, 255, 0.14);
+  border-radius: 999px;
+  color: rgba(232, 241, 255, 0.78);
+  background: rgba(8, 12, 18, 0.42);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.logic-legend-item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--blue);
+  box-shadow: 0 0 18px rgba(152, 203, 255, 0.4);
+}
+
+.logic-legend-item.wallet i,
+.logic-node.wallet {
+  --node-color: #f5f9ff;
+}
+
+.logic-legend-item.program i,
+.logic-node.program {
+  --node-color: var(--green);
+}
+
+.logic-legend-item.pda i,
+.logic-node.pda {
+  --node-color: var(--blue);
+}
+
+.logic-legend-item.offchain i,
+.logic-node.offchain {
+  --node-color: #ffd876;
+}
+
+.logic-legend-item.proof i,
+.logic-node.proof {
+  --node-color: #d0a4ff;
+}
+
+.logic-atlas-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.logic-diagram {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(152, 203, 255, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0.018)),
+    rgba(8, 12, 18, 0.42);
+}
+
+.logic-diagram-head {
+  padding: 18px 18px 0;
+}
+
+.logic-diagram-head span {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.logic-diagram-head h3 {
+  margin: 7px 0 0;
+  color: #f5f9ff;
+  font-size: clamp(21px, 2.6vw, 30px);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.logic-diagram-head p {
+  max-width: 920px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.logic-canvas {
+  position: relative;
+  min-width: 0;
+  margin-top: 16px;
+  padding: 18px;
+  background:
+    linear-gradient(rgba(152, 203, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(152, 203, 255, 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.logic-links {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.logic-links marker path {
+  fill: rgba(140, 255, 0, 0.76);
+}
+
+.logic-link-path {
+  fill: none;
+  stroke: rgba(140, 255, 0, 0.52);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-dasharray: 0;
+}
+
+.logic-link-path.read {
+  stroke: rgba(152, 203, 255, 0.5);
+  stroke-dasharray: 5 6;
+}
+
+.logic-link-path.guard {
+  stroke: rgba(255, 216, 118, 0.55);
+}
+
+.logic-link-path.proof {
+  stroke: rgba(208, 164, 255, 0.55);
+  stroke-dasharray: 2 5;
+}
+
+.logic-link-label {
+  fill: rgba(232, 241, 255, 0.72);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: rgba(8, 12, 18, 0.88);
+  stroke-width: 5px;
+  text-anchor: middle;
+}
+
+.logic-lanes {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.logic-lane {
+  min-width: 0;
+}
+
+.logic-lane-title {
+  min-height: 30px;
+  color: rgba(218, 231, 238, 0.54);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.logic-node-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.logic-node {
+  --node-color: var(--blue);
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--node-color), transparent 68%);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--node-color), transparent 92%), rgba(255, 255, 255, 0.018)),
+    #0b1018;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.28);
+}
+
+.logic-node-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.logic-node strong {
+  min-width: 0;
+  color: #f5f9ff;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.logic-node span {
+  flex: 0 0 auto;
+  max-width: 46%;
+  overflow: hidden;
+  color: var(--node-color);
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 10px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logic-node p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.logic-node em {
+  display: block;
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--node-color), #f5f9ff 20%);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.logic-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 18px 18px;
+}
+
+.logic-evidence span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(140, 255, 0, 0.16);
+  border-radius: 999px;
+  color: rgba(232, 241, 255, 0.72);
+  background: rgba(140, 255, 0, 0.055);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .runtime-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1204,6 +1495,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .logic-lanes,
   .runtime-grid,
   .transparency-grid,
   .program-columns,
@@ -1305,6 +1597,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .logic-lanes,
   .runtime-grid,
   .transparency-grid,
   .program-columns,
@@ -1318,6 +1611,10 @@ a.directory-row:hover {
 
   .transparency-map-row {
     grid-template-columns: 1fr;
+  }
+
+  .logic-links {
+    display: none;
   }
 
   .transparency-map-row strong {

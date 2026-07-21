@@ -185,6 +185,8 @@ for (const type of pdaAccountTypes) {
 
 const contractsNav = document.querySelector("#contractsNav");
 const runtimeGrid = document.querySelector("#runtimeGrid");
+const logicLegend = document.querySelector("#logicLegend");
+const logicAtlas = document.querySelector("#logicAtlas");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
 const transparencyGrid = document.querySelector("#transparencyGrid");
@@ -212,8 +214,14 @@ let fallbackDictionary = {};
 const contractsConnections = new Map();
 let chainBrowserRecords = [];
 let runtimeConfig = null;
+let logicResizeFrame = 0;
 
 void initContractsPage();
+
+window.addEventListener("resize", () => {
+  window.cancelAnimationFrame(logicResizeFrame);
+  logicResizeFrame = window.requestAnimationFrame(updateLogicLinks);
+});
 
 async function initContractsPage() {
   setSiteLoadingProgress(36);
@@ -222,6 +230,7 @@ async function initContractsPage() {
   applyTranslations(document);
   renderNavigation();
   renderRuntimeState();
+  renderLogicAtlas();
   renderDirectory();
   renderFlow();
   renderTransparencyLedger();
@@ -376,6 +385,163 @@ function createRuntimeCard(card) {
   return article;
 }
 
+function renderLogicAtlas() {
+  const logic = dictionary.logic ?? fallbackDictionary.logic;
+  if (!logicAtlas || !logic) return;
+  renderLogicLegend(logic.legend ?? []);
+  logicAtlas.replaceChildren(...(logic.diagrams ?? []).map(createLogicDiagram));
+  window.requestAnimationFrame(updateLogicLinks);
+}
+
+function renderLogicLegend(legend) {
+  if (!logicLegend) return;
+  logicLegend.replaceChildren(
+    ...legend.map((item) => {
+      const badge = document.createElement("span");
+      badge.className = `logic-legend-item ${item.kind || "pda"}`;
+      badge.innerHTML = "<i></i><strong></strong>";
+      badge.querySelector("strong").textContent = item.label;
+      return badge;
+    }),
+  );
+}
+
+function createLogicDiagram(diagram) {
+  const article = document.createElement("article");
+  article.className = `logic-diagram ${diagram.emphasis || ""}`.trim();
+  article.dataset.diagramId = diagram.id;
+  article.innerHTML = `
+    <div class="logic-diagram-head">
+      <div>
+        <span></span>
+        <h3></h3>
+        <p></p>
+      </div>
+    </div>
+    <div class="logic-canvas" data-logic-canvas>
+      <svg class="logic-links" aria-hidden="true"></svg>
+      <div class="logic-lanes"></div>
+    </div>
+    <div class="logic-evidence"></div>
+  `;
+  article.querySelector(".logic-diagram-head span").textContent = diagram.kicker || "";
+  article.querySelector("h3").textContent = diagram.title;
+  article.querySelector(".logic-diagram-head p").textContent = diagram.body;
+  article.querySelector(".logic-lanes").replaceChildren(...(diagram.lanes ?? []).map(createLogicLane));
+  article.querySelector(".logic-evidence").replaceChildren(
+    ...(diagram.evidence ?? []).map((item) => {
+      const chip = document.createElement("span");
+      chip.textContent = item;
+      return chip;
+    }),
+  );
+  article.logicLinks = diagram.links ?? [];
+  return article;
+}
+
+function createLogicLane(lane) {
+  const column = document.createElement("div");
+  column.className = `logic-lane ${lane.kind || "pda"}`;
+  column.innerHTML = `
+    <div class="logic-lane-title"></div>
+    <div class="logic-node-stack"></div>
+  `;
+  column.querySelector(".logic-lane-title").textContent = lane.label;
+  column.querySelector(".logic-node-stack").replaceChildren(...(lane.nodes ?? []).map(createLogicNode));
+  return column;
+}
+
+function createLogicNode(node) {
+  const item = document.createElement("article");
+  item.className = `logic-node ${node.kind || "pda"}`;
+  item.dataset.nodeId = node.id;
+  item.innerHTML = `
+    <div class="logic-node-top">
+      <strong></strong>
+      <span></span>
+    </div>
+    <p></p>
+    <em></em>
+  `;
+  item.querySelector("strong").textContent = node.label;
+  item.querySelector("span").textContent = node.badge || "";
+  item.querySelector("p").textContent = node.detail;
+  item.querySelector("em").textContent = node.evidence || "";
+  return item;
+}
+
+function updateLogicLinks() {
+  if (!logicAtlas) return;
+  logicAtlas.querySelectorAll(".logic-diagram").forEach(drawLogicDiagramLinks);
+}
+
+function drawLogicDiagramLinks(diagram) {
+  const canvas = diagram.querySelector("[data-logic-canvas]");
+  const svg = diagram.querySelector(".logic-links");
+  if (!canvas || !svg) return;
+  const links = diagram.logicLinks ?? [];
+  const canvasRect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(canvasRect.width));
+  const height = Math.max(1, Math.round(canvasRect.height));
+  const markerId = `logic-arrow-${diagram.dataset.diagramId || "default"}`;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.replaceChildren(createArrowMarker(markerId));
+  for (const link of links) {
+    const from = canvas.querySelector(`[data-node-id="${CSS.escape(link.from)}"]`);
+    const to = canvas.querySelector(`[data-node-id="${CSS.escape(link.to)}"]`);
+    if (!from || !to) continue;
+    const fromRect = from.getBoundingClientRect();
+    const toRect = to.getBoundingClientRect();
+    const start = {
+      x: fromRect.left + fromRect.width / 2 - canvasRect.left,
+      y: fromRect.top + fromRect.height / 2 - canvasRect.top,
+    };
+    const end = {
+      x: toRect.left + toRect.width / 2 - canvasRect.left,
+      y: toRect.top + toRect.height / 2 - canvasRect.top,
+    };
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("class", `logic-link-path ${link.kind || "write"}`);
+    path.setAttribute("d", curvedPath(start, end));
+    path.setAttribute("marker-end", `url(#${markerId})`);
+    svg.append(path);
+    if (link.label) {
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("class", "logic-link-label");
+      label.setAttribute("x", String((start.x + end.x) / 2));
+      label.setAttribute("y", String((start.y + end.y) / 2 - 8));
+      label.textContent = link.label;
+      svg.append(label);
+    }
+  }
+}
+
+function createArrowMarker(markerId) {
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+  const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+  marker.setAttribute("id", markerId);
+  marker.setAttribute("viewBox", "0 0 10 10");
+  marker.setAttribute("refX", "8");
+  marker.setAttribute("refY", "5");
+  marker.setAttribute("markerWidth", "6");
+  marker.setAttribute("markerHeight", "6");
+  marker.setAttribute("orient", "auto-start-reverse");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+  marker.append(path);
+  defs.append(marker);
+  return defs;
+}
+
+function curvedPath(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const tension = Math.max(42, Math.min(180, Math.abs(dx) * 0.42));
+  const c1 = { x: start.x + Math.sign(dx || 1) * tension, y: start.y + dy * 0.08 };
+  const c2 = { x: end.x - Math.sign(dx || 1) * tension, y: end.y - dy * 0.08 };
+  return `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`;
+}
+
 function renderDirectory() {
   if (!programDirectory) return;
   const header = document.createElement("div");
@@ -412,17 +578,31 @@ function createDirectoryRow(program) {
 function renderFlow() {
   if (!flowGrid) return;
   flowGrid.replaceChildren(
-    ...dictionary.flow.steps.map((step, index) => {
+    ...dictionary.flow.steps.map((step) => {
       const card = document.createElement("article");
       card.className = "flow-card";
       card.innerHTML = `
         <span></span>
         <strong></strong>
         <p></p>
+        <dl></dl>
       `;
-      card.children[0].textContent = String(index + 1).padStart(2, "0");
+      card.children[0].textContent = step.surface || step.domain || dictionary.flow.surfaceLabel;
       card.children[1].textContent = step.title;
       card.children[2].textContent = step.body;
+      const facts = [
+        [dictionary.flow.writesLabel, step.writes],
+        [dictionary.flow.auditLabel, step.audit],
+      ].filter(([, value]) => value);
+      card.querySelector("dl").replaceChildren(
+        ...facts.flatMap(([label, value]) => {
+          const dt = document.createElement("dt");
+          const dd = document.createElement("dd");
+          dt.textContent = label;
+          dd.textContent = value;
+          return [dt, dd];
+        }),
+      );
       return card;
     }),
   );
@@ -1291,6 +1471,7 @@ function renderLanguageMenu() {
         applyTranslations(document);
         renderNavigation();
         renderRuntimeState();
+        renderLogicAtlas();
         renderDirectory();
         renderFlow();
         renderTransparencyLedger();
