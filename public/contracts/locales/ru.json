@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ru",
     "label": "Russian",
-    "version": "contracts-locale-ru-2f4212366ea8874f",
-    "contentHash": "2f4212366ea8874f"
+    "version": "contracts-locale-ru-dc2b463bf0cb7cc4",
+    "contentHash": "dc2b463bf0cb7cc4"
   },
   "meta": {
     "title": "Контракты NiceChunk"
@@ -202,6 +202,10 @@
     {
       "id": "payload-truth",
       "label": "Payload Truth"
+    },
+    {
+      "id": "value-settlement",
+      "label": "Value Settlement"
     },
     {
       "id": "audit-matrix",

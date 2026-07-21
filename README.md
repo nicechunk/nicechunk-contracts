@@ -167,6 +167,18 @@ The contract directory now includes a `Payload Truth Boundary` map for the user-
 | Player identity and equipment | Names, appearance code, title, equipment slot, and equipment model bytes are human-facing input. | Names are canonicalized into `UsernameIndex`; appearance/model code lengths are bounded; equipment model code is tied to verified Backpack records. | Compare signer, PDA seed, stored hash, model-code limits, and embedded Backpack slot identity. |
 | Guardian endpoint and blueprint | Endpoint payload carries host, port, TLS flag; blueprint payload carries region, hash, revision, and record count. | Endpoint updates require the region operator; blueprint updates require the Building-derived `guardian-blueprint` PDA authority. | Verify host bounds, port nonzero, role authority, region PDA, blueprint revision monotonicity, and decoded `GuardianRegion`. |
 
+## Value Settlement Map
+
+The contract directory now includes a `Value Settlement Map` for SOL, NCK, rent funding, refunds, stake deposits, and non-payment state changes. This keeps money movement separate from inventory custody and governance evidence.
+
+| Surface | Value movement | Contract gate | Reviewer check |
+| --- | --- | --- | --- |
+| Marketplace SOL purchases | Buyer signs SOL transfers to the seller and `MARKET_TREASURY`; the fee is `MARKET_FEE_BPS = 100` over `10,000` bps. | `purchase_listing` validates listing state, seller PDA, treasury address, source slot snapshot, and system program. | Recompute `split_market_payment`, confirm seller proceeds, treasury fee, buyer Backpack delivery, and `ListingAccount::mark_sold`. |
+| Marketplace NCK purchases | Buyer NCK token transfers are split between seller and treasury through SPL Token `transfer_checked`. | Token accounts must be SPL Token owned, pinned to `NCK_MINT`, and owned by buyer, seller, or `MARKET_TREASURY` as appropriate. | Confirm mint, decimals, token owners, checked transfer amounts, and sold listing evidence. |
+| Guardian registration stake | Registration transfers `GUARDIAN_STAKE_AMOUNT = 100,000,000,000` NCK units from operator token account to the treasury PDA token account. | Registry initialization pins `GUARDIAN_TREASURY_WALLET`, `guardian-treasury` PDA, treasury token, NCK mint, and SPL Token program. | Verify operator signer, treasury token owner, adjacency rule, region PDA, stake transfer, and that V2 has no live slash instruction path. |
+| Rent funding and refunds | Payers fund PDA rent via `create_account`, top-up transfers, or realloc funding; only explicit close paths refund lamports. | Rent is computed from `Rent::minimum_balance(len)` and scoped to the target PDA size. | Distinguish rent from revenue; verify cancel/refund recipients for listing cancel, building upload cancel, and PlayerAppearance close. |
+| Non-payment state writes | Mining, smelting, equipment transfer, building proof, and Civilization rule evidence mutate PDA state without moving SOL or NCK. | Program signer PDAs authorize cross-program writes and custody changes. | Classify a path as value movement only when it invokes system transfer, account close/refund, rent funding, or SPL Token `transfer_checked`. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.

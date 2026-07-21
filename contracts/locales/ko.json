@@ -198,6 +198,10 @@
       "label": "Payload Truth"
     },
     {
+      "id": "value-settlement",
+      "label": "Value Settlement"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },

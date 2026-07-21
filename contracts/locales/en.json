@@ -198,6 +198,10 @@
       "label": "Payload Truth"
     },
     {
+      "id": "value-settlement",
+      "label": "Value Settlement"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },
@@ -4897,6 +4901,623 @@
           "PlayerEquipment::validate_model_code",
           "nicechunk_guardian/src/lib.rs",
           "GuardianRegion::update_endpoint"
+        ]
+      }
+    ]
+  },
+  "valueSettlement": {
+    "eyebrow": "Value Settlement Map",
+    "title": "Trace real token and lamport movement separately from item custody, rent, and governance evidence.",
+    "body": "These maps show where SOL or NCK actually moves, where rent is only funding PDA storage, and where gameplay evidence changes state without becoming a payment rail.",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "Signer or payer"
+      },
+      {
+        "kind": "program",
+        "label": "Settlement gate"
+      },
+      {
+        "kind": "pda",
+        "label": "State or custody record"
+      },
+      {
+        "kind": "proof",
+        "label": "Token or lamport movement"
+      },
+      {
+        "kind": "offchain",
+        "label": "Non-payment evidence"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "market-dual-currency-settlement",
+        "kicker": "Marketplace Dual-Currency Settlement",
+        "title": "A purchase moves SOL or NCK first, then delivers the escrowed Backpack slot and marks the listing sold.",
+        "body": "Market purchase is the only current player-facing sale path with direct payment settlement. It validates the active listing, seller, currency, price, and source slot before splitting the payment and delivering the exact escrowed slot snapshot.",
+        "lanes": [
+          {
+            "label": "Sale state",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "market-active-listing",
+                "kind": "pda",
+                "label": "Active ListingAccount",
+                "badge": "seller + price",
+                "detail": "The listing PDA must be active, writable, program-owned, seller-bound, and derived from [listing, seller, listing_id].",
+                "evidence": "ListingAccount::validate_active"
+              },
+              {
+                "id": "market-source-custody",
+                "kind": "pda",
+                "label": "Escrowed source_slot",
+                "badge": "80 bytes",
+                "detail": "Payment settlement does not invent item data; it reads the stored Backpack slot snapshot from the listing.",
+                "evidence": "ListingAccount::source_slot"
+              }
+            ]
+          },
+          {
+            "label": "Payment split",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "market-payment-router",
+                "kind": "program",
+                "label": "purchase_listing router",
+                "badge": "currency gate",
+                "detail": "The account list length and payment path depend on whether the listing currency is SOL or NCK.",
+                "evidence": "CURRENCY_SOL / CURRENCY_NCK"
+              },
+              {
+                "id": "market-fee-split",
+                "kind": "program",
+                "label": "1% fee calculation",
+                "badge": "100 bps",
+                "detail": "split_market_payment computes fee = price * 100 / 10,000 and seller_amount = price - fee with checked arithmetic.",
+                "evidence": "MARKET_FEE_BPS = 100"
+              }
+            ]
+          },
+          {
+            "label": "SOL settlement",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-sol-route",
+                "kind": "proof",
+                "label": "SOL transfer path",
+                "badge": "system program",
+                "detail": "For SOL listings, the buyer signs system transfers to the seller and MARKET_TREASURY after the treasury address is pinned.",
+                "evidence": "system_instruction::transfer"
+              },
+              {
+                "id": "market-nck-route",
+                "kind": "proof",
+                "label": "NCK transfer path",
+                "badge": "transfer_checked",
+                "detail": "For NCK listings, token accounts must match spl-token ownership, NCK_MINT, and buyer/seller/treasury owners before checked transfers run.",
+                "evidence": "validate_token_account + NCK_DECIMALS"
+              }
+            ]
+          },
+          {
+            "label": "Delivery evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-buyer-delivery",
+                "kind": "program",
+                "label": "MarketAuthority delivery",
+                "badge": "Backpack CPI",
+                "detail": "After payment, MarketAuthority appends the stored slot snapshot to the buyer Backpack.",
+                "evidence": "append_market_slot_to_backpack"
+              },
+              {
+                "id": "market-sold-record",
+                "kind": "proof",
+                "label": "Sold listing record",
+                "badge": "durable",
+                "detail": "The listing is marked sold with buyer, slot, and timestamp instead of being closed, so settlement remains decodable.",
+                "evidence": "ListingAccount::mark_sold"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "market-active-listing",
+            "to": "market-payment-router",
+            "label": "validates",
+            "kind": "guard"
+          },
+          {
+            "from": "market-source-custody",
+            "to": "market-buyer-delivery",
+            "label": "delivers exact slot",
+            "kind": "read"
+          },
+          {
+            "from": "market-payment-router",
+            "to": "market-fee-split",
+            "label": "reads price",
+            "kind": "guard"
+          },
+          {
+            "from": "market-fee-split",
+            "to": "market-sol-route",
+            "label": "SOL branch",
+            "kind": "write"
+          },
+          {
+            "from": "market-fee-split",
+            "to": "market-nck-route",
+            "label": "NCK branch",
+            "kind": "write"
+          },
+          {
+            "from": "market-sol-route",
+            "to": "market-buyer-delivery",
+            "label": "payment complete",
+            "kind": "guard"
+          },
+          {
+            "from": "market-nck-route",
+            "to": "market-buyer-delivery",
+            "label": "payment complete",
+            "kind": "guard"
+          },
+          {
+            "from": "market-buyer-delivery",
+            "to": "market-sold-record",
+            "label": "records settlement",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_market/src/lib.rs",
+          "split_market_payment",
+          "MARKET_TREASURY",
+          "ListingAccount::mark_sold"
+        ]
+      },
+      {
+        "id": "rent-funding-and-refund-ledger",
+        "kicker": "Rent Funding And Refund Ledger",
+        "title": "Rent movement funds PDA storage; only explicit close paths return lamports to an authorized recipient.",
+        "body": "Rent funding appears across many programs, but it is not protocol revenue. Reviewers should separate rent top-ups and realloc funding from terminal refunds and durable accounts intentionally kept for evidence.",
+        "lanes": [
+          {
+            "label": "Funding source",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "rent-payer",
+                "kind": "wallet",
+                "label": "Payer / owner / session authority",
+                "badge": "signer",
+                "detail": "Initial account creation and rent top-ups are funded by the instruction payer, owner, seller, session authority, or treasury authority depending on the program.",
+                "evidence": "payer AccountInfo"
+              },
+              {
+                "id": "rent-minimum",
+                "kind": "program",
+                "label": "Rent minimum",
+                "badge": "minimum_balance",
+                "detail": "Programs call Rent::minimum_balance for the exact target length before create, top-up, allocate, assign, or realloc.",
+                "evidence": "Rent::get()?.minimum_balance(len)"
+              }
+            ]
+          },
+          {
+            "label": "Storage path",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "rent-create-topup",
+                "kind": "program",
+                "label": "Create or top-up PDA",
+                "badge": "system program",
+                "detail": "Empty PDAs are created with create_account; pre-funded PDAs receive only the missing rent delta before allocate and assign.",
+                "evidence": "create_or_allocate_*_pda"
+              },
+              {
+                "id": "rent-realloc-growth",
+                "kind": "program",
+                "label": "Realloc growth",
+                "badge": "capacity",
+                "detail": "Chunk, Player, Smelting, Guardian, and Building growth paths top up rent before reallocating larger account layouts.",
+                "evidence": "fund_account_to_rent_exempt / realloc"
+              }
+            ]
+          },
+          {
+            "label": "Refund path",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "rent-market-cancel",
+                "kind": "proof",
+                "label": "Listing cancel refund",
+                "badge": "seller",
+                "detail": "Cancel restores the escrowed Backpack slot, zeroes listing data, and transfers listing lamports back to the seller.",
+                "evidence": "cancel_listing lamport return"
+              },
+              {
+                "id": "rent-building-cancel",
+                "kind": "proof",
+                "label": "Building upload cancel",
+                "badge": "session authority",
+                "detail": "Canceling a building upload closes manifest and shard accounts to the session authority after BuildSite pending revision is cleared.",
+                "evidence": "close_program_account"
+              }
+            ]
+          },
+          {
+            "label": "Treasury close",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "rent-appearance-close",
+                "kind": "proof",
+                "label": "Appearance close",
+                "badge": "treasury authority",
+                "detail": "PlayerAppearance close requires the configured treasury authority signer and returns lamports only to that same recipient.",
+                "evidence": "close_player_appearance"
+              },
+              {
+                "id": "rent-durable-record",
+                "kind": "pda",
+                "label": "Durable sold / proof records",
+                "badge": "not refunded",
+                "detail": "Sold listings, rule receipts, and long-lived evidence accounts remain decodable instead of being treated as refundable protocol funds.",
+                "evidence": "ListingAccount::mark_sold / ExecutionReceipt"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "rent-payer",
+            "to": "rent-minimum",
+            "label": "funds",
+            "kind": "guard"
+          },
+          {
+            "from": "rent-minimum",
+            "to": "rent-create-topup",
+            "label": "sets delta",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-realloc-growth",
+            "label": "may grow",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-market-cancel",
+            "label": "listing close path",
+            "kind": "write"
+          },
+          {
+            "from": "rent-realloc-growth",
+            "to": "rent-building-cancel",
+            "label": "upload close path",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-appearance-close",
+            "label": "treasury close path",
+            "kind": "write"
+          },
+          {
+            "from": "rent-realloc-growth",
+            "to": "rent-durable-record",
+            "label": "kept as evidence",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "Rent::minimum_balance",
+          "cancel_listing",
+          "cancel_building_upload",
+          "close_player_appearance"
+        ]
+      },
+      {
+        "id": "guardian-treasury-stake-boundary",
+        "kicker": "Guardian Treasury Stake Boundary",
+        "title": "Guardian V2 registration transfers NCK stake into the treasury PDA token account; live slashing is not a V2 instruction path.",
+        "body": "Guardian registry setup pins the treasury wallet, treasury authority PDA, treasury NCK token, NCK mint, and SPL Token program. Region registration transfers the configured stake amount from the operator token account to the treasury token account.",
+        "lanes": [
+          {
+            "label": "Governance setup",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "guardian-treasury-wallet",
+                "kind": "wallet",
+                "label": "Treasury wallet signer",
+                "badge": "governance",
+                "detail": "Registry initialization requires GUARDIAN_TREASURY_WALLET as signer and writable payer.",
+                "evidence": "initialize_registry"
+              },
+              {
+                "id": "guardian-registry-state",
+                "kind": "pda",
+                "label": "GuardianRegistry",
+                "badge": "160 bytes",
+                "detail": "The registry stores GlobalConfig, NCK mint, treasury token, active count, stake amount, slash policy value, and genesis state.",
+                "evidence": "GuardianRegistry::pack"
+              }
+            ]
+          },
+          {
+            "label": "Stake transfer",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "guardian-operator-token",
+                "kind": "wallet",
+                "label": "Operator NCK token",
+                "badge": "operator owner",
+                "detail": "Registration validates the operator token account owner, NCK mint, operator signer, endpoint payload, and adjacency rule.",
+                "evidence": "validate_token_account(operator)"
+              },
+              {
+                "id": "guardian-treasury-token",
+                "kind": "pda",
+                "label": "Treasury authority token",
+                "badge": "guardian-treasury PDA",
+                "detail": "Treasury token must be the registry token account owned by the derived guardian-treasury PDA authority.",
+                "evidence": "derive_treasury_authority_pda"
+              },
+              {
+                "id": "guardian-stake-transfer",
+                "kind": "proof",
+                "label": "Stake transfer_checked",
+                "badge": "100,000,000,000 units",
+                "detail": "The SPL Token checked transfer moves GUARDIAN_STAKE_AMOUNT from operator token account to treasury token account.",
+                "evidence": "transfer_stake_to_treasury"
+              }
+            ]
+          },
+          {
+            "label": "Region evidence",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "guardian-region",
+                "kind": "pda",
+                "label": "GuardianRegion",
+                "badge": "active",
+                "detail": "A region PDA is created or reactivated only after stake transfer, registry validation, operator signer checks, and endpoint bounds.",
+                "evidence": "GuardianRegion::pack"
+              },
+              {
+                "id": "guardian-no-slash",
+                "kind": "disabled",
+                "label": "No live V2 slash path",
+                "badge": "retired",
+                "detail": "The slash amount remains encoded for layout stability, but current V2 dispatch rejects retired proof and settlement tags.",
+                "evidence": "no V2 instruction can slash stake"
+              }
+            ]
+          },
+          {
+            "label": "Role separation",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "guardian-operator-only",
+                "kind": "program",
+                "label": "Endpoint/operator updates",
+                "badge": "no funds",
+                "detail": "Operator and endpoint update paths mutate GuardianRegion metadata but do not move NCK or lamports.",
+                "evidence": "update_guardian_endpoint / update_guardian_operator"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "guardian-treasury-wallet",
+            "to": "guardian-registry-state",
+            "label": "initializes",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-registry-state",
+            "to": "guardian-treasury-token",
+            "label": "pins token",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-operator-token",
+            "to": "guardian-stake-transfer",
+            "label": "source",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-treasury-token",
+            "to": "guardian-stake-transfer",
+            "label": "destination",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-stake-transfer",
+            "to": "guardian-region",
+            "label": "registers after stake",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-region",
+            "to": "guardian-operator-only",
+            "label": "metadata updates",
+            "kind": "read"
+          },
+          {
+            "from": "guardian-no-slash",
+            "to": "guardian-operator-only",
+            "label": "not a value path",
+            "kind": "disabled"
+          }
+        ],
+        "evidence": [
+          "nicechunk_guardian/src/state.rs",
+          "GUARDIAN_STAKE_AMOUNT = 100,000,000,000",
+          "GUARDIAN_TREASURY_AUTHORITY_SEED",
+          "retired settlement tags rejected"
+        ]
+      },
+      {
+        "id": "non-payment-state-boundaries",
+        "kicker": "Non-Payment State Boundaries",
+        "title": "Inventory, recipe, mining, and governance evidence can change state without moving SOL or NCK.",
+        "body": "Several high-value gameplay actions mutate PDA evidence or item custody, but they are not payment rails. Auditors should look for explicit system transfers or SPL Token transfers before classifying a path as value settlement.",
+        "lanes": [
+          {
+            "label": "Gameplay authority",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "nonpay-session-owner",
+                "kind": "wallet",
+                "label": "Owner or session signer",
+                "badge": "action gate",
+                "detail": "Mining, building, smelting, equipment, and governance actions require owner/session/authority signatures specific to their program.",
+                "evidence": "validate_player_action / owner signer"
+              },
+              {
+                "id": "nonpay-program-signer",
+                "kind": "program",
+                "label": "Program signer PDA",
+                "badge": "CPI authority",
+                "detail": "Chunk, Smelting, Market, Player, Building, and Civilization use explicit PDA signers for cross-program writes.",
+                "evidence": "CPI Authority Ledger"
+              }
+            ]
+          },
+          {
+            "label": "Custody evidence",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "nonpay-backpack-slot",
+                "kind": "pda",
+                "label": "Backpack slot mutation",
+                "badge": "item custody",
+                "detail": "Mined resources, smelting outputs, equipment transfers, and market deliveries change slot records rather than paying token balances.",
+                "evidence": "nicechunk_backpack CPI tags"
+              },
+              {
+                "id": "nonpay-recipe-output",
+                "kind": "pda",
+                "label": "Recipe-derived outputs",
+                "badge": "material facts",
+                "detail": "Smelting removes validated Backpack inputs and appends normalized outputs through SmeltingAuthority; no SOL/NCK payment occurs in execute_smelting.",
+                "evidence": "execute_smelting"
+              }
+            ]
+          },
+          {
+            "label": "Governance evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "nonpay-civilization-power",
+                "kind": "proof",
+                "label": "Civilization power records",
+                "badge": "not token balance",
+                "detail": "Power snapshots, citizen power, signatures, tallies, and receipts prove rule execution readiness, not spendable NCK.",
+                "evidence": "RuleSignature / RuleTally / ExecutionReceipt"
+              },
+              {
+                "id": "nonpay-building-proof",
+                "kind": "proof",
+                "label": "Building and chunk evidence",
+                "badge": "world state",
+                "detail": "BuildSite, BuildingManifest, BuildingShard, FoundationChunk, and ChunkBrokenState are public state proofs, not value escrows.",
+                "evidence": "Building / Chunk account layouts"
+              }
+            ]
+          },
+          {
+            "label": "Audit decision",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "nonpay-transfer-check",
+                "kind": "offchain",
+                "label": "Value-path test",
+                "badge": "transfer required",
+                "detail": "Classify a branch as money movement only when it invokes system transfer, create-account rent funding, close/refund, or SPL Token transfer_checked.",
+                "evidence": "system_instruction::transfer / spl_token::transfer_checked"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "nonpay-session-owner",
+            "to": "nonpay-program-signer",
+            "label": "authorizes action",
+            "kind": "guard"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-backpack-slot",
+            "label": "writes custody",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-backpack-slot",
+            "to": "nonpay-recipe-output",
+            "label": "recipe IO",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-civilization-power",
+            "label": "records proof",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-building-proof",
+            "label": "records world state",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-recipe-output",
+            "to": "nonpay-transfer-check",
+            "label": "not a payment",
+            "kind": "read"
+          },
+          {
+            "from": "nonpay-civilization-power",
+            "to": "nonpay-transfer-check",
+            "label": "not spendable",
+            "kind": "read"
+          },
+          {
+            "from": "nonpay-building-proof",
+            "to": "nonpay-transfer-check",
+            "label": "not escrow",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "nicechunk_backpack/src/lib.rs",
+          "nicechunk_smelting/src/lib.rs",
+          "nicechunk_civilization/src/lib.rs",
+          "system/SPL transfer scan"
         ]
       }
     ]

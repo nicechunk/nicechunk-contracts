@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ja",
     "label": "Japanese",
-    "version": "contracts-locale-ja-337744f78fe321d1",
-    "contentHash": "337744f78fe321d1"
+    "version": "contracts-locale-ja-f1d9584234e91234",
+    "contentHash": "f1d9584234e91234"
   },
   "meta": {
     "title": "NiceChunk コントラクト"
@@ -202,6 +202,10 @@
     {
       "id": "payload-truth",
       "label": "Payload Truth"
+    },
+    {
+      "id": "value-settlement",
+      "label": "Value Settlement"
     },
     {
       "id": "audit-matrix",

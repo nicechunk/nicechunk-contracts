@@ -582,6 +582,26 @@ a.directory-row:hover {
   overflow-wrap: anywhere;
 }
 
+.value-settlement-grid .logic-diagram-head h3 {
+  font-size: clamp(20px, 2.1vw, 26px);
+}
+
+.value-settlement-grid .logic-canvas {
+  padding: 16px;
+}
+
+.value-settlement-grid .logic-node {
+  padding: 11px;
+}
+
+.value-settlement-grid .logic-node p {
+  font-size: 11px;
+}
+
+.value-settlement-grid .logic-node em {
+  overflow-wrap: anywhere;
+}
+
 .seed-evidence-grid .logic-diagram-head h3 {
   font-size: clamp(20px, 2.1vw, 26px);
 }

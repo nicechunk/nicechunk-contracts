@@ -198,6 +198,10 @@
       "label": "Payload 真实性"
     },
     {
+      "id": "value-settlement",
+      "label": "价值结算"
+    },
+    {
       "id": "audit-matrix",
       "label": "审计矩阵"
     },
@@ -4897,6 +4901,623 @@
           "PlayerEquipment::validate_model_code",
           "nicechunk_guardian/src/lib.rs",
           "GuardianRegion::update_endpoint"
+        ]
+      }
+    ]
+  },
+  "valueSettlement": {
+    "eyebrow": "价值结算图谱",
+    "title": "把真实 token 和 lamport 移动，与物品托管、租金和治理证据分开追踪。",
+    "body": "这些图说明 SOL 或 NCK 实际在哪里移动，哪些 rent 只是为 PDA 存储付费，哪些玩法证据只是改变状态而不是支付通道。",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "签名者或付款方"
+      },
+      {
+        "kind": "program",
+        "label": "结算闸门"
+      },
+      {
+        "kind": "pda",
+        "label": "状态或托管记录"
+      },
+      {
+        "kind": "proof",
+        "label": "Token 或 lamport 移动"
+      },
+      {
+        "kind": "offchain",
+        "label": "非支付证据"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "market-dual-currency-settlement",
+        "kicker": "Marketplace 双币种结算",
+        "title": "购买会先移动 SOL 或 NCK，然后交付托管的 Backpack 槽位，并把 listing 标记为 sold。",
+        "body": "Market purchase 是当前玩家侧唯一带直接付款结算的销售路径。它会先校验 active listing、seller、currency、price 和 source slot，再拆分付款并交付精确的托管槽位快照。",
+        "lanes": [
+          {
+            "label": "销售状态",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "market-active-listing",
+                "kind": "pda",
+                "label": "Active ListingAccount",
+                "badge": "seller + price",
+                "detail": "listing PDA 必须 active、writable、program-owned、绑定 seller，并由 [listing, seller, listing_id] 派生。",
+                "evidence": "ListingAccount::validate_active"
+              },
+              {
+                "id": "market-source-custody",
+                "kind": "pda",
+                "label": "托管 source_slot",
+                "badge": "80 字节",
+                "detail": "付款结算不会发明物品数据；它读取 listing 中保存的 Backpack 槽位快照。",
+                "evidence": "ListingAccount::source_slot"
+              }
+            ]
+          },
+          {
+            "label": "付款拆分",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "market-payment-router",
+                "kind": "program",
+                "label": "purchase_listing router",
+                "badge": "currency gate",
+                "detail": "账户列表长度和付款路径取决于 listing currency 是 SOL 还是 NCK。",
+                "evidence": "CURRENCY_SOL / CURRENCY_NCK"
+              },
+              {
+                "id": "market-fee-split",
+                "kind": "program",
+                "label": "1% fee 计算",
+                "badge": "100 bps",
+                "detail": "split_market_payment 用 checked arithmetic 计算 fee = price * 100 / 10,000，seller_amount = price - fee。",
+                "evidence": "MARKET_FEE_BPS = 100"
+              }
+            ]
+          },
+          {
+            "label": "SOL/NCK 结算",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-sol-route",
+                "kind": "proof",
+                "label": "SOL 转账路径",
+                "badge": "system program",
+                "detail": "SOL listing 会先 pin treasury 地址，再由 buyer 签名 system transfer 给 seller 和 MARKET_TREASURY。",
+                "evidence": "system_instruction::transfer"
+              },
+              {
+                "id": "market-nck-route",
+                "kind": "proof",
+                "label": "NCK 转账路径",
+                "badge": "transfer_checked",
+                "detail": "NCK listing 会先确认 token account 属于 spl-token、mint 是 NCK_MINT，且 owner 分别是 buyer/seller/treasury。",
+                "evidence": "validate_token_account + NCK_DECIMALS"
+              }
+            ]
+          },
+          {
+            "label": "交付证据",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-buyer-delivery",
+                "kind": "program",
+                "label": "MarketAuthority 交付",
+                "badge": "Backpack CPI",
+                "detail": "付款完成后，MarketAuthority 把存储的槽位快照追加到 buyer Backpack。",
+                "evidence": "append_market_slot_to_backpack"
+              },
+              {
+                "id": "market-sold-record",
+                "kind": "proof",
+                "label": "Sold listing record",
+                "badge": "durable",
+                "detail": "listing 会写入 buyer、slot 和 timestamp 标记 sold，而不是关闭账号，所以结算仍可解码。",
+                "evidence": "ListingAccount::mark_sold"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "market-active-listing",
+            "to": "market-payment-router",
+            "label": "校验",
+            "kind": "guard"
+          },
+          {
+            "from": "market-source-custody",
+            "to": "market-buyer-delivery",
+            "label": "交付精确槽位",
+            "kind": "read"
+          },
+          {
+            "from": "market-payment-router",
+            "to": "market-fee-split",
+            "label": "读取价格",
+            "kind": "guard"
+          },
+          {
+            "from": "market-fee-split",
+            "to": "market-sol-route",
+            "label": "SOL 分支",
+            "kind": "write"
+          },
+          {
+            "from": "market-fee-split",
+            "to": "market-nck-route",
+            "label": "NCK 分支",
+            "kind": "write"
+          },
+          {
+            "from": "market-sol-route",
+            "to": "market-buyer-delivery",
+            "label": "付款完成",
+            "kind": "guard"
+          },
+          {
+            "from": "market-nck-route",
+            "to": "market-buyer-delivery",
+            "label": "付款完成",
+            "kind": "guard"
+          },
+          {
+            "from": "market-buyer-delivery",
+            "to": "market-sold-record",
+            "label": "记录结算",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_market/src/lib.rs",
+          "split_market_payment",
+          "MARKET_TREASURY",
+          "ListingAccount::mark_sold"
+        ]
+      },
+      {
+        "id": "rent-funding-and-refund-ledger",
+        "kicker": "租金 funding 与退款账本",
+        "title": "Rent 移动用于资助 PDA 存储；只有明确 close 路径会把 lamports 退给授权接收方。",
+        "body": "很多程序都有 rent funding，但它不是协议收入。审计时要把 rent top-up、realloc funding、终态 refund，以及为证据故意保留的持久账号分开。",
+        "lanes": [
+          {
+            "label": "资金来源",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "rent-payer",
+                "kind": "wallet",
+                "label": "Payer / owner / session authority",
+                "badge": "signer",
+                "detail": "初始创建和 rent top-up 由 payer、owner、seller、session authority 或 treasury authority 资助，取决于具体程序。",
+                "evidence": "payer AccountInfo"
+              },
+              {
+                "id": "rent-minimum",
+                "kind": "program",
+                "label": "Rent minimum",
+                "badge": "minimum_balance",
+                "detail": "程序在 create、top-up、allocate、assign 或 realloc 前，按目标长度调用 Rent::minimum_balance。",
+                "evidence": "Rent::get()?.minimum_balance(len)"
+              }
+            ]
+          },
+          {
+            "label": "存储路径",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "rent-create-topup",
+                "kind": "program",
+                "label": "Create or top-up PDA",
+                "badge": "system program",
+                "detail": "空 PDA 通过 create_account 创建；预先有 lamports 的 PDA 只补足 rent 差额后再 allocate 和 assign。",
+                "evidence": "create_or_allocate_*_pda"
+              },
+              {
+                "id": "rent-realloc-growth",
+                "kind": "program",
+                "label": "Realloc growth",
+                "badge": "capacity",
+                "detail": "Chunk、Player、Smelting、Guardian、Building 的增长路径会先补 rent，再 realloc 更大的 account layout。",
+                "evidence": "fund_account_to_rent_exempt / realloc"
+              }
+            ]
+          },
+          {
+            "label": "退款路径",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "rent-market-cancel",
+                "kind": "proof",
+                "label": "Listing cancel refund",
+                "badge": "seller",
+                "detail": "取消 listing 会恢复托管 Backpack 槽位、清零 listing 数据，并把 listing lamports 退给 seller。",
+                "evidence": "cancel_listing lamport return"
+              },
+              {
+                "id": "rent-building-cancel",
+                "kind": "proof",
+                "label": "Building upload cancel",
+                "badge": "session authority",
+                "detail": "取消建筑上传会在清除 BuildSite pending revision 后，把 manifest 和 shard 账号关闭到 session authority。",
+                "evidence": "close_program_account"
+              }
+            ]
+          },
+          {
+            "label": "Treasury close",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "rent-appearance-close",
+                "kind": "proof",
+                "label": "Appearance close",
+                "badge": "treasury authority",
+                "detail": "PlayerAppearance close 要求配置的 treasury authority 签名，并且 lamports 只能退给同一个 recipient。",
+                "evidence": "close_player_appearance"
+              },
+              {
+                "id": "rent-durable-record",
+                "kind": "pda",
+                "label": "持久 sold / proof 记录",
+                "badge": "not refunded",
+                "detail": "sold listing、rule receipt 和长期证据账号会保留可解码状态，不当作可退款协议资金。",
+                "evidence": "ListingAccount::mark_sold / ExecutionReceipt"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "rent-payer",
+            "to": "rent-minimum",
+            "label": "资助",
+            "kind": "guard"
+          },
+          {
+            "from": "rent-minimum",
+            "to": "rent-create-topup",
+            "label": "设置差额",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-realloc-growth",
+            "label": "可能增长",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-market-cancel",
+            "label": "listing close",
+            "kind": "write"
+          },
+          {
+            "from": "rent-realloc-growth",
+            "to": "rent-building-cancel",
+            "label": "upload close",
+            "kind": "write"
+          },
+          {
+            "from": "rent-create-topup",
+            "to": "rent-appearance-close",
+            "label": "treasury close",
+            "kind": "write"
+          },
+          {
+            "from": "rent-realloc-growth",
+            "to": "rent-durable-record",
+            "label": "作为证据保留",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "Rent::minimum_balance",
+          "cancel_listing",
+          "cancel_building_upload",
+          "close_player_appearance"
+        ]
+      },
+      {
+        "id": "guardian-treasury-stake-boundary",
+        "kicker": "Guardian Treasury 质押边界",
+        "title": "Guardian V2 注册会把 NCK stake 转入 treasury PDA token account；live slashing 不是 V2 instruction 路径。",
+        "body": "Guardian registry 初始化会 pin treasury wallet、treasury authority PDA、treasury NCK token、NCK mint 和 SPL Token program。Region 注册会把配置的 stake amount 从 operator token account 转到 treasury token account。",
+        "lanes": [
+          {
+            "label": "治理设置",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "guardian-treasury-wallet",
+                "kind": "wallet",
+                "label": "Treasury wallet signer",
+                "badge": "governance",
+                "detail": "Registry 初始化要求 GUARDIAN_TREASURY_WALLET 作为 signer 和 writable payer。",
+                "evidence": "initialize_registry"
+              },
+              {
+                "id": "guardian-registry-state",
+                "kind": "pda",
+                "label": "GuardianRegistry",
+                "badge": "160 bytes",
+                "detail": "registry 保存 GlobalConfig、NCK mint、treasury token、active count、stake amount、slash policy value 和 genesis 状态。",
+                "evidence": "GuardianRegistry::pack"
+              }
+            ]
+          },
+          {
+            "label": "质押转移",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "guardian-operator-token",
+                "kind": "wallet",
+                "label": "Operator NCK token",
+                "badge": "operator owner",
+                "detail": "注册会校验 operator token account owner、NCK mint、operator signer、endpoint payload 和 adjacency rule。",
+                "evidence": "validate_token_account(operator)"
+              },
+              {
+                "id": "guardian-treasury-token",
+                "kind": "pda",
+                "label": "Treasury authority token",
+                "badge": "guardian-treasury PDA",
+                "detail": "treasury token 必须是 registry 记录的 token account，owner 是派生的 guardian-treasury PDA authority。",
+                "evidence": "derive_treasury_authority_pda"
+              },
+              {
+                "id": "guardian-stake-transfer",
+                "kind": "proof",
+                "label": "Stake transfer_checked",
+                "badge": "100,000,000,000 units",
+                "detail": "SPL Token checked transfer 把 GUARDIAN_STAKE_AMOUNT 从 operator token account 转到 treasury token account。",
+                "evidence": "transfer_stake_to_treasury"
+              }
+            ]
+          },
+          {
+            "label": "Region 证据",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "guardian-region",
+                "kind": "pda",
+                "label": "GuardianRegion",
+                "badge": "active",
+                "detail": "region PDA 只有在 stake transfer、registry 校验、operator signer 和 endpoint bounds 通过后才会创建或重新激活。",
+                "evidence": "GuardianRegion::pack"
+              },
+              {
+                "id": "guardian-no-slash",
+                "kind": "disabled",
+                "label": "No live V2 slash path",
+                "badge": "retired",
+                "detail": "slash amount 仍为 layout stability 编码，但当前 V2 dispatch 拒绝 retired proof 和 settlement tags。",
+                "evidence": "no V2 instruction can slash stake"
+              }
+            ]
+          },
+          {
+            "label": "角色分离",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "guardian-operator-only",
+                "kind": "program",
+                "label": "Endpoint/operator updates",
+                "badge": "no funds",
+                "detail": "operator 和 endpoint update path 只改变 GuardianRegion metadata，不移动 NCK 或 lamports。",
+                "evidence": "update_guardian_endpoint / update_guardian_operator"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "guardian-treasury-wallet",
+            "to": "guardian-registry-state",
+            "label": "初始化",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-registry-state",
+            "to": "guardian-treasury-token",
+            "label": "pin token",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-operator-token",
+            "to": "guardian-stake-transfer",
+            "label": "来源",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-treasury-token",
+            "to": "guardian-stake-transfer",
+            "label": "目标",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-stake-transfer",
+            "to": "guardian-region",
+            "label": "质押后注册",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-region",
+            "to": "guardian-operator-only",
+            "label": "metadata updates",
+            "kind": "read"
+          },
+          {
+            "from": "guardian-no-slash",
+            "to": "guardian-operator-only",
+            "label": "不是资金路径",
+            "kind": "disabled"
+          }
+        ],
+        "evidence": [
+          "nicechunk_guardian/src/state.rs",
+          "GUARDIAN_STAKE_AMOUNT = 100,000,000,000",
+          "GUARDIAN_TREASURY_AUTHORITY_SEED",
+          "retired settlement tags rejected"
+        ]
+      },
+      {
+        "id": "non-payment-state-boundaries",
+        "kicker": "非支付状态边界",
+        "title": "Inventory、recipe、mining 和 governance 证据可以改变状态，但不移动 SOL 或 NCK。",
+        "body": "很多高价值玩法动作会改变 PDA 证据或物品 custody，但它们不是支付通道。审计者应该看到明确 system transfer 或 SPL Token transfer 后，才把路径归类为价值结算。",
+        "lanes": [
+          {
+            "label": "玩法权限",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "nonpay-session-owner",
+                "kind": "wallet",
+                "label": "Owner or session signer",
+                "badge": "action gate",
+                "detail": "Mining、building、smelting、equipment 和 governance action 要求各自程序的 owner/session/authority 签名。",
+                "evidence": "validate_player_action / owner signer"
+              },
+              {
+                "id": "nonpay-program-signer",
+                "kind": "program",
+                "label": "Program signer PDA",
+                "badge": "CPI authority",
+                "detail": "Chunk、Smelting、Market、Player、Building 和 Civilization 使用明确 PDA signer 做跨程序写入。",
+                "evidence": "CPI Authority Ledger"
+              }
+            ]
+          },
+          {
+            "label": "托管证据",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "nonpay-backpack-slot",
+                "kind": "pda",
+                "label": "Backpack slot mutation",
+                "badge": "item custody",
+                "detail": "挖矿资源、冶炼产物、装备转移和市场交付改变的是 slot records，不是 token balance。",
+                "evidence": "nicechunk_backpack CPI tags"
+              },
+              {
+                "id": "nonpay-recipe-output",
+                "kind": "pda",
+                "label": "Recipe-derived outputs",
+                "badge": "material facts",
+                "detail": "Smelting 移除校验过的 Backpack inputs，并通过 SmeltingAuthority 追加标准化 outputs；execute_smelting 不发生 SOL/NCK 付款。",
+                "evidence": "execute_smelting"
+              }
+            ]
+          },
+          {
+            "label": "治理证据",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "nonpay-civilization-power",
+                "kind": "proof",
+                "label": "Civilization power records",
+                "badge": "not token balance",
+                "detail": "Power snapshots、citizen power、signatures、tallies 和 receipts 证明规则执行准备状态，不是可花费 NCK。",
+                "evidence": "RuleSignature / RuleTally / ExecutionReceipt"
+              },
+              {
+                "id": "nonpay-building-proof",
+                "kind": "proof",
+                "label": "Building and chunk evidence",
+                "badge": "world state",
+                "detail": "BuildSite、BuildingManifest、BuildingShard、FoundationChunk 和 ChunkBrokenState 是公开状态证明，不是价值 escrow。",
+                "evidence": "Building / Chunk account layouts"
+              }
+            ]
+          },
+          {
+            "label": "审计判断",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "nonpay-transfer-check",
+                "kind": "offchain",
+                "label": "Value-path test",
+                "badge": "transfer required",
+                "detail": "只有分支 invoke system transfer、create-account rent funding、close/refund 或 SPL Token transfer_checked 时，才把它归类为资金移动。",
+                "evidence": "system_instruction::transfer / spl_token::transfer_checked"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "nonpay-session-owner",
+            "to": "nonpay-program-signer",
+            "label": "授权动作",
+            "kind": "guard"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-backpack-slot",
+            "label": "写 custody",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-backpack-slot",
+            "to": "nonpay-recipe-output",
+            "label": "recipe IO",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-civilization-power",
+            "label": "记录 proof",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-program-signer",
+            "to": "nonpay-building-proof",
+            "label": "记录 world state",
+            "kind": "write"
+          },
+          {
+            "from": "nonpay-recipe-output",
+            "to": "nonpay-transfer-check",
+            "label": "不是支付",
+            "kind": "read"
+          },
+          {
+            "from": "nonpay-civilization-power",
+            "to": "nonpay-transfer-check",
+            "label": "不可花费",
+            "kind": "read"
+          },
+          {
+            "from": "nonpay-building-proof",
+            "to": "nonpay-transfer-check",
+            "label": "不是 escrow",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "nicechunk_backpack/src/lib.rs",
+          "nicechunk_smelting/src/lib.rs",
+          "nicechunk_civilization/src/lib.rs",
+          "system/SPL transfer scan"
         ]
       }
     ]

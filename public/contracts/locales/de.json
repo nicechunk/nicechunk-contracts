@@ -2,8 +2,8 @@
   "_meta": {
     "language": "de",
     "label": "German",
-    "version": "contracts-locale-de-12d5ad24015e9682",
-    "contentHash": "12d5ad24015e9682"
+    "version": "contracts-locale-de-c53d9cc8f79e7801",
+    "contentHash": "c53d9cc8f79e7801"
   },
   "meta": {
     "title": "NiceChunk Vertrage"
@@ -202,6 +202,10 @@
     {
       "id": "payload-truth",
       "label": "Payload Truth"
+    },
+    {
+      "id": "value-settlement",
+      "label": "Value Settlement"
     },
     {
       "id": "audit-matrix",
