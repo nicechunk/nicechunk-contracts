@@ -317,6 +317,7 @@ a.directory-row:hover {
 }
 
 .flow-card,
+.audit-matrix-card,
 .note-panel,
 .program-panel,
 .runtime-card,
@@ -328,12 +329,14 @@ a.directory-row:hover {
 }
 
 .flow-card,
+.audit-matrix-card,
 .runtime-card,
 .transparency-card {
   padding: 18px;
 }
 
 .flow-card span,
+.audit-matrix-head span,
 .runtime-card span,
 .transparency-card span {
   display: block;
@@ -344,6 +347,7 @@ a.directory-row:hover {
 }
 
 .flow-card strong,
+.audit-matrix-head strong,
 .runtime-card strong,
 .transparency-card strong {
   display: block;
@@ -353,6 +357,7 @@ a.directory-row:hover {
 }
 
 .flow-card p,
+.audit-matrix-card p,
 .runtime-card p,
 .transparency-card p {
   margin: 9px 0 0;
@@ -377,6 +382,59 @@ a.directory-row:hover {
 
 .flow-card dd {
   margin: -4px 0 0;
+  color: rgba(152, 203, 255, 0.9);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.audit-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.audit-matrix-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.audit-matrix-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(140, 255, 0, 0.85), rgba(152, 203, 255, 0.32));
+  content: "";
+}
+
+.audit-matrix-card.gated::before {
+  background: linear-gradient(180deg, rgba(255, 216, 118, 0.9), rgba(208, 164, 255, 0.32));
+}
+
+.audit-matrix-head {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.audit-matrix-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.audit-matrix-card dt {
+  color: rgba(218, 231, 238, 0.52);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.audit-matrix-card dd {
+  min-width: 0;
+  margin: -4px 0 0;
+  overflow-wrap: anywhere;
   color: rgba(152, 203, 255, 0.9);
   font-size: 12px;
   line-height: 1.45;
@@ -1495,6 +1553,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .audit-matrix-grid,
   .logic-lanes,
   .runtime-grid,
   .transparency-grid,
@@ -1597,6 +1656,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .audit-matrix-grid,
   .logic-lanes,
   .runtime-grid,
   .transparency-grid,

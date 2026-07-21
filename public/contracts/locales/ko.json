@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ko",
     "label": "Korean",
-    "version": "contracts-locale-ko-4eb8da146b04975f",
-    "contentHash": "4eb8da146b04975f"
+    "version": "contracts-locale-ko-50b2df835c3b7d36",
+    "contentHash": "50b2df835c3b7d36"
   },
   "meta": {
     "title": "NiceChunk 컨트랙트"
@@ -182,6 +182,10 @@
     {
       "id": "logic-atlas",
       "label": "Logic Atlas"
+    },
+    {
+      "id": "audit-matrix",
+      "label": "Audit Matrix"
     },
     {
       "id": "directory",

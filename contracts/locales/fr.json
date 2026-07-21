@@ -178,6 +178,10 @@
       "label": "Logic Atlas"
     },
     {
+      "id": "audit-matrix",
+      "label": "Audit Matrix"
+    },
+    {
       "id": "directory",
       "label": "Directory"
     },

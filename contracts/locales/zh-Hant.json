@@ -179,6 +179,10 @@
       "label": "邏輯圖譜"
     },
     {
+      "id": "audit-matrix",
+      "label": "審計矩陣"
+    },
+    {
       "id": "directory",
       "label": "目錄"
     },
@@ -1236,6 +1240,118 @@
         "bodyGated": "文明合約已在這裡整理成文件並可解碼，但還沒有進入當前 mainnet.json 執行配置。"
       }
     }
+  },
+  "auditMatrix": {
+    "eyebrow": "驗證矩陣",
+    "title": "外部審查者應如何驗證每個合約面。",
+    "body": "這個矩陣把每個程式對應到 authority gate、PDA 證據、即時證明和當前邊界，讓讀者不用信任私有伺服器也能核對關鍵主張。",
+    "columns": {
+      "authority": "Authority gate",
+      "evidence": "PDA 證據",
+      "live": "即時證明",
+      "boundary": "邊界"
+    },
+    "rows": [
+      {
+        "id": "core",
+        "surface": "創世 Core",
+        "status": "活躍配置錨點",
+        "state": "live",
+        "intent": "證明世界常數和 Program ID 來自公開配置帳戶。",
+        "authority": "初始化時由生成的創世常數一次性寫入 GlobalConfig；之後客戶端只讀取它。",
+        "evidence": "GlobalConfig PDA、配置雜湊欄位、NCK mint、世界種子、Chunk 尺寸和 Guardian 參數。",
+        "live": "在 RPC 瀏覽器中把 /mainnet.json 與 GlobalConfig PDA 對比。",
+        "boundary": "Core 不鑄造物品、不修改地形、不更新庫存，也不執行治理。"
+      },
+      {
+        "id": "player",
+        "surface": "玩家身分",
+        "status": "活躍玩法面",
+        "state": "live",
+        "intent": "展示哪個錢包擁有公開玩家檔案，以及哪個短期 session 可以提交允許動作。",
+        "authority": "所有者錢包初始化和更新檔案狀態；session authority 受動作點陣圖、預算和過期時間限制。",
+        "evidence": "PlayerProfile、PlayerSession、PlayerAppearance 和裝備 PDA 記錄。",
+        "live": "讀取 player-profile 和 player-session 分組，核對 owner、session authority 和 update slot。",
+        "boundary": "瀏覽器快取的錢包地址不是控制權證明；PDA owner 和簽名才是信任邊界。"
+      },
+      {
+        "id": "chunk",
+        "surface": "Chunk / 挖礦",
+        "status": "活躍世界寫入",
+        "state": "live",
+        "intent": "把生成地形證明和實際已挖方塊的稀疏記錄分開。",
+        "authority": "Chunk 邏輯從 GlobalConfig 重新計算目標方塊，並拒絕無效、受保護或已破壞方塊。",
+        "evidence": "ChunkBrokenState 壓縮記錄、ResourceDropTable、SurfaceDecorationTable、minY、count 和 capacity。",
+        "live": "按目標世界和 chunk 座標掃描 chunk-broken 與 resource-drop-table 帳戶。",
+        "boundary": "程式保存稀疏變化，不保存完整地形；庫存結算由 Backpack 處理。"
+      },
+      {
+        "id": "building",
+        "surface": "建築",
+        "status": "活躍建造面",
+        "state": "live",
+        "intent": "說明玩家擁有的地基和上傳的 NCM3 建築 payload 是否在發布前經過驗證。",
+        "authority": "有效 PlayerSession 與匹配的 PlayerProfile 會門控 BuildSite 變更、shard 上傳、resize 和 finalize 指令。",
+        "evidence": "BuildSite、BuildingManifest、BuildingShard、chunk authority PDA 和 Guardian blueprint authority PDA。",
+        "live": "檢查 build-site、building-manifest 和 building-shard 帳戶，對比 footprint、revision、hash、dimensions 和 shard bitmap。",
+        "boundary": "只有所有 shard 都存在，且 payload hash 與尺寸適配校驗通過後，manifest 才會變為 active。"
+      },
+      {
+        "id": "guardian",
+        "surface": "Guardian 登記表",
+        "status": "活躍即時登記表",
+        "state": "live",
+        "intent": "讓審查者核對哪些即時區域存在，以及哪個 operator endpoint 被公開登記。",
+        "authority": "treasury governance 初始化登記表；region owner 和 operator 只被限制到 endpoint 與 proof 路徑。",
+        "evidence": "GuardianRegistry 和 GuardianRegion，包含 owner、operator、endpoint、proof counters、stake 和 blueprint metadata。",
+        "live": "掃描 guardian-registry 與 guardian-region 帳戶，核對 endpoint host、port、owner、operator 和 proof slot。",
+        "boundary": "Guardian 記錄不會替玩家簽名，也不會託管玩家錢包。"
+      },
+      {
+        "id": "backpack",
+        "surface": "背包庫存",
+        "status": "活躍庫存託管",
+        "state": "live",
+        "intent": "把挖出的資源、物品引用和託管轉移顯示為固定大小的 slot 記錄。",
+        "authority": "owner 與授權 program signer 路徑控制 slot 建立、移除和交付。",
+        "evidence": "Backpack PDA、itemCount、80 位元組 slot payload、來源座標、material/item identity 和 durability。",
+        "live": "掃描 backpack 帳戶，核對 itemCount、slot type、material IDs、item hashes 和來源座標。",
+        "boundary": "Backpack 保存物品記錄；Smelting 和 Marketplace 必須走明確 authority 路徑才能改動 slot。"
+      },
+      {
+        "id": "smelting",
+        "surface": "熔煉配方",
+        "status": "活躍配方面",
+        "state": "live",
+        "intent": "證明材料轉換遵循公開 RecipeTable，而不是私有前端演算法。",
+        "authority": "recipe authority 維護有界表；smelting authority 移除輸入並追加驗證後的輸出。",
+        "evidence": "RecipeTable 記錄、recipe IDs、heat tiers、輸入/輸出體積和 disabled recipe flags。",
+        "live": "讀取 recipe-table 帳戶，並與 public/rules/smelting-rules.json 和 Backpack 輸出 slot 對比。",
+        "boundary": "退役配方仍保留為明確的 disabled 記錄，避免舊 identity 靜默漂移。"
+      },
+      {
+        "id": "market",
+        "surface": "Marketplace",
+        "status": "活躍託管面",
+        "state": "live",
+        "intent": "說明掛單資產是否是具體 Backpack slot 快照，以及結算如何返還或交付它。",
+        "authority": "賣家簽名掛單；market authority 託管、取消或交付同一個 slot 快照。",
+        "evidence": "MarketplaceListing、seller、buyer、currency、price、escrowed slot bytes 和 settlement status。",
+        "live": "掃描 market-listing 帳戶，對比原始 slot 快照、buyer、fee routing 和最終狀態。",
+        "boundary": "合約不證明鏈下訂單簿；Listing PDA 才是公開託管記錄。"
+      },
+      {
+        "id": "civilization",
+        "surface": "文明規則",
+        "status": "已文件化 / 執行時門禁",
+        "state": "gated",
+        "intent": "在真實治理開放前，讓規則提案、簽名、power snapshot、計票和執行回執可審計。",
+        "authority": "rule author 發布明確目標；citizen signature 由已結算 power snapshot 加權，並由 tally 規則 finalize。",
+        "evidence": "RuleBook、RuleSignature、RuleTally、ExecutionReceipt、PowerSnapshot 和 CitizenPower。",
+        "live": "用 civilization PDA 分組檢查已部署記錄；提交仍要等 mainnet.json 執行配置啟用。",
+        "boundary": "規則不能靜默修改其他程式；target program、target PDA、payload hash 和 receipt 都是顯式的。"
+      }
+    ]
   },
   "logic": {
     "eyebrow": "合約邏輯圖譜",

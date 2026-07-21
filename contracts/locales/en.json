@@ -178,6 +178,10 @@
       "label": "Logic Atlas"
     },
     {
+      "id": "audit-matrix",
+      "label": "Audit Matrix"
+    },
+    {
       "id": "directory",
       "label": "Directory"
     },
@@ -1235,6 +1239,118 @@
         "bodyGated": "The Civilization program is documented and decodable here, but it is not in the current mainnet.json runtime config yet."
       }
     }
+  },
+  "auditMatrix": {
+    "eyebrow": "Verifier Matrix",
+    "title": "What an external reviewer should verify for each contract surface.",
+    "body": "This matrix ties each program to the authority gate, PDA evidence, live proof, and current boundary that can be checked without trusting a private server.",
+    "columns": {
+      "authority": "Authority gate",
+      "evidence": "PDA evidence",
+      "live": "Live proof",
+      "boundary": "Boundary"
+    },
+    "rows": [
+      {
+        "id": "core",
+        "surface": "Genesis Core",
+        "status": "Active config anchor",
+        "state": "live",
+        "intent": "Proves that world constants and program IDs are derived from a public configuration account.",
+        "authority": "Initialization writes GlobalConfig once from generated genesis constants; clients only read it afterward.",
+        "evidence": "GlobalConfig PDA, config hash fields, NCK mint, world seed, chunk dimensions, Guardian parameters.",
+        "live": "Compare /mainnet.json with the GlobalConfig PDA in the RPC browser.",
+        "boundary": "Core does not mint items, mutate terrain, update inventory, or execute governance."
+      },
+      {
+        "id": "player",
+        "surface": "Player Identity",
+        "status": "Active gameplay surface",
+        "state": "live",
+        "intent": "Shows which wallet owns a public player profile and which short-lived session may submit allowed actions.",
+        "authority": "Owner wallet initializes and updates profile state; session authority is bounded by action mask, budget, and expiry.",
+        "evidence": "PlayerProfile, PlayerSession, PlayerAppearance, and equipment PDA records.",
+        "live": "Read player-profile and player-session groups, then match owner, session authority, and update slot.",
+        "boundary": "A cached browser wallet is not proof of control; the PDA owner and signatures are the trust boundary."
+      },
+      {
+        "id": "chunk",
+        "surface": "Chunk / Mining",
+        "status": "Active world mutation",
+        "state": "live",
+        "intent": "Separates generated terrain proof from the sparse record of blocks that have actually been mined.",
+        "authority": "Chunk logic recomputes the target block from GlobalConfig and rejects invalid, protected, or already broken blocks.",
+        "evidence": "ChunkBrokenState packed records, ResourceDropTable, SurfaceDecorationTable, minY, count, and capacity.",
+        "live": "Scan chunk-broken and resource-drop-table accounts for the target world and chunk coordinates.",
+        "boundary": "The program stores sparse mutations, not the full terrain; inventory settlement is handled by Backpack."
+      },
+      {
+        "id": "building",
+        "surface": "Building",
+        "status": "Active build surface",
+        "state": "live",
+        "intent": "Shows whether a player-owned foundation and uploaded NCM3 building payload were validated before publication.",
+        "authority": "Valid PlayerSession and matching PlayerProfile gate BuildSite changes, shard upload, resize, and finalize instructions.",
+        "evidence": "BuildSite, BuildingManifest, BuildingShard, chunk authority PDA, Guardian blueprint authority PDA.",
+        "live": "Inspect build-site, building-manifest, and building-shard accounts; compare footprint, revision, hash, dimensions, and shard bitmap.",
+        "boundary": "A manifest only becomes active after every shard is present and the payload hash and fit checks pass."
+      },
+      {
+        "id": "guardian",
+        "surface": "Guardian Registry",
+        "status": "Active realtime registry",
+        "state": "live",
+        "intent": "Lets a reviewer check which realtime regions exist and which operator endpoint is publicly registered.",
+        "authority": "Treasury governance initializes registry state; region owners and operators are restricted to endpoint and proof paths.",
+        "evidence": "GuardianRegistry and GuardianRegion records with owner, operator, endpoint, proof counters, stake, and blueprint metadata.",
+        "live": "Scan guardian-registry and guardian-region accounts, then compare endpoint host, port, owner, operator, and proof slot.",
+        "boundary": "Guardian records do not sign for players and do not create custody over player wallets."
+      },
+      {
+        "id": "backpack",
+        "surface": "Backpack Inventory",
+        "status": "Active inventory custody",
+        "state": "live",
+        "intent": "Keeps mined resources, item references, and custody transfers visible as fixed-size slot records.",
+        "authority": "Owner and authorized program signer paths control slot creation, removal, and delivery.",
+        "evidence": "Backpack PDA, itemCount, 80-byte slot payloads, source coordinates, material or item identity, durability.",
+        "live": "Scan backpack accounts and verify itemCount, slot type, material IDs, item hashes, and source coordinates.",
+        "boundary": "Backpack stores item records; Smelting and Marketplace must use explicit authority paths to mutate slots."
+      },
+      {
+        "id": "smelting",
+        "surface": "Smelting Recipes",
+        "status": "Active recipe surface",
+        "state": "live",
+        "intent": "Proves that material conversion follows a public recipe table rather than private frontend arithmetic.",
+        "authority": "Recipe authority maintains bounded tables; smelting authority removes inputs and appends validated outputs.",
+        "evidence": "RecipeTable records, recipe IDs, heat tiers, input and output volumes, disabled recipe flags.",
+        "live": "Read recipe-table accounts and compare them with public/rules/smelting-rules.json and Backpack output slots.",
+        "boundary": "Retired recipes remain explicit disabled records so old identities do not silently shift."
+      },
+      {
+        "id": "market",
+        "surface": "Marketplace",
+        "status": "Active custody surface",
+        "state": "live",
+        "intent": "Shows whether a listed asset is a concrete Backpack slot snapshot and how settlement returns or delivers it.",
+        "authority": "Seller signs the listing; market authority escrows, cancels, or delivers the exact slot snapshot.",
+        "evidence": "MarketplaceListing, seller, buyer, currency, price, escrowed slot bytes, settlement status.",
+        "live": "Scan market-listing accounts and compare original slot snapshot, buyer, fee routing, and final state.",
+        "boundary": "The contract does not prove an off-chain orderbook; the listing PDA is the public custody record."
+      },
+      {
+        "id": "civilization",
+        "surface": "Civilization Rules",
+        "status": "Documented / gated runtime",
+        "state": "gated",
+        "intent": "Makes rule proposals, signatures, power snapshots, tallies, and execution receipts auditable before live governance opens.",
+        "authority": "Rule authors publish explicit targets; citizen signatures are weighted by settled power snapshots and finalized by tally rules.",
+        "evidence": "RuleBook, RuleSignature, RuleTally, ExecutionReceipt, PowerSnapshot, CitizenPower.",
+        "live": "Use the civilization PDA groups to inspect deployed records; runtime submission remains gated until mainnet.json config enables it.",
+        "boundary": "A rule cannot silently mutate another program; target program, target PDA, payload hash, and receipt are explicit."
+      }
+    ]
   },
   "logic": {
     "eyebrow": "Contract Logic Atlas",

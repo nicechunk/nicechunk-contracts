@@ -187,6 +187,7 @@ const contractsNav = document.querySelector("#contractsNav");
 const runtimeGrid = document.querySelector("#runtimeGrid");
 const logicLegend = document.querySelector("#logicLegend");
 const logicAtlas = document.querySelector("#logicAtlas");
+const auditMatrix = document.querySelector("#auditMatrix");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
 const transparencyGrid = document.querySelector("#transparencyGrid");
@@ -225,12 +226,14 @@ window.addEventListener("resize", () => {
 
 async function initContractsPage() {
   setSiteLoadingProgress(36);
-  dictionary = await loadDictionary(activeLanguage);
+  fallbackDictionary = await loadDictionary("en");
+  dictionary = activeLanguage === "en" ? fallbackDictionary : await loadDictionary(activeLanguage);
   runtimeConfig = await loadRuntimeConfig();
   applyTranslations(document);
   renderNavigation();
   renderRuntimeState();
   renderLogicAtlas();
+  renderAuditMatrix();
   renderDirectory();
   renderFlow();
   renderTransparencyLedger();
@@ -540,6 +543,44 @@ function curvedPath(start, end) {
   const c1 = { x: start.x + Math.sign(dx || 1) * tension, y: start.y + dy * 0.08 };
   const c2 = { x: end.x - Math.sign(dx || 1) * tension, y: end.y - dy * 0.08 };
   return `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`;
+}
+
+function renderAuditMatrix() {
+  const matrix = dictionary.auditMatrix ?? fallbackDictionary.auditMatrix;
+  if (!auditMatrix || !matrix) return;
+  auditMatrix.replaceChildren(...(matrix.rows ?? []).map((row) => createAuditMatrixCard(row, matrix.columns ?? {})));
+}
+
+function createAuditMatrixCard(row, columns) {
+  const card = document.createElement("article");
+  card.className = `audit-matrix-card ${row.state || "live"}`;
+  card.innerHTML = `
+    <div class="audit-matrix-head">
+      <span></span>
+      <strong></strong>
+    </div>
+    <p></p>
+    <dl></dl>
+  `;
+  card.querySelector(".audit-matrix-head span").textContent = row.status || "";
+  card.querySelector(".audit-matrix-head strong").textContent = row.surface || "";
+  card.querySelector("p").textContent = row.intent || "";
+  const facts = [
+    [columns.authority, row.authority],
+    [columns.evidence, row.evidence],
+    [columns.live, row.live],
+    [columns.boundary, row.boundary],
+  ].filter(([, value]) => value);
+  card.querySelector("dl").replaceChildren(
+    ...facts.flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label || "";
+      dd.textContent = value;
+      return [dt, dd];
+    }),
+  );
+  return card;
 }
 
 function renderDirectory() {

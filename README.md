@@ -79,6 +79,22 @@ flowchart LR
 
 The hosted contract directory expands this map into the visual `Contract Logic Atlas`, with account layouts, PDA seeds, source panels, and RPC decoders for the active devnet surface.
 
+## Reviewer Audit Matrix
+
+External review should tie each contract claim to an authority gate, a public evidence account, and a current runtime boundary:
+
+| Surface | Authority gate | Public evidence | Current boundary |
+| --- | --- | --- | --- |
+| Genesis Core | `GlobalConfig` is initialized from generated genesis constants and then read by clients. | World seed, config hashes, NCK mint, chunk dimensions, Guardian parameters. | Core does not mint items, mutate terrain, update inventory, or execute governance. |
+| Player Identity | Owner wallet and bounded session authority control profile and repeated action submission. | `PlayerProfile`, `PlayerSession`, appearance, and equipment PDA records. | Browser cached wallet addresses are not proof of control; signatures and PDA ownership are. |
+| Chunk / Mining | Chunk logic recomputes the generated block from `GlobalConfig` and rejects invalid or already broken targets. | `ChunkBrokenState`, `ResourceDropTable`, surface decoration table, packed local block records. | The program stores sparse mutations, not full terrain; inventory settlement is separate. |
+| Building | Valid `PlayerSession` and matching `PlayerProfile` gate BuildSite changes, upload shards, resize, and finalization. | `BuildSite`, `BuildingManifest`, `BuildingShard`, chunk authority PDA, Guardian blueprint authority PDA. | A manifest only becomes active after shard completeness, hash, and fit checks pass. |
+| Guardian Registry | Treasury governance, region owner, and operator roles constrain endpoint and proof updates. | `GuardianRegistry` and `GuardianRegion` owner, operator, endpoint, stake, proof, and blueprint fields. | Guardian records do not sign for players or custody player wallets. |
+| Backpack Inventory | Owner and authorized program signers control slot creation, removal, and delivery. | `Backpack` item count, fixed slot payloads, coordinates, material or item identity, durability. | Smelting and Marketplace must use explicit authority paths to mutate slots. |
+| Smelting Recipes | Recipe authority maintains bounded tables; smelting authority mutates Backpack slots after validation. | `RecipeTable`, recipe IDs, heat tiers, input/output volumes, disabled recipe flags. | Retired recipes remain explicit disabled records so identities do not silently shift. |
+| Marketplace | Seller signatures and market authority gate escrow, cancel, settlement, and delivery. | `MarketplaceListing`, seller, buyer, currency, price, escrowed slot bytes, settlement state. | The listing PDA is the custody record; it does not prove a private orderbook. |
+| Civilization Rules | Rule targets, citizen signatures, power snapshots, tallies, and receipts are separate records. | `RuleBook`, `RuleSignature`, `RuleTally`, `ExecutionReceipt`, `PowerSnapshot`, `CitizenPower`. | Governance is documented and decodable, but live submission remains gated until runtime config enables it. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.
