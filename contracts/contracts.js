@@ -191,6 +191,8 @@ const seedEvidenceLegend = document.querySelector("#seedEvidenceLegend");
 const seedEvidenceAtlas = document.querySelector("#seedEvidenceAtlas");
 const instructionSurfaceLegend = document.querySelector("#instructionSurfaceLegend");
 const instructionSurfaceAtlas = document.querySelector("#instructionSurfaceAtlas");
+const cpiAuthorityLegend = document.querySelector("#cpiAuthorityLegend");
+const cpiAuthorityAtlas = document.querySelector("#cpiAuthorityAtlas");
 const auditMatrix = document.querySelector("#auditMatrix");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
@@ -239,6 +241,7 @@ async function initContractsPage() {
   renderLogicAtlas();
   renderSeedEvidence();
   renderInstructionSurface();
+  renderCpiAuthority();
   renderAuditMatrix();
   renderDirectory();
   renderFlow();
@@ -415,6 +418,14 @@ function renderInstructionSurface() {
   if (!instructionSurfaceAtlas || !surface) return;
   renderLogicLegend(instructionSurfaceLegend, surface.legend ?? []);
   instructionSurfaceAtlas.replaceChildren(...(surface.diagrams ?? []).map(createLogicDiagram));
+  window.requestAnimationFrame(updateLogicLinks);
+}
+
+function renderCpiAuthority() {
+  const ledger = dictionary.cpiAuthority ?? fallbackDictionary.cpiAuthority;
+  if (!cpiAuthorityAtlas || !ledger) return;
+  renderLogicLegend(cpiAuthorityLegend, ledger.legend ?? []);
+  cpiAuthorityAtlas.replaceChildren(...(ledger.diagrams ?? []).map(createLogicDiagram));
   window.requestAnimationFrame(updateLogicLinks);
 }
 
@@ -1536,6 +1547,7 @@ function renderLanguageMenu() {
         renderLogicAtlas();
         renderSeedEvidence();
         renderInstructionSurface();
+        renderCpiAuthority();
         renderAuditMatrix();
         renderDirectory();
         renderFlow();

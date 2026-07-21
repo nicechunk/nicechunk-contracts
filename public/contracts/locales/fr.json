@@ -2,8 +2,8 @@
   "_meta": {
     "language": "fr",
     "label": "French",
-    "version": "contracts-locale-fr-b11e795fbae31279",
-    "contentHash": "b11e795fbae31279"
+    "version": "contracts-locale-fr-5e6818e355f7b89f",
+    "contentHash": "5e6818e355f7b89f"
   },
   "meta": {
     "title": "Contrats NiceChunk"
@@ -190,6 +190,10 @@
     {
       "id": "instruction-surface",
       "label": "Instruction Surface"
+    },
+    {
+      "id": "cpi-authority",
+      "label": "CPI Authority"
     },
     {
       "id": "audit-matrix",

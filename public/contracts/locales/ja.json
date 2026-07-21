@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ja",
     "label": "Japanese",
-    "version": "contracts-locale-ja-9be69e11d20f696f",
-    "contentHash": "9be69e11d20f696f"
+    "version": "contracts-locale-ja-7c6696c0400511d8",
+    "contentHash": "7c6696c0400511d8"
   },
   "meta": {
     "title": "NiceChunk コントラクト"
@@ -190,6 +190,10 @@
     {
       "id": "instruction-surface",
       "label": "Instruction Surface"
+    },
+    {
+      "id": "cpi-authority",
+      "label": "CPI Authority"
     },
     {
       "id": "audit-matrix",

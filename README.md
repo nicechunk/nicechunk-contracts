@@ -125,6 +125,20 @@ The contract directory now includes an `Instruction Surface Map` generated from 
 | `nicechunk_market` | `0`, `1`, `2` | `3` is an invalid legacy `initialize_asset` path | Listings escrow the full Backpack slot snapshot; user payload does not mint arbitrary item fields. |
 | `nicechunk_civilization` | `0-5` | Any tag above `5` | Rule books, signatures, tallies, receipts, power snapshots, and citizen power remain decodable while runtime submission is gated. |
 
+## CPI Authority Ledger
+
+The hosted contract directory also includes a `CPI Authority Ledger` for game-facing cross-program writes. It traces the current Rust `invoke` and `invoke_signed` sites by caller branch, callee tag, signer PDA, and durable evidence account.
+
+| Caller branch | Callee tag | Signer boundary | Durable evidence |
+| --- | --- | --- | --- |
+| `nicechunk_building` tag `1` `register_build_site_chunks` | `nicechunk_chunk` tag `15` `register_build_site_chunk` | `ChunkAuthority`: `["chunk-authority-v1", globalConfig]` derived under the Building program and re-derived by Chunk | `FoundationChunk` PDA stores chunk-scoped foundation occupancy. |
+| `nicechunk_building` tag `8` `publish_guardian_blueprint` | `nicechunk_guardian` tag `6` `update_guardian_blueprint` | `GuardianBlueprintAuthority`: `["guardian-blueprint", globalConfig]` | `GuardianRegion` blueprint hash, revision, and record count. |
+| `nicechunk_chunk` mining tags `5`, `8`, `9`, `20`, `21` | `nicechunk_backpack` tags `1` and `6` | `ChunkBrokenState` PDA signs mined-resource delivery for the exact chunk coordinates | Backpack v3 resource slots with block coordinates, volume, and metadata. |
+| `nicechunk_player` tag `13` `transfer_equipment_slot` | `nicechunk_backpack` tags `10` and `11` | `EquipmentTransferAuthority`: `["equipment-transfer-v1"]` under the Player program | `PlayerEquipment` and Backpack slots stay synchronized without arbitrary item minting. |
+| `nicechunk_smelting` tag `2` `execute_smelting` | `nicechunk_backpack` tags `4` and `5` | Owner signer removes inputs; `SmeltingAuthority`: `["smelting-authority"]` appends validated outputs | Backpack slots and `RecipeTable` records show recipe IO and output identity. |
+| `nicechunk_market` tags `0`, `1`, `2` | `nicechunk_backpack` tags `2` and `3`; `nicechunk_player` tag `2` when clearing display equipment | Seller signer removes or clears; `MarketAuthority`: `["market-authority"]` restores or delivers the slot snapshot | `MarketplaceListing` stores seller, buyer, currency, price, fee state, and the full 80-byte source slot. |
+| `nicechunk_chunk` tags `10` and `13`; `nicechunk_smelting` tag `4` | `nicechunk_civilization` tag `3` `execute_rule_receipt` | `CivilizationAdapterAuthority`: `["civilization-adapter", ruleBook]` derived under the target program ID | `ExecutionReceipt` PDA proves target-bound rule execution before target rule state mutates. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.

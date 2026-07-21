@@ -123,6 +123,18 @@
           <div class="logic-atlas-grid instruction-surface-grid" id="instructionSurfaceAtlas"></div>
         </section>
 
+        <section class="contracts-section cpi-authority-section" id="cpi-authority" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="cpiAuthority.eyebrow">CPI Authority Ledger</p>
+            <h2 data-contracts-i18n="cpiAuthority.title">Audit game-facing cross-program writes by caller, callee tag, signer PDA, and public evidence.</h2>
+            <p data-contracts-i18n="cpiAuthority.body">
+              These maps follow the current NiceChunk invoke and invoke_signed sites in Rust, so reviewers can see exactly which program is allowed to mutate another program's state and which PDA proves the write.
+            </p>
+          </div>
+          <div class="logic-legend" id="cpiAuthorityLegend"></div>
+          <div class="logic-atlas-grid cpi-authority-grid" id="cpiAuthorityAtlas"></div>
+        </section>
+
         <section class="contracts-section audit-matrix-section" id="audit-matrix" data-contract-section>
           <div class="section-heading">
             <p class="eyebrow blue" data-contracts-i18n="auditMatrix.eyebrow">Verifier Matrix</p>

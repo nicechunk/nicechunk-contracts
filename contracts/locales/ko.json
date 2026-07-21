@@ -186,6 +186,10 @@
       "label": "Instruction Surface"
     },
     {
+      "id": "cpi-authority",
+      "label": "CPI Authority"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },

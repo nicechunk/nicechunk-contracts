@@ -2,8 +2,8 @@
   "_meta": {
     "language": "de",
     "label": "German",
-    "version": "contracts-locale-de-32ed54bb926e52e7",
-    "contentHash": "32ed54bb926e52e7"
+    "version": "contracts-locale-de-3d925013fe904bc5",
+    "contentHash": "3d925013fe904bc5"
   },
   "meta": {
     "title": "NiceChunk Vertrage"
@@ -190,6 +190,10 @@
     {
       "id": "instruction-surface",
       "label": "Instruction Surface"
+    },
+    {
+      "id": "cpi-authority",
+      "label": "CPI Authority"
     },
     {
       "id": "audit-matrix",

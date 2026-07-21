@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ru",
     "label": "Russian",
-    "version": "contracts-locale-ru-976054952beaad03",
-    "contentHash": "976054952beaad03"
+    "version": "contracts-locale-ru-38c0060cf09da7ab",
+    "contentHash": "38c0060cf09da7ab"
   },
   "meta": {
     "title": "Контракты NiceChunk"
@@ -190,6 +190,10 @@
     {
       "id": "instruction-surface",
       "label": "Instruction Surface"
+    },
+    {
+      "id": "cpi-authority",
+      "label": "CPI Authority"
     },
     {
       "id": "audit-matrix",

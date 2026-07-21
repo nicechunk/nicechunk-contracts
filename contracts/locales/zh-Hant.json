@@ -187,6 +187,10 @@
       "label": "指令面"
     },
     {
+      "id": "cpi-authority",
+      "label": "CPI 權限帳本"
+    },
+    {
       "id": "audit-matrix",
       "label": "審計矩陣"
     },
@@ -3191,6 +3195,595 @@
           "Guardian 3/4 被拒絕",
           "覆蓋 Civilization 0-5",
           "Live governance 仍由執行時門控"
+        ]
+      }
+    ]
+  },
+  "cpiAuthority": {
+    "eyebrow": "CPI 權限帳本",
+    "title": "按呼叫方、被呼叫 tag、signer PDA 和公開證據審計遊戲側跨程式寫入。",
+    "body": "這些圖對應目前 NiceChunk Rust 裡的 invoke 和 invoke_signed 位置，審計者可以直接看到哪個程式被允許改寫另一個程式的狀態，以及哪一個 PDA 證明這次寫入。",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "外部簽名者"
+      },
+      {
+        "kind": "program",
+        "label": "呼叫方或被呼叫程式"
+      },
+      {
+        "kind": "pda",
+        "label": "PDA signer 或儲存狀態"
+      },
+      {
+        "kind": "proof",
+        "label": "回執、託管或規則證明"
+      },
+      {
+        "kind": "offchain",
+        "label": "執行時載荷"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "world-service-cpi-ledger",
+        "kicker": "世界與服務 CPI",
+        "title": "Building 和 Chunk 只能透過受限 PDA signer 跨程式寫入。",
+        "body": "世界層有三條敏感 CPI：Building 把佔用 chunk 寫入 Chunk，Building 把已驗證藍圖摘要發布到 GuardianRegion，Chunk 在生成地形校驗後把挖礦資源送入 Backpack。",
+        "lanes": [
+          {
+            "label": "Caller branch",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-building-register",
+                "kind": "program",
+                "label": "Building [1]",
+                "badge": "register_build_site_chunks",
+                "detail": "Validates PlayerSession, BuildSite ownership, chunk program ID, and chunk-authority PDA before indexing occupied chunks.",
+                "evidence": "programs/nicechunk_building/src/lib.rs"
+              },
+              {
+                "id": "cpi-building-blueprint",
+                "kind": "program",
+                "label": "Building [8]",
+                "badge": "publish_guardian_blueprint",
+                "detail": "Restricts the publisher wallet, validates GlobalConfig, and signs a Guardian update with the blueprint authority PDA.",
+                "evidence": "GUARDIAN_UPDATE_BLUEPRINT_INSTRUCTION = 6"
+              },
+              {
+                "id": "cpi-chunk-reward",
+                "kind": "program",
+                "label": "Chunk [5/8/9/20/21]",
+                "badge": "mining rewards",
+                "detail": "Recomputes generated blocks, writes broken-block evidence, then appends one or many Backpack resource slots.",
+                "evidence": "append_backpack_block_resource(s)"
+              }
+            ]
+          },
+          {
+            "label": "Callee tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-chunk-tag15",
+                "kind": "program",
+                "label": "Chunk [15]",
+                "badge": "register_build_site_chunk",
+                "detail": "Accepts only the Building chunk-authority signer and writes FoundationChunk occupancy records.",
+                "evidence": "building_authority signer"
+              },
+              {
+                "id": "cpi-guardian-tag6",
+                "kind": "program",
+                "label": "Guardian [6]",
+                "badge": "update_guardian_blueprint",
+                "detail": "Updates blueprint hash, revision, and record count on a GuardianRegion through the Building PDA signer.",
+                "evidence": "GuardianRegion writable"
+              },
+              {
+                "id": "cpi-backpack-tag1-6",
+                "kind": "program",
+                "label": "Backpack [1/6]",
+                "badge": "append mined resources",
+                "detail": "Accepts ChunkBrokenState as signer evidence for single or batched mined resource delivery.",
+                "evidence": "chunk-broken signer"
+              }
+            ]
+          },
+          {
+            "label": "Signer PDA",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "cpi-chunk-authority",
+                "kind": "pda",
+                "label": "ChunkAuthority",
+                "badge": "PDA signer",
+                "detail": "Derived by Building as [\"chunk-authority-v1\", globalConfig] and re-derived by Chunk under the Building program ID.",
+                "evidence": "[\"chunk-authority-v1\", globalConfig]"
+              },
+              {
+                "id": "cpi-blueprint-authority",
+                "kind": "pda",
+                "label": "GuardianBlueprintAuthority",
+                "badge": "PDA signer",
+                "detail": "Derived by Building as [\"guardian-blueprint\", globalConfig] and accepted by Guardian for blueprint-only mutation.",
+                "evidence": "[\"guardian-blueprint\", globalConfig]"
+              },
+              {
+                "id": "cpi-chunk-broken-signer",
+                "kind": "pda",
+                "label": "ChunkBrokenState",
+                "badge": "PDA signer",
+                "detail": "The same account that records broken blocks signs Backpack delivery for the exact chunk coordinates.",
+                "evidence": "[\"chunk-broken\", globalConfig, chunkX, chunkZ]"
+              }
+            ]
+          },
+          {
+            "label": "Public evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "cpi-foundation-evidence",
+                "kind": "proof",
+                "label": "FoundationChunk",
+                "badge": "occupancy",
+                "detail": "Chunk-scoped public index proving which foundation occupies each affected chunk.",
+                "evidence": "[\"foundation-chunk\", globalConfig, chunkX, chunkZ]"
+              },
+              {
+                "id": "cpi-guardian-evidence",
+                "kind": "proof",
+                "label": "GuardianRegion blueprint fields",
+                "badge": "service proof",
+                "detail": "Region endpoint records expose blueprint hash, revision, and record count for realtime service discovery.",
+                "evidence": "NCKGRG01"
+              },
+              {
+                "id": "cpi-backpack-resource-evidence",
+                "kind": "proof",
+                "label": "Backpack resource slots",
+                "badge": "inventory proof",
+                "detail": "Backpack v3 slots store block coordinates, volume, metadata, and item identity after rewarded mining.",
+                "evidence": "80-byte slot records"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "cpi-building-register",
+            "to": "cpi-chunk-authority",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-chunk-authority",
+            "to": "cpi-chunk-tag15",
+            "label": "calls tag 15",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-chunk-tag15",
+            "to": "cpi-foundation-evidence",
+            "label": "writes",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-building-blueprint",
+            "to": "cpi-blueprint-authority",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-blueprint-authority",
+            "to": "cpi-guardian-tag6",
+            "label": "calls tag 6",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-guardian-tag6",
+            "to": "cpi-guardian-evidence",
+            "label": "writes",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-chunk-reward",
+            "to": "cpi-chunk-broken-signer",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-chunk-broken-signer",
+            "to": "cpi-backpack-tag1-6",
+            "label": "calls tag 1/6",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-backpack-tag1-6",
+            "to": "cpi-backpack-resource-evidence",
+            "label": "writes",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Building cannot write Chunk directly without chunk-authority PDA",
+          "Guardian blueprint updates are tag-6 only",
+          "Mining delivery is tied to ChunkBrokenState signer",
+          "Backpack receives coordinates and volume from verified mining branches"
+        ]
+      },
+      {
+        "id": "inventory-settlement-cpi-ledger",
+        "kicker": "庫存與結算 CPI",
+        "title": "Backpack 託管只透過 owner 簽名或窄權限程式 PDA 移動。",
+        "body": "裝備、熔煉和市場流程都透過明確的被呼叫 tag 改寫 Backpack slot。呼叫方可以讀取或託管 slot 位元組，但持久託管記錄仍是 Backpack 或 Listing PDA。",
+        "lanes": [
+          {
+            "label": "Caller branch",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-player-equipment",
+                "kind": "program",
+                "label": "Player [13]",
+                "badge": "equipment transfer",
+                "detail": "Moves an item between Backpack and PlayerEquipment through the Player-derived equipment transfer authority.",
+                "evidence": "data wraps Backpack [10/11]"
+              },
+              {
+                "id": "cpi-smelting-execute",
+                "kind": "program",
+                "label": "Smelting [2]",
+                "badge": "execute_smelting",
+                "detail": "Removes recipe inputs with the owner signer, then appends validated material or item outputs with smelting-authority.",
+                "evidence": "input indexes + fuel indexes + batch"
+              },
+              {
+                "id": "cpi-market-listing",
+                "kind": "program",
+                "label": "Market [0/1/2]",
+                "badge": "listing settlement",
+                "detail": "Creates escrow by removing the seller slot, clears equipped presentation when needed, then restores or delivers the exact slot snapshot.",
+                "evidence": "ListingAccount sourceSlot"
+              }
+            ]
+          },
+          {
+            "label": "Callee tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-backpack-equipment-tags",
+                "kind": "program",
+                "label": "Backpack [10/11]",
+                "badge": "equipment slots",
+                "detail": "Transfers Backpack item references to PlayerEquipment or returns custodied equipment back to Backpack.",
+                "evidence": "equipment-transfer-v1 signer"
+              },
+              {
+                "id": "cpi-backpack-smelt-tags",
+                "kind": "program",
+                "label": "Backpack [4/5]",
+                "badge": "recipe IO",
+                "detail": "Tag 4 removes selected inputs and fuel with owner consent; tag 5 appends normalized outputs with smelting-authority.",
+                "evidence": "remove_resources / append_smelting_item"
+              },
+              {
+                "id": "cpi-backpack-market-tags",
+                "kind": "program",
+                "label": "Backpack [2/3]",
+                "badge": "market IO",
+                "detail": "Tag 2 removes the seller source slot; tag 3 restores or delivers the Listing-owned 80-byte slot with market-authority.",
+                "evidence": "remove_resource / append_market_resource"
+              },
+              {
+                "id": "cpi-player-clear-tag",
+                "kind": "program",
+                "label": "Player [2]",
+                "badge": "clear display",
+                "detail": "Market clears an equipped presentation slot by calling set_equipment_slot with the seller signer and clear backpack index.",
+                "evidence": "CLEAR_EQUIPMENT_BACKPACK_INDEX"
+              }
+            ]
+          },
+          {
+            "label": "Signer boundary",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "cpi-equipment-transfer-authority",
+                "kind": "pda",
+                "label": "EquipmentTransferAuthority",
+                "badge": "PDA signer",
+                "detail": "Derived under Player as [\"equipment-transfer-v1\"] so Backpack accepts only Player-mediated equipment custody moves.",
+                "evidence": "[\"equipment-transfer-v1\"]"
+              },
+              {
+                "id": "cpi-smelting-authority",
+                "kind": "pda",
+                "label": "SmeltingAuthority",
+                "badge": "PDA signer",
+                "detail": "Derived under Smelting as [\"smelting-authority\"] and limited to append_smelting_item after recipe validation.",
+                "evidence": "[\"smelting-authority\"]"
+              },
+              {
+                "id": "cpi-market-authority",
+                "kind": "pda",
+                "label": "MarketAuthority",
+                "badge": "PDA signer",
+                "detail": "Derived under Market as [\"market-authority\"] and limited to escrow restore or delivery.",
+                "evidence": "[\"market-authority\"]"
+              },
+              {
+                "id": "cpi-owner-signer",
+                "kind": "wallet",
+                "label": "Owner / seller signer",
+                "badge": "wallet",
+                "detail": "Still required for destructive removal, listing creation, and display-slot clearing.",
+                "evidence": "seller or owner AccountMeta signer"
+              }
+            ]
+          },
+          {
+            "label": "Public evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "cpi-player-equipment-evidence",
+                "kind": "proof",
+                "label": "PlayerEquipment",
+                "badge": "custody pointer",
+                "detail": "Records which equipped slots are normal, empty, or custodied through Backpack.",
+                "evidence": "[\"player-equipment-v1\", owner]"
+              },
+              {
+                "id": "cpi-backpack-slot-evidence",
+                "kind": "proof",
+                "label": "Backpack slots",
+                "badge": "inventory",
+                "detail": "Stores fixed 80-byte item/material/resource records after each valid CPI mutation.",
+                "evidence": "NCKBPK01"
+              },
+              {
+                "id": "cpi-listing-evidence",
+                "kind": "proof",
+                "label": "MarketplaceListing",
+                "badge": "escrow",
+                "detail": "Stores seller, buyer, currency, price, fee state, and the full source slot snapshot.",
+                "evidence": "[\"listing\", seller, listingId]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "cpi-player-equipment",
+            "to": "cpi-equipment-transfer-authority",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-equipment-transfer-authority",
+            "to": "cpi-backpack-equipment-tags",
+            "label": "calls 10/11",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-backpack-equipment-tags",
+            "to": "cpi-player-equipment-evidence",
+            "label": "syncs",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-smelting-execute",
+            "to": "cpi-owner-signer",
+            "label": "removes",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-smelting-execute",
+            "to": "cpi-smelting-authority",
+            "label": "appends",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-smelting-authority",
+            "to": "cpi-backpack-smelt-tags",
+            "label": "calls 5",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-backpack-smelt-tags",
+            "to": "cpi-backpack-slot-evidence",
+            "label": "writes",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-market-listing",
+            "to": "cpi-owner-signer",
+            "label": "seller signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-market-listing",
+            "to": "cpi-market-authority",
+            "label": "settles",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-owner-signer",
+            "to": "cpi-player-clear-tag",
+            "label": "calls 2",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-market-authority",
+            "to": "cpi-backpack-market-tags",
+            "label": "calls 3",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-backpack-market-tags",
+            "to": "cpi-listing-evidence",
+            "label": "escrow trail",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Destructive Backpack removals still require owner or seller signatures",
+          "Program signers append only after caller-side validation",
+          "Marketplace listings store the full slot snapshot",
+          "Equipment transfer cannot mint arbitrary Backpack slots"
+        ]
+      },
+      {
+        "id": "civilization-adapter-cpi-ledger",
+        "kicker": "Civilization Adapter CPI",
+        "title": "治理回執只能由目標範圍內的 adapter authority PDA 執行。",
+        "body": "Chunk 和 Smelting 都有 Civilization adapter 路徑，但每個目標程式都從精確 RuleBook 派生自己的 adapter-authority PDA。被呼叫方仍是 Civilization tag 3，用來寫 execution receipt。",
+        "lanes": [
+          {
+            "label": "Caller branch",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-chunk-civilization",
+                "kind": "program",
+                "label": "Chunk [10/13]",
+                "badge": "adapter apply",
+                "detail": "Applies resource-drop or surface-decoration Civilization receipts after validating the canonical Civilization program.",
+                "evidence": "NICECHUNK_CIVILIZATION_PROGRAM_ID"
+              },
+              {
+                "id": "cpi-smelting-civilization",
+                "kind": "program",
+                "label": "Smelting [4]",
+                "badge": "recipe receipt",
+                "detail": "Applies a Civilization recipe receipt before updating recipe authority-controlled state.",
+                "evidence": "apply_civilization_recipe_receipt"
+              }
+            ]
+          },
+          {
+            "label": "Adapter PDA",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "cpi-chunk-adapter",
+                "kind": "pda",
+                "label": "Chunk adapter authority",
+                "badge": "PDA signer",
+                "detail": "Derived under the Chunk program from [\"civilization-adapter\", ruleBook], so a Smelting adapter cannot sign for Chunk targets.",
+                "evidence": "programs/nicechunk_chunk/src/civilization_adapter.rs"
+              },
+              {
+                "id": "cpi-smelting-adapter",
+                "kind": "pda",
+                "label": "Smelting adapter authority",
+                "badge": "PDA signer",
+                "detail": "Derived under the Smelting program from the same seed family but a different program ID.",
+                "evidence": "programs/nicechunk_smelting/src/civilization_adapter.rs"
+              }
+            ]
+          },
+          {
+            "label": "Civilization callee",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "cpi-civilization-tag3",
+                "kind": "program",
+                "label": "Civilization [3]",
+                "badge": "execute_rule_receipt",
+                "detail": "Requires executor signer, RuleBook, Tally, Receipt, System Program, and adapter-authority signer.",
+                "evidence": "CIVILIZATION_EXECUTE_RECEIPT_TAG = 3"
+              },
+              {
+                "id": "cpi-civilization-target",
+                "kind": "proof",
+                "label": "Rule target binding",
+                "badge": "targetProgram + targetPda",
+                "detail": "The RuleBook names the target program and target PDA, so adapter execution is not a generic governance backdoor.",
+                "evidence": "RuleBook fields"
+              }
+            ]
+          },
+          {
+            "label": "Receipt evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "cpi-execution-receipt",
+                "kind": "proof",
+                "label": "ExecutionReceipt",
+                "badge": "public proof",
+                "detail": "Records finalized execution for the exact RuleBook after the tally passes and adapter authority signs.",
+                "evidence": "[\"rule-execution\", ruleBook]"
+              },
+              {
+                "id": "cpi-target-state-evidence",
+                "kind": "proof",
+                "label": "Target rule state",
+                "badge": "bounded mutation",
+                "detail": "Chunk and Smelting then mutate only their target-scoped rule table paths after receipt validation.",
+                "evidence": "ResourceDrop / SurfaceDecoration / Recipe paths"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "cpi-chunk-civilization",
+            "to": "cpi-chunk-adapter",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-smelting-civilization",
+            "to": "cpi-smelting-adapter",
+            "label": "signs",
+            "kind": "guard"
+          },
+          {
+            "from": "cpi-chunk-adapter",
+            "to": "cpi-civilization-tag3",
+            "label": "calls tag 3",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-smelting-adapter",
+            "to": "cpi-civilization-tag3",
+            "label": "calls tag 3",
+            "kind": "write"
+          },
+          {
+            "from": "cpi-civilization-target",
+            "to": "cpi-civilization-tag3",
+            "label": "bounds",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-civilization-tag3",
+            "to": "cpi-execution-receipt",
+            "label": "writes",
+            "kind": "proof"
+          },
+          {
+            "from": "cpi-execution-receipt",
+            "to": "cpi-target-state-evidence",
+            "label": "enables",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Adapter authority is target-program scoped",
+          "Civilization callee is tag 3 only",
+          "RuleBook target prevents generic execution",
+          "Receipt state is public and separately decodable"
         ]
       }
     ]
