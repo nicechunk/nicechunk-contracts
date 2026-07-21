@@ -33,7 +33,8 @@
     "networkValue": "Solana 开发网",
     "networkNote": "当前游戏运行配置通过 mainnet.json 指向 Solana devnet。这里不声称主网最终状态，也不声称文明治理已经真实开放。",
     "browser": "浏览 PDA",
-    "logic": "View Logic Atlas"
+    "logic": "查看逻辑图谱",
+    "github": "GitHub 仓库"
   },
   "directory": {
     "eyebrow": "目录",

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "en",
     "label": "English",
-    "version": "contracts-locale-en-4e38307927ac1b37",
-    "contentHash": "4e38307927ac1b37"
+    "version": "contracts-locale-en-eed5f288676df961",
+    "contentHash": "eed5f288676df961"
   },
   "meta": {
     "title": "NiceChunk Contracts"
@@ -39,7 +39,8 @@
     "networkValue": "Solana Devnet",
     "networkNote": "The current game runtime points to Solana devnet through mainnet.json. Mainnet finality and live civilization governance are not claimed here.",
     "browser": "Browse PDAs",
-    "logic": "View Logic Atlas"
+    "logic": "View Logic Atlas",
+    "github": "GitHub Repo"
   },
   "directory": {
     "eyebrow": "Directory",

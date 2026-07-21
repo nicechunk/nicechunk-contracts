@@ -33,7 +33,8 @@
     "networkValue": "Solana Devnet",
     "networkNote": "The current game runtime points to Solana devnet through mainnet.json. Mainnet finality and live civilization governance are not claimed here.",
     "browser": "Browse PDAs",
-    "logic": "View Logic Atlas"
+    "logic": "View Logic Atlas",
+    "github": "GitHub Repo"
   },
   "directory": {
     "eyebrow": "Directory",

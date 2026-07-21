@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ko",
     "label": "Korean",
-    "version": "contracts-locale-ko-86f1a0b52a70a554",
-    "contentHash": "86f1a0b52a70a554"
+    "version": "contracts-locale-ko-4eb8da146b04975f",
+    "contentHash": "4eb8da146b04975f"
   },
   "meta": {
     "title": "NiceChunk 컨트랙트"
@@ -39,7 +39,8 @@
     "networkValue": "Solana Devnet",
     "networkNote": "The current game runtime points to Solana devnet through mainnet.json. Mainnet finality and live civilization governance are not claimed here.",
     "browser": "Browse PDAs",
-    "logic": "View Logic Atlas"
+    "logic": "View Logic Atlas",
+    "github": "GitHub Repo"
   },
   "directory": {
     "eyebrow": "디렉터리",
