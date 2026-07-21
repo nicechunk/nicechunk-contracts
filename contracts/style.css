@@ -542,6 +542,26 @@ a.directory-row:hover {
   overflow-wrap: anywhere;
 }
 
+.authority-boundary-grid .logic-diagram-head h3 {
+  font-size: clamp(20px, 2.1vw, 26px);
+}
+
+.authority-boundary-grid .logic-canvas {
+  padding: 16px;
+}
+
+.authority-boundary-grid .logic-node {
+  padding: 11px;
+}
+
+.authority-boundary-grid .logic-node p {
+  font-size: 11px;
+}
+
+.authority-boundary-grid .logic-node em {
+  overflow-wrap: anywhere;
+}
+
 .account-lifecycle-grid .logic-diagram-head h3 {
   font-size: clamp(20px, 2.1vw, 26px);
 }
@@ -794,6 +814,7 @@ a.directory-row:hover {
 
 .logic-node p {
   margin: 9px 0 0;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
@@ -802,6 +823,7 @@ a.directory-row:hover {
 .logic-node em {
   display: block;
   margin-top: 10px;
+  overflow-wrap: anywhere;
   color: color-mix(in srgb, var(--node-color), #f5f9ff 20%);
   font-size: 10px;
   font-style: normal;
@@ -820,7 +842,10 @@ a.directory-row:hover {
 .logic-evidence span {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
   min-height: 34px;
+  overflow-wrap: anywhere;
   padding: 0 10px;
   border: 1px solid rgba(140, 255, 0, 0.16);
   border-radius: 999px;
@@ -830,6 +855,19 @@ a.directory-row:hover {
   font-weight: 950;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.logic-relations {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .runtime-grid {
@@ -971,9 +1009,11 @@ a.directory-row:hover {
 .program-stack {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .program-panel {
+  min-width: 0;
   padding: clamp(18px, 3vw, 28px);
   scroll-margin-top: calc(var(--nc-site-header-px, 76px) + 18px);
 }
@@ -994,12 +1034,19 @@ a.directory-row:hover {
   letter-spacing: 0;
 }
 
+.program-heading > :first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
 .program-heading-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 560px;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .status-pill,
@@ -1018,6 +1065,13 @@ a.directory-row:hover {
   font-weight: 950;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.status-pill {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .code-toggle,
@@ -1135,7 +1189,9 @@ a.directory-row:hover {
 
 .compact-list li {
   position: relative;
+  min-width: 0;
   padding-left: 14px;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
@@ -1788,7 +1844,11 @@ a.directory-row:hover {
   .pda-structure-grid,
   .chain-browser-stats,
   .chain-browser-results {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .program-columns > div {
+    min-width: 0;
   }
 
   .transparency-map-row {
@@ -1797,6 +1857,74 @@ a.directory-row:hover {
 
   .logic-links {
     display: none;
+  }
+
+  .logic-relations {
+    position: static;
+    display: grid;
+    width: auto;
+    height: auto;
+    gap: 8px;
+    overflow: visible;
+    margin: -3px 18px 18px;
+    padding: 0;
+    clip: auto;
+    clip-path: none;
+    list-style: none;
+    white-space: normal;
+  }
+
+  .logic-relations li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid rgba(152, 203, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(8, 12, 18, 0.42);
+  }
+
+  .logic-relation-node {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: rgba(232, 241, 255, 0.76);
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1.35;
+  }
+
+  .logic-relations strong {
+    max-width: 96px;
+    overflow-wrap: anywhere;
+    color: var(--green);
+    font-size: 9px;
+    font-weight: 950;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .logic-relations strong::before,
+  .logic-relations strong::after {
+    color: rgba(152, 203, 255, 0.54);
+    content: "→";
+  }
+
+  .logic-relations strong::before {
+    margin-right: 4px;
+  }
+
+  .logic-relations strong::after {
+    margin-left: 4px;
+  }
+
+  .logic-node span,
+  .fact-item strong {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .transparency-map-row strong {

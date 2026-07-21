@@ -24,6 +24,7 @@ const trackedExceptions = new Map([
     {
       license: "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
       reason: "Direct WebAssembly AVR compiler dependency with package-specific third-party notices; used by the client toolchain and tracked explicitly.",
+      requiredWhenDeclared: true,
     },
   ],
   [
@@ -87,8 +88,14 @@ for (const [pkgPath, meta] of Object.entries(packages)) {
   findings.push(`${name}@${meta.version ?? "unknown"} has unreviewed license: ${license}`);
 }
 
+const declaredDependencies = {
+  ...(packageJson.dependencies ?? {}),
+  ...(packageJson.devDependencies ?? {}),
+  ...(packageJson.optionalDependencies ?? {}),
+};
 for (const [name, exception] of trackedExceptions.entries()) {
-  if (!dependencies.some((dependency) => dependency.name === name && dependency.license === exception.license)) {
+  const required = exception.requiredWhenDeclared ? Object.hasOwn(declaredDependencies, name) : true;
+  if (required && !dependencies.some((dependency) => dependency.name === name && dependency.license === exception.license)) {
     findings.push(`tracked license exception is stale or mismatched: ${name} (${exception.license})`);
   }
 }

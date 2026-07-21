@@ -83,6 +83,11 @@ export default defineConfig({
   define: {
     __BUILD_VERSION__: JSON.stringify(buildVersion),
   },
+  resolve: {
+    alias: {
+      buffer: resolve(__dirname, "node_modules/buffer/index.js"),
+    },
+  },
   server: {
     watch: {
       usePolling: true,

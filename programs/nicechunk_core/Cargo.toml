@@ -1,7 +1,7 @@
 [package]
 name = "nicechunk_core"
 version = "0.1.0"
-description = "Nicechunk immutable genesis global config program"
+description = "Nicechunk one-time genesis global config program"
 edition.workspace = true
 
 [lib]

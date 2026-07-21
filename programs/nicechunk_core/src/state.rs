@@ -60,12 +60,14 @@ pub const GUARDIAN_REGION_SIZE_CHUNKS: u16 = 64;
 pub const GUARDIAN_REALTIME_RADIUS_CHUNKS: u16 = 16;
 pub const MINE_COOLDOWN_SLOTS: u16 = 2;
 
-/// Minimal immutable genesis account.
+/// Minimal one-time genesis account under the current program logic.
 ///
 /// There is no admin key, no mutable config authority, no pause flag, and no
 /// update instruction. The account stores only fixed public rules and hashes.
 /// The native program writes these values from constants compiled into the
-/// program, so the initializer cannot choose or alter genesis parameters.
+/// program, so the initializer cannot choose or alter genesis parameters. This
+/// source-level boundary does not prove the deployed ProgramData upgrade
+/// authority has been closed.
 pub struct GlobalConfig;
 
 impl GlobalConfig {

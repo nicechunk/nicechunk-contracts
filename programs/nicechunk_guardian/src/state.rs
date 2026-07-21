@@ -27,10 +27,22 @@ pub struct GuardianRegistry;
 
 impl GuardianRegistry {
     pub const LEN: usize = 160;
+    pub const MAGIC_OFFSET: usize = 0;
+    pub const VERSION_OFFSET: usize = 8;
+    pub const BUMP_OFFSET: usize = 10;
+    pub const TREASURY_BUMP_OFFSET: usize = 11;
     pub const GLOBAL_CONFIG_OFFSET: usize = 12;
+    pub const NCK_MINT_OFFSET: usize = 44;
     pub const TREASURY_TOKEN_OFFSET: usize = 76;
-    pub const ACTIVE_COUNT_OFFSET: usize = 116;
+    pub const ACTIVE_COUNT_OFFSET: usize = 108;
+    pub const TOTAL_REGISTRATIONS_OFFSET: usize = 116;
     pub const GENESIS_REGISTERED_OFFSET: usize = 124;
+    pub const RESERVED_OFFSET: usize = 125;
+    pub const REGION_SIZE_CHUNKS_OFFSET: usize = 126;
+    pub const STAKE_AMOUNT_OFFSET: usize = 128;
+    pub const SLASH_AMOUNT_OFFSET: usize = 136;
+    pub const CREATED_SLOT_OFFSET: usize = 144;
+    pub const CREATED_AT_OFFSET: usize = 152;
 
     #[allow(clippy::too_many_arguments)]
     pub fn pack(
@@ -108,12 +120,12 @@ impl GuardianRegistry {
         let active = read_u64(data, Self::ACTIVE_COUNT_OFFSET)
             .checked_add(1)
             .ok_or(NicechunkGuardianError::InvalidRegistryData)?;
-        let total = read_u64(data, Self::ACTIVE_COUNT_OFFSET + 8)
+        let total = read_u64(data, Self::TOTAL_REGISTRATIONS_OFFSET)
             .checked_add(1)
             .ok_or(NicechunkGuardianError::InvalidRegistryData)?;
         data[Self::ACTIVE_COUNT_OFFSET..Self::ACTIVE_COUNT_OFFSET + 8]
             .copy_from_slice(&active.to_le_bytes());
-        data[Self::ACTIVE_COUNT_OFFSET + 8..Self::ACTIVE_COUNT_OFFSET + 16]
+        data[Self::TOTAL_REGISTRATIONS_OFFSET..Self::TOTAL_REGISTRATIONS_OFFSET + 8]
             .copy_from_slice(&total.to_le_bytes());
         if is_genesis {
             data[Self::GENESIS_REGISTERED_OFFSET] = 1;
@@ -123,8 +135,11 @@ impl GuardianRegistry {
 
     fn has_valid_layout(data: &[u8]) -> bool {
         data.len() == Self::LEN
-            && data[0..8] == GUARDIAN_REGISTRY_MAGIC
-            && u16::from_le_bytes([data[8], data[9]]) == GUARDIAN_REGISTRY_VERSION
+            && data[Self::MAGIC_OFFSET..Self::VERSION_OFFSET] == GUARDIAN_REGISTRY_MAGIC
+            && u16::from_le_bytes([
+                data[Self::VERSION_OFFSET],
+                data[Self::VERSION_OFFSET + 1],
+            ]) == GUARDIAN_REGISTRY_VERSION
     }
 }
 
@@ -497,5 +512,135 @@ impl ByteWriter<'_> {
 
     fn pubkey(&mut self, value: &Pubkey) -> ProgramResult {
         self.bytes(value.as_ref())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn packed_registry() -> Vec<u8> {
+        let mut data = vec![0_u8; GuardianRegistry::LEN];
+        GuardianRegistry::pack(
+            &mut data,
+            7,
+            9,
+            &Pubkey::new_from_array([0x11; 32]),
+            &Pubkey::new_from_array([0x22; 32]),
+            &Pubkey::new_from_array([0x33; 32]),
+            0x0807_0605_0403_0201,
+            -0x0807_0605_0403_0201,
+        )
+        .unwrap();
+        data
+    }
+
+    #[test]
+    fn registry_pack_matches_the_documented_wire_layout() {
+        let data = packed_registry();
+
+        assert_eq!(
+            &data[GuardianRegistry::MAGIC_OFFSET..GuardianRegistry::VERSION_OFFSET],
+            &GUARDIAN_REGISTRY_MAGIC
+        );
+        assert_eq!(
+            u16::from_le_bytes(
+                data[GuardianRegistry::VERSION_OFFSET..GuardianRegistry::BUMP_OFFSET]
+                    .try_into()
+                    .unwrap()
+            ),
+            GUARDIAN_REGISTRY_VERSION
+        );
+        assert_eq!(data[GuardianRegistry::BUMP_OFFSET], 7);
+        assert_eq!(data[GuardianRegistry::TREASURY_BUMP_OFFSET], 9);
+        assert_eq!(
+            &data[GuardianRegistry::GLOBAL_CONFIG_OFFSET..GuardianRegistry::NCK_MINT_OFFSET],
+            &[0x11; 32]
+        );
+        assert_eq!(
+            &data[GuardianRegistry::NCK_MINT_OFFSET..GuardianRegistry::TREASURY_TOKEN_OFFSET],
+            &[0x22; 32]
+        );
+        assert_eq!(
+            &data[GuardianRegistry::TREASURY_TOKEN_OFFSET..GuardianRegistry::ACTIVE_COUNT_OFFSET],
+            &[0x33; 32]
+        );
+        assert_eq!(read_u64(&data, GuardianRegistry::ACTIVE_COUNT_OFFSET), 0);
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::TOTAL_REGISTRATIONS_OFFSET),
+            0
+        );
+        assert_eq!(data[GuardianRegistry::GENESIS_REGISTERED_OFFSET], 0);
+        assert_eq!(data[GuardianRegistry::RESERVED_OFFSET], 0);
+        assert_eq!(
+            u16::from_le_bytes(
+                data[GuardianRegistry::REGION_SIZE_CHUNKS_OFFSET
+                    ..GuardianRegistry::REGION_SIZE_CHUNKS_OFFSET + 2]
+                    .try_into()
+                    .unwrap()
+            ),
+            REGION_SIZE_CHUNKS_U16
+        );
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::STAKE_AMOUNT_OFFSET),
+            GUARDIAN_STAKE_AMOUNT
+        );
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::SLASH_AMOUNT_OFFSET),
+            GUARDIAN_SLASH_AMOUNT
+        );
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::CREATED_SLOT_OFFSET),
+            0x0807_0605_0403_0201
+        );
+        assert_eq!(
+            i64::from_le_bytes(
+                data[GuardianRegistry::CREATED_AT_OFFSET..GuardianRegistry::LEN]
+                    .try_into()
+                    .unwrap()
+            ),
+            -0x0807_0605_0403_0201
+        );
+    }
+
+    #[test]
+    fn add_active_updates_only_counts_and_requested_genesis_flag() {
+        let mut data = packed_registry();
+        data[GuardianRegistry::ACTIVE_COUNT_OFFSET..GuardianRegistry::ACTIVE_COUNT_OFFSET + 8]
+            .copy_from_slice(&7_u64.to_le_bytes());
+        data[GuardianRegistry::TOTAL_REGISTRATIONS_OFFSET
+            ..GuardianRegistry::TOTAL_REGISTRATIONS_OFFSET + 8]
+            .copy_from_slice(&11_u64.to_le_bytes());
+        let before = data.clone();
+
+        GuardianRegistry::add_active(&mut data, false).unwrap();
+
+        assert_eq!(read_u64(&data, GuardianRegistry::ACTIVE_COUNT_OFFSET), 8);
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::TOTAL_REGISTRATIONS_OFFSET),
+            12
+        );
+        assert_eq!(
+            &data[..GuardianRegistry::ACTIVE_COUNT_OFFSET],
+            &before[..GuardianRegistry::ACTIVE_COUNT_OFFSET]
+        );
+        assert_eq!(
+            &data[GuardianRegistry::GENESIS_REGISTERED_OFFSET..],
+            &before[GuardianRegistry::GENESIS_REGISTERED_OFFSET..]
+        );
+
+        let before_genesis = data.clone();
+        GuardianRegistry::add_active(&mut data, true).unwrap();
+
+        assert_eq!(read_u64(&data, GuardianRegistry::ACTIVE_COUNT_OFFSET), 9);
+        assert_eq!(
+            read_u64(&data, GuardianRegistry::TOTAL_REGISTRATIONS_OFFSET),
+            13
+        );
+        assert_eq!(data[GuardianRegistry::GENESIS_REGISTERED_OFFSET], 1);
+        assert_eq!(
+            &data[GuardianRegistry::RESERVED_OFFSET..],
+            &before_genesis[GuardianRegistry::RESERVED_OFFSET..]
+        );
     }
 }

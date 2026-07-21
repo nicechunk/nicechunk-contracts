@@ -4,6 +4,13 @@ import { Buffer } from "buffer";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { finishSiteLoading, setSiteLoadingProgress } from "../src/site-ui.js";
 import { createNicechunkRpcFetch, getNicechunkRpcUrl } from "../src/rpcConfig.js";
+import embeddedEnglishDictionary from "./locales/en.json";
+import {
+  getProgramAccountScanTargets,
+  mapProgramAccountTypes,
+  programAccountScanTargets,
+  resolveProgramAddress,
+} from "./program-routing.js";
 import coreCargo from "../programs/nicechunk_core/Cargo.toml?raw";
 import coreClusterConfig from "../programs/nicechunk_core/src/cluster_config.rs?raw";
 import coreErrors from "../programs/nicechunk_core/src/errors.rs?raw";
@@ -22,6 +29,9 @@ import chunkErrors from "../programs/nicechunk_chunk/src/errors.rs?raw";
 import chunkLib from "../programs/nicechunk_chunk/src/lib.rs?raw";
 import chunkState from "../programs/nicechunk_chunk/src/state.rs?raw";
 import chunkSdk from "../sdk/nicechunk-chunk.ts?raw";
+import gameCargo from "../programs/nicechunk_game/Cargo.toml?raw";
+import gameErrors from "../programs/nicechunk_game/src/errors.rs?raw";
+import gameLib from "../programs/nicechunk_game/src/lib.rs?raw";
 import guardianCargo from "../programs/nicechunk_guardian/Cargo.toml?raw";
 import guardianClusterConfig from "../programs/nicechunk_guardian/src/cluster_config.rs?raw";
 import guardianErrors from "../programs/nicechunk_guardian/src/errors.rs?raw";
@@ -76,7 +86,7 @@ const plannedLanguages = [
   { code: "zh-Hans", englishName: "Simplified Chinese", nativeName: "Simplified Chinese", enabled: true },
 ];
 const languageCodes = new Set(plannedLanguages.map((language) => language.code));
-const dictionaryCache = new Map();
+const dictionaryCache = new Map([["en", embeddedEnglishDictionary]]);
 const sourceTrees = {
   core: [
     file("programs/nicechunk_core/Cargo.toml", "toml", coreCargo),
@@ -101,6 +111,11 @@ const sourceTrees = {
     file("programs/nicechunk_chunk/src/lib.rs", "rust", chunkLib),
     file("programs/nicechunk_chunk/src/state.rs", "rust", chunkState),
     file("sdk/nicechunk-chunk.ts", "typescript", chunkSdk),
+  ],
+  game: [
+    file("programs/nicechunk_game/Cargo.toml", "toml", gameCargo),
+    file("programs/nicechunk_game/src/errors.rs", "rust", gameErrors),
+    file("programs/nicechunk_game/src/lib.rs", "rust", gameLib),
   ],
   guardian: [
     file("programs/nicechunk_guardian/Cargo.toml", "toml", guardianCargo),
@@ -153,35 +168,30 @@ const sourceTrees = {
 };
 
 const pdaAccountTypes = [
-  { id: "all", programKey: null, sizes: [], decoder: null },
-  { id: "global-config", programKey: "core", sizes: [293], decoder: decodeGlobalConfigAccount },
-  { id: "player-profile", programKey: "player", sizes: [773], decoder: decodePlayerProfileAccount },
-  { id: "player-session", programKey: "player", sizes: [184], decoder: decodePlayerSessionAccount },
-  { id: "chunk-broken", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeChunkBrokenAccount },
-  { id: "resource-drop-table", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeResourceDropTableAccount },
-  { id: "guardian-registry", programKey: "guardian", sizes: [160], decoder: decodeGuardianRegistryAccount },
-  { id: "guardian-region", programKey: "guardian", sizes: [256, 288], decoder: decodeGuardianRegionAccount },
-  { id: "backpack", programKey: "backpack", sizes: [8048], decoder: decodeBackpackAccount },
-  { id: "recipe-table", programKey: "smelting", sizes: [9936], decoder: decodeRecipeTableAccount },
-  { id: "market-listing", programKey: "market", sizes: [216], decoder: decodeMarketListingAccount },
-  { id: "civilization-rule-book", programKey: "civilization", sizes: [320], decoder: decodeCivilizationRuleBookAccount },
-  { id: "civilization-rule-signature", programKey: "civilization", sizes: [136], decoder: decodeCivilizationRuleSignatureAccount },
-  { id: "civilization-rule-tally", programKey: "civilization", sizes: [128], decoder: decodeCivilizationRuleTallyOrPowerSnapshotOrReceiptAccount },
-  { id: "civilization-execution-receipt", programKey: "civilization", sizes: [128], decoder: decodeCivilizationExecutionReceiptOrTallyOrSnapshotAccount },
-  { id: "civilization-power-snapshot", programKey: "civilization", sizes: [128], decoder: decodeCivilizationPowerSnapshotOrTallyOrReceiptAccount },
-  { id: "civilization-citizen-power", programKey: "civilization", sizes: [144], decoder: decodeCivilizationCitizenPowerAccount },
-  { id: "build-site", programKey: "building", sizes: [136, 160], decoder: decodeBuildSiteAccount },
-  { id: "building-manifest", programKey: "building", sizes: [160], decoder: decodeBuildingManifestAccount },
-  { id: "building-shard", programKey: "building", sizes: [{ min: 64, max: 8256 }], decoder: decodeBuildingShardAccount },
-  { id: "forged-items", programKey: null, sizes: [], decoder: null, virtual: true },
+  { id: "all", decoder: null },
+  { id: "global-config", decoder: decodeGlobalConfigAccount },
+  { id: "player-profile", decoder: decodePlayerProfileAccount },
+  { id: "player-session", decoder: decodePlayerSessionAccount },
+  { id: "chunk-broken", decoder: decodeChunkBrokenAccount },
+  { id: "resource-drop-table", decoder: decodeResourceDropTableAccount },
+  { id: "guardian-registry", decoder: decodeGuardianRegistryAccount },
+  { id: "guardian-region", decoder: decodeGuardianRegionAccount },
+  { id: "backpack", decoder: decodeBackpackAccount },
+  { id: "recipe-table", decoder: decodeRecipeTableAccount },
+  { id: "market-listing", decoder: decodeMarketListingAccount },
+  { id: "civilization-rule-book", decoder: decodeCivilizationRuleBookAccount },
+  { id: "civilization-rule-signature", decoder: decodeCivilizationRuleSignatureAccount },
+  { id: "civilization-rule-tally", decoder: decodeCivilizationRuleTallyOrPowerSnapshotOrReceiptAccount },
+  { id: "civilization-execution-receipt", decoder: decodeCivilizationExecutionReceiptOrTallyOrSnapshotAccount },
+  { id: "civilization-power-snapshot", decoder: decodeCivilizationPowerSnapshotOrTallyOrReceiptAccount },
+  { id: "civilization-citizen-power", decoder: decodeCivilizationCitizenPowerAccount },
+  { id: "build-site", decoder: decodeBuildSiteAccount },
+  { id: "building-manifest", decoder: decodeBuildingManifestAccount },
+  { id: "building-shard", decoder: decodeBuildingShardAccount },
+  { id: "forged-items", decoder: null, virtual: true },
 ];
 
-const programAccountTypeMap = new Map();
-for (const type of pdaAccountTypes) {
-  if (!type.programKey) continue;
-  if (!programAccountTypeMap.has(type.programKey)) programAccountTypeMap.set(type.programKey, []);
-  programAccountTypeMap.get(type.programKey).push(type.id);
-}
+const programAccountTypeMap = mapProgramAccountTypes();
 
 const contractsNav = document.querySelector("#contractsNav");
 const runtimeGrid = document.querySelector("#runtimeGrid");
@@ -193,6 +203,8 @@ const instructionSurfaceLegend = document.querySelector("#instructionSurfaceLege
 const instructionSurfaceAtlas = document.querySelector("#instructionSurfaceAtlas");
 const cpiAuthorityLegend = document.querySelector("#cpiAuthorityLegend");
 const cpiAuthorityAtlas = document.querySelector("#cpiAuthorityAtlas");
+const authorityBoundaryLegend = document.querySelector("#authorityBoundaryLegend");
+const authorityBoundaryAtlas = document.querySelector("#authorityBoundaryAtlas");
 const accountLifecycleLegend = document.querySelector("#accountLifecycleLegend");
 const accountLifecycleAtlas = document.querySelector("#accountLifecycleAtlas");
 const payloadTruthLegend = document.querySelector("#payloadTruthLegend");
@@ -223,23 +235,25 @@ const sections = [...document.querySelectorAll("[data-contract-section]")];
 
 let activeLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)) || "en";
 let dictionary = {};
-let fallbackDictionary = {};
+const fallbackDictionary = embeddedEnglishDictionary;
 const contractsConnections = new Map();
 let chainBrowserRecords = [];
 let runtimeConfig = null;
 let logicResizeFrame = 0;
+let languageRequestSequence = 0;
 
 void initContractsPage();
 
 window.addEventListener("resize", () => {
-  window.cancelAnimationFrame(logicResizeFrame);
-  logicResizeFrame = window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 });
 
 async function initContractsPage() {
   setSiteLoadingProgress(36);
-  fallbackDictionary = await loadDictionary("en");
-  dictionary = activeLanguage === "en" ? fallbackDictionary : await loadDictionary(activeLanguage);
+  const initialLocale = await loadDictionary(activeLanguage);
+  activeLanguage = initialLocale.language;
+  dictionary = initialLocale.dictionary;
+  localStorage.setItem(languageStorageKey, activeLanguage);
   runtimeConfig = await loadRuntimeConfig();
   applyTranslations(document);
   renderNavigation();
@@ -248,6 +262,7 @@ async function initContractsPage() {
   renderSeedEvidence();
   renderInstructionSurface();
   renderCpiAuthority();
+  renderAuthorityBoundary();
   renderAccountLifecycle();
   renderPayloadTruth();
   renderValueSettlement();
@@ -382,6 +397,20 @@ function groupProgramIds(entries) {
     .map(([id, keys]) => ({ id, keys }));
 }
 
+function programRuntimeStatus(program) {
+  const configuredPrograms = runtimeConfig?.chain?.programs;
+  if (!configuredPrograms || typeof configuredPrograms !== "object") return dictionary.runtime.unavailable;
+  const configuredId = configuredPrograms[program.codeKey];
+  const isAlias = configuredId && configuredId !== program.programId;
+  const isReferencedExecutable = Object.values(configuredPrograms).includes(program.programId);
+  if (configuredId || isReferencedExecutable) {
+    return isAlias || (!configuredId && isReferencedExecutable)
+      ? `${dictionary.runtime.configured} · ${dictionary.runtime.cards.alias.label}`
+      : dictionary.runtime.configured;
+  }
+  return dictionary.runtime.notConfigured;
+}
+
 function createRuntimeCard(card) {
   const article = document.createElement("article");
   article.className = `runtime-card ${card.state || "live"}`;
@@ -409,57 +438,89 @@ function createRuntimeCard(card) {
 function renderLogicAtlas() {
   const logic = dictionary.logic ?? fallbackDictionary.logic;
   if (!logicAtlas || !logic) return;
+  markFallbackSectionLanguage(logicAtlas, "logic");
   renderLogicLegend(logicLegend, logic.legend ?? []);
   logicAtlas.replaceChildren(...(logic.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 }
 
 function renderSeedEvidence() {
   const evidence = dictionary.seedEvidence ?? fallbackDictionary.seedEvidence;
   if (!seedEvidenceAtlas || !evidence) return;
+  markFallbackSectionLanguage(seedEvidenceAtlas, "seedEvidence");
   renderLogicLegend(seedEvidenceLegend, evidence.legend ?? []);
   seedEvidenceAtlas.replaceChildren(...(evidence.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 }
 
 function renderInstructionSurface() {
   const surface = dictionary.instructionSurface ?? fallbackDictionary.instructionSurface;
   if (!instructionSurfaceAtlas || !surface) return;
+  markFallbackSectionLanguage(instructionSurfaceAtlas, "instructionSurface");
   renderLogicLegend(instructionSurfaceLegend, surface.legend ?? []);
   instructionSurfaceAtlas.replaceChildren(...(surface.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 }
 
 function renderCpiAuthority() {
   const ledger = dictionary.cpiAuthority ?? fallbackDictionary.cpiAuthority;
   if (!cpiAuthorityAtlas || !ledger) return;
+  markFallbackSectionLanguage(cpiAuthorityAtlas, "cpiAuthority");
   renderLogicLegend(cpiAuthorityLegend, ledger.legend ?? []);
   cpiAuthorityAtlas.replaceChildren(...(ledger.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
+}
+
+function renderAuthorityBoundary() {
+  const boundary = dictionary.authorityBoundary ?? fallbackDictionary.authorityBoundary;
+  if (!authorityBoundaryAtlas || !boundary) return;
+  markFallbackSectionLanguage(authorityBoundaryAtlas, "authorityBoundary");
+  renderLogicLegend(authorityBoundaryLegend, boundary.legend ?? []);
+  authorityBoundaryAtlas.replaceChildren(...(boundary.diagrams ?? []).map(createLogicDiagram));
+  scheduleLogicLinks();
 }
 
 function renderAccountLifecycle() {
   const lifecycle = dictionary.accountLifecycle ?? fallbackDictionary.accountLifecycle;
   if (!accountLifecycleAtlas || !lifecycle) return;
+  markFallbackSectionLanguage(accountLifecycleAtlas, "accountLifecycle");
   renderLogicLegend(accountLifecycleLegend, lifecycle.legend ?? []);
   accountLifecycleAtlas.replaceChildren(...(lifecycle.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 }
 
 function renderPayloadTruth() {
   const truth = dictionary.payloadTruth ?? fallbackDictionary.payloadTruth;
   if (!payloadTruthAtlas || !truth) return;
+  markFallbackSectionLanguage(payloadTruthAtlas, "payloadTruth");
   renderLogicLegend(payloadTruthLegend, truth.legend ?? []);
   payloadTruthAtlas.replaceChildren(...(truth.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
 }
 
 function renderValueSettlement() {
   const settlement = dictionary.valueSettlement ?? fallbackDictionary.valueSettlement;
   if (!valueSettlementAtlas || !settlement) return;
+  markFallbackSectionLanguage(valueSettlementAtlas, "valueSettlement");
   renderLogicLegend(valueSettlementLegend, settlement.legend ?? []);
   valueSettlementAtlas.replaceChildren(...(settlement.diagrams ?? []).map(createLogicDiagram));
-  window.requestAnimationFrame(updateLogicLinks);
+  scheduleLogicLinks();
+}
+
+function scheduleLogicLinks() {
+  window.cancelAnimationFrame(logicResizeFrame);
+  logicResizeFrame = window.requestAnimationFrame(() => {
+    logicResizeFrame = 0;
+    updateLogicLinks();
+  });
+}
+
+function markFallbackSectionLanguage(target, dictionaryKey) {
+  const section = target?.closest("[data-contract-section]");
+  if (!section) return;
+  const usesEnglishFallback = activeLanguage !== "en" && !Object.hasOwn(dictionary, dictionaryKey);
+  if (usesEnglishFallback) section.setAttribute("lang", "en");
+  else section.removeAttribute("lang");
 }
 
 function renderLogicLegend(target, legend) {
@@ -491,12 +552,19 @@ function createLogicDiagram(diagram) {
       <svg class="logic-links" aria-hidden="true"></svg>
       <div class="logic-lanes"></div>
     </div>
+    <ul class="logic-relations"></ul>
     <div class="logic-evidence"></div>
   `;
   article.querySelector(".logic-diagram-head span").textContent = diagram.kicker || "";
   article.querySelector("h3").textContent = diagram.title;
   article.querySelector(".logic-diagram-head p").textContent = diagram.body;
   article.querySelector(".logic-lanes").replaceChildren(...(diagram.lanes ?? []).map(createLogicLane));
+  const nodeLabels = new Map(
+    (diagram.lanes ?? []).flatMap((lane) => (lane.nodes ?? []).map((node) => [node.id, node.label])),
+  );
+  article.querySelector(".logic-relations").replaceChildren(
+    ...(diagram.links ?? []).map((link) => createLogicRelationItem(link, nodeLabels)),
+  );
   article.querySelector(".logic-evidence").replaceChildren(
     ...(diagram.evidence ?? []).map((item) => {
       const chip = document.createElement("span");
@@ -506,6 +574,20 @@ function createLogicDiagram(diagram) {
   );
   article.logicLinks = diagram.links ?? [];
   return article;
+}
+
+function createLogicRelationItem(link, nodeLabels) {
+  const item = document.createElement("li");
+  item.innerHTML = `
+    <span class="logic-relation-node"></span>
+    <strong></strong>
+    <span class="logic-relation-node"></span>
+  `;
+  const nodes = item.querySelectorAll(".logic-relation-node");
+  nodes[0].textContent = nodeLabels.get(link.from) ?? link.from;
+  item.querySelector("strong").textContent = link.label || "→";
+  nodes[1].textContent = nodeLabels.get(link.to) ?? link.to;
+  return item;
 }
 
 function createLogicLane(lane) {
@@ -560,14 +642,16 @@ function drawLogicDiagramLinks(diagram) {
     if (!from || !to) continue;
     const fromRect = from.getBoundingClientRect();
     const toRect = to.getBoundingClientRect();
-    const start = {
+    const fromCenter = {
       x: fromRect.left + fromRect.width / 2 - canvasRect.left,
       y: fromRect.top + fromRect.height / 2 - canvasRect.top,
     };
-    const end = {
+    const toCenter = {
       x: toRect.left + toRect.width / 2 - canvasRect.left,
       y: toRect.top + toRect.height / 2 - canvasRect.top,
     };
+    const start = rectEdgePoint(fromRect, toCenter, canvasRect);
+    const end = rectEdgePoint(toRect, fromCenter, canvasRect);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", `logic-link-path ${link.kind || "write"}`);
     path.setAttribute("d", curvedPath(start, end));
@@ -582,6 +666,23 @@ function drawLogicDiagramLinks(diagram) {
       svg.append(label);
     }
   }
+}
+
+function rectEdgePoint(rect, toward, containerRect) {
+  const center = {
+    x: rect.left + rect.width / 2 - containerRect.left,
+    y: rect.top + rect.height / 2 - containerRect.top,
+  };
+  const dx = toward.x - center.x;
+  const dy = toward.y - center.y;
+  if (!dx && !dy) return center;
+  const halfWidth = Math.max(1, rect.width / 2);
+  const halfHeight = Math.max(1, rect.height / 2);
+  const scale = 1 / Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
+  return {
+    x: center.x + dx * scale,
+    y: center.y + dy * scale,
+  };
 }
 
 function createArrowMarker(markerId) {
@@ -613,6 +714,7 @@ function curvedPath(start, end) {
 function renderAuditMatrix() {
   const matrix = dictionary.auditMatrix ?? fallbackDictionary.auditMatrix;
   if (!auditMatrix || !matrix) return;
+  markFallbackSectionLanguage(auditMatrix, "auditMatrix");
   auditMatrix.replaceChildren(...(matrix.rows ?? []).map((row) => createAuditMatrixCard(row, matrix.columns ?? {})));
 }
 
@@ -673,7 +775,7 @@ function createDirectoryRow(program) {
   `;
   row.children[0].textContent = program.name;
   row.children[1].textContent = program.programId;
-  row.children[2].textContent = program.status;
+  row.children[2].textContent = programRuntimeStatus(program);
   row.children[3].textContent = program.role;
   [...row.children].forEach((cell, index) => {
     cell.dataset.label = dictionary.directory.columns[index] ?? "";
@@ -821,7 +923,7 @@ function createProgramPanel(program) {
 
   panel.querySelector(".eyebrow").textContent = program.kind;
   panel.querySelector("h3").textContent = program.name;
-  panel.querySelector(".status-pill").textContent = program.status;
+  panel.querySelector(".status-pill").textContent = programRuntimeStatus(program);
   const codeButton = panel.querySelector(".code-toggle");
   codeButton.querySelector("strong").textContent = dictionary.labels.viewCode;
   codeButton.setAttribute("aria-label", `${dictionary.labels.viewCode}: ${program.name}`);
@@ -978,7 +1080,7 @@ function createProgramLiveView(program) {
       button.type = "button";
       button.className = "program-live-action";
       button.textContent = typeLabel(typeId);
-      button.addEventListener("click", () => loadProgramLiveAccounts(root, typeId));
+      button.addEventListener("click", () => loadProgramLiveAccounts(root, typeId, program.codeKey));
       return button;
     }),
   );
@@ -991,14 +1093,14 @@ function createProgramLiveView(program) {
   return root;
 }
 
-async function loadProgramLiveAccounts(root, typeId) {
+async function loadProgramLiveAccounts(root, typeId, programKey) {
   const status = root.querySelector("[data-program-live-status]");
   const results = root.querySelector("[data-program-live-results]");
   status.dataset.touched = "true";
   setStatus(status, formatText(dictionary.chainBrowser.loadingType, { type: typeLabel(typeId) }));
   results.replaceChildren();
   try {
-    const records = await scanAccountType(typeId);
+    const records = await scanAccountType(typeId, programKey);
     setStatus(status, formatText(dictionary.chainBrowser.loadedType, { count: records.length, type: typeLabel(typeId) }));
     results.replaceChildren(...records.slice(0, 12).map(createAccountCard));
     if (!records.length) results.append(createEmptyState(dictionary.chainBrowser.empty));
@@ -1107,9 +1209,17 @@ function fillList(list, items) {
 }
 
 function renderCodeBlocks() {
-  const ids = Object.fromEntries(dictionary.programs.map((program) => [program.codeKey, program.programId]));
+  const sourceIds = Object.fromEntries(dictionary.programs.map((program) => [program.codeKey, program.programId]));
+  const configuredIds = Object.fromEntries(dictionary.programs.map((program) => [
+    program.codeKey,
+    resolveProgramAddress(program.codeKey, runtimeConfig, dictionary.programs) ?? program.programId,
+  ]));
   if (programIdsCode) {
-    programIdsCode.textContent = `export const nicechunkPrograms = ${JSON.stringify(ids, null, 2)};`;
+    programIdsCode.textContent = [
+      `export const nicechunkSourceProgramIds = ${JSON.stringify(sourceIds, null, 2)};`,
+      "",
+      `export const nicechunkConfiguredProgramIds = ${JSON.stringify(configuredIds, null, 2)};`,
+    ].join("\n");
   }
   if (pdaCode) {
     pdaCode.textContent = dictionary.developer.pdaCode;
@@ -1232,40 +1342,96 @@ function accountMatchesQuery(record, query) {
 async function scanAllAccountTypes() {
   const results = [];
   for (const type of pdaAccountTypes.filter((item) => item.id !== "all")) {
+    if (type.id !== "forged-items") {
+      const settledTargets = await scanAccountTargets(type);
+      const typeRecords = [];
+      for (const settled of settledTargets) {
+        if (settled.status === "fulfilled") {
+          typeRecords.push(...settled.value);
+        } else {
+          results.push(createScanFailureRecord(type, settled.reason));
+        }
+      }
+      results.push(...typeRecords.sort((a, b) => b.lamports - a.lamports));
+      continue;
+    }
     try {
       results.push(...await scanAccountType(type.id));
     } catch (error) {
-      results.push({
-        typeId: type.id,
-        accountType: typeLabel(type.id),
-        publicKey: dictionary.chainBrowser.scanFailed,
-        programId: programIdForKey(type.programKey),
-        decoded: { error: error.message },
-        lamports: 0,
-        dataLength: 0,
-        executable: false,
-      });
+      results.push(createScanFailureRecord(type, error));
     }
   }
   return results;
 }
 
-async function scanAccountType(typeId) {
+async function scanAccountType(typeId, programKey = null) {
   const type = pdaAccountTypes.find((item) => item.id === typeId);
   if (!type || type.id === "all") return scanAllAccountTypes();
   if (type.id === "forged-items") return scanForgedItemAccounts();
-  const programId = programIdForKey(type.programKey);
-  if (!programId) throw new Error(`Missing program id for ${type.programKey}.`);
-  if (type.id === "global-config") {
-    const [globalConfig] = PublicKey.findProgramAddressSync([Buffer.from("global-config")], programId);
-    const account = await withRpcFallback((conn) => conn.getAccountInfo(globalConfig, "confirmed"), 15_000);
-    return account ? [decodeAccountRecord(type, globalConfig, account, programId)].filter(Boolean) : [];
+  const settledTargets = await scanAccountTargets(type, programKey);
+  const failures = settledTargets.filter((result) => result.status === "rejected").map((result) => result.reason);
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(failures, failures.map((error) => error.message).join(" "));
   }
-  const accounts = await fetchProgramAccountsBySizes(programId, type.sizes);
-  return accounts
-    .map(({ pubkey, account }) => decodeAccountRecord(type, pubkey, account, programId))
-    .filter(Boolean)
+  return settledTargets
+    .flatMap((result) => result.value)
     .sort((a, b) => b.lamports - a.lamports);
+}
+
+function scanAccountTargets(type, programKey = null) {
+  const targets = getProgramAccountScanTargets(type.id, programKey);
+  return Promise.allSettled(targets.map((target) => scanAccountTarget(type, target)));
+}
+
+async function scanAccountTarget(type, target) {
+  const programId = programIdForKey(target.programKey);
+  if (!programId) {
+    throw createTargetScanError(new Error(`Missing program id for ${target.programKey}.`), target, null);
+  }
+  try {
+    if (type.id === "global-config") {
+      const [globalConfig] = PublicKey.findProgramAddressSync([Buffer.from("global-config")], programId);
+      const account = await withRpcFallback((conn) => conn.getAccountInfo(globalConfig, "confirmed"), 15_000);
+      return account ? [decodeAccountRecord(type, globalConfig, account, programId)].filter(Boolean) : [];
+    }
+    const accounts = await fetchProgramAccountsBySizes(programId, target.sizes);
+    return accounts
+      .map(({ pubkey, account }) => decodeAccountRecord(type, pubkey, account, programId))
+      .filter(Boolean);
+  } catch (error) {
+    throw createTargetScanError(error, target, programId);
+  }
+}
+
+function createTargetScanError(error, target, programId) {
+  const targetError = new Error(error instanceof Error ? error.message : String(error), { cause: error });
+  targetError.scanTarget = {
+    programKey: target.programKey,
+    programId: programId?.toBase58() ?? null,
+  };
+  return targetError;
+}
+
+function createScanFailureRecord(type, error) {
+  const nestedError = error?.scanTarget ? error : error?.errors?.find((candidate) => candidate?.scanTarget);
+  const fallbackTarget = programAccountScanTargets[type.id]?.[0];
+  const programKey = nestedError?.scanTarget?.programKey ?? fallbackTarget?.programKey ?? null;
+  const fallbackProgramId = programKey ? programIdForKey(programKey)?.toBase58() ?? null : null;
+  return {
+    typeId: type.id,
+    accountType: typeLabel(type.id),
+    publicKey: dictionary.chainBrowser.scanFailed,
+    programKey,
+    programId: nestedError?.scanTarget?.programId ?? fallbackProgramId ?? "-",
+    decoded: {
+      error: error instanceof Error ? error.message : String(error),
+      ...(programKey ? { programKey } : {}),
+    },
+    lamports: 0,
+    dataLength: 0,
+    executable: false,
+  };
 }
 
 async function scanForgedItemAccounts() {
@@ -1511,10 +1677,14 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 function programIdForKey(programKey) {
-  const program =
-    dictionary.programs?.find((item) => item.codeKey === programKey)
-    ?? fallbackDictionary.programs?.find((item) => item.codeKey === programKey);
-  return program?.programId ? new PublicKey(program.programId) : null;
+  const sourcePrograms = dictionary.programs ?? fallbackDictionary.programs ?? [];
+  const address = resolveProgramAddress(programKey, runtimeConfig, sourcePrograms);
+  if (!address) return null;
+  try {
+    return new PublicKey(address);
+  } catch (_error) {
+    return null;
+  }
 }
 
 function typeLabel(typeId) {
@@ -1537,14 +1707,30 @@ function setupLanguageSwitcher() {
   renderLanguageMenu();
   updateLanguagePicker();
   languageTrigger?.addEventListener("click", () => {
-    setLanguageMenuOpen(!languagePicker?.classList.contains("open"));
+    const open = !languagePicker?.classList.contains("open");
+    setLanguageMenuOpen(open, { focusTarget: "selected" });
+  });
+  languageTrigger?.addEventListener("keydown", (event) => {
+    const focusTarget = {
+      ArrowDown: "selected",
+      ArrowUp: "selected",
+      Home: "first",
+      End: "last",
+    }[event.key];
+    if (!focusTarget) return;
+    event.preventDefault();
+    setLanguageMenuOpen(true, { focusTarget });
   });
   document.addEventListener("click", (event) => {
     if (!languagePicker?.contains(event.target)) setLanguageMenuOpen(false);
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") setLanguageMenuOpen(false);
+    if (event.key === "Escape" && languagePicker?.classList.contains("open")) {
+      event.preventDefault();
+      setLanguageMenuOpen(false, { restoreFocus: true });
+    }
   });
+  languageMenu?.addEventListener("keydown", handleLanguageMenuKeydown);
 }
 
 function renderLanguageMenu() {
@@ -1555,6 +1741,8 @@ function renderLanguageMenu() {
       option.className = "docs-language-option contracts-language-option";
       option.type = "button";
       option.role = "option";
+      option.id = `contracts-language-option-${language.code}`;
+      option.tabIndex = -1;
       option.dataset.contractsLanguage = language.code;
       option.disabled = !language.enabled;
       option.innerHTML = `
@@ -1567,12 +1755,15 @@ function renderLanguageMenu() {
       option.querySelector(".docs-language-option-status").textContent = language.enabled ? "" : "Coming Soon";
       option.addEventListener("click", async () => {
         const nextLanguage = normalizeLanguage(option.dataset.contractsLanguage);
+        const requestSequence = ++languageRequestSequence;
         if (!nextLanguage || nextLanguage === activeLanguage) {
-          setLanguageMenuOpen(false);
+          setLanguageMenuOpen(false, { restoreFocus: true });
           return;
         }
-        activeLanguage = nextLanguage;
-        dictionary = await loadDictionary(activeLanguage);
+        const loadedLocale = await loadDictionary(nextLanguage);
+        if (requestSequence !== languageRequestSequence) return;
+        activeLanguage = loadedLocale.language;
+        dictionary = loadedLocale.dictionary;
         localStorage.setItem(languageStorageKey, activeLanguage);
         applyTranslations(document);
         renderNavigation();
@@ -1581,6 +1772,7 @@ function renderLanguageMenu() {
         renderSeedEvidence();
         renderInstructionSurface();
         renderCpiAuthority();
+        renderAuthorityBoundary();
         renderAccountLifecycle();
         renderPayloadTruth();
         renderValueSettlement();
@@ -1595,7 +1787,7 @@ function renderLanguageMenu() {
         renderChainBrowserInfo(chainBrowserType?.value || "all");
         renderChainBrowserRecords();
         updateLanguagePicker();
-        setLanguageMenuOpen(false);
+        setLanguageMenuOpen(false, { restoreFocus: true });
       });
       return option;
     }),
@@ -1612,23 +1804,117 @@ function updateLanguagePicker() {
   });
 }
 
-function setLanguageMenuOpen(open) {
+function handleLanguageMenuKeydown(event) {
+  const options = [...(languageMenu?.querySelectorAll(".contracts-language-option:not(:disabled)") ?? [])];
+  if (!options.length) return;
+  const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+  let nextIndex = null;
+  if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % options.length;
+  if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + options.length) % options.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = options.length - 1;
+  if (nextIndex !== null) {
+    event.preventDefault();
+    options[nextIndex].focus();
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    setLanguageMenuOpen(false, { restoreFocus: true });
+    return;
+  }
+  if (event.key === "Tab") setLanguageMenuOpen(false);
+}
+
+function focusLanguageOption(target = "selected") {
+  const options = [...(languageMenu?.querySelectorAll(".contracts-language-option:not(:disabled)") ?? [])];
+  if (!options.length) return;
+  const selectedIndex = options.findIndex((option) => option.dataset.contractsLanguage === activeLanguage);
+  const index = target === "first"
+    ? 0
+    : target === "last"
+      ? options.length - 1
+      : Math.max(0, selectedIndex);
+  options[index].focus();
+}
+
+function setLanguageMenuOpen(open, { focusTarget = null, restoreFocus = false } = {}) {
   languagePicker?.classList.toggle("open", open);
   languageTrigger?.setAttribute("aria-expanded", String(open));
+  if (open && focusTarget) {
+    window.requestAnimationFrame(() => {
+      if (languagePicker?.classList.contains("open")) focusLanguageOption(focusTarget);
+    });
+  }
+  if (!open && restoreFocus) languageTrigger?.focus();
 }
 
 async function loadDictionary(language) {
-  const normalized = normalizeLanguage(language);
-  if (dictionaryCache.has(normalized)) return dictionaryCache.get(normalized);
-  const response = await fetch(`/contracts/locales/${normalized}.json?v=${encodeURIComponent(buildVersion)}`, { cache: "no-store" });
-  if (!response.ok) {
-    if (normalized !== "en") return loadDictionary("en");
-    return {};
+  const normalized = normalizeLanguage(language) || "en";
+  if (dictionaryCache.has(normalized)) {
+    return { language: normalized, dictionary: dictionaryCache.get(normalized) };
   }
-  const nextDictionary = await response.json();
-  dictionaryCache.set(normalized, nextDictionary);
-  if (normalized === "en") fallbackDictionary = nextDictionary;
-  return nextDictionary;
+  try {
+    const response = await fetch(`/contracts/locales/${normalized}.json?v=${encodeURIComponent(buildVersion)}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Locale request returned ${response.status}`);
+    const nextDictionary = await response.json();
+    if (!isLocaleDictionary(nextDictionary)) {
+      throw new Error("Locale payload does not match the contracts dictionary schema");
+    }
+    dictionaryCache.set(normalized, nextDictionary);
+    return { language: normalized, dictionary: nextDictionary };
+  } catch (_error) {
+    return { language: "en", dictionary: fallbackDictionary };
+  }
+}
+
+function isLocaleDictionary(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const requiredArrays = [
+    "navigation",
+    "programs",
+    "logic.legend",
+    "logic.diagrams",
+    "directory.columns",
+    "flow.steps",
+    "transparency.cards",
+    "transparency.map",
+  ];
+  const requiredObjects = [
+    "meta",
+    "nav",
+    "language",
+    "hero",
+    "runtime",
+    "runtime.cards",
+    "runtime.cards.config",
+    "runtime.cards.programs",
+    "runtime.cards.alias",
+    "runtime.cards.civilization",
+    "directory",
+    "flow",
+    "transparency",
+    "developer",
+    "details",
+    "labels",
+    "chainBrowser",
+  ];
+  const atPath = (path) => path.split(".").reduce((current, part) => current?.[part], value);
+  if (!requiredArrays.every((path) => Array.isArray(atPath(path)))) return false;
+  if (!requiredObjects.every((path) => {
+    const item = atPath(path);
+    return item && typeof item === "object" && !Array.isArray(item);
+  })) return false;
+  return value.navigation.every((item) => typeof item?.id === "string" && typeof item?.label === "string")
+    && value.programs.every((program) => typeof program?.id === "string"
+      && typeof program?.codeKey === "string"
+      && typeof program?.programId === "string"
+      && Array.isArray(program.instructions)
+      && Array.isArray(program.pdaSeeds)
+      && Array.isArray(program.storage)
+      && Array.isArray(program.notes)
+      && Array.isArray(program.pdaAccounts));
 }
 
 function decodeGlobalConfigAccount(data) {
@@ -1712,7 +1998,7 @@ function decodePlayerSessionAccount(data) {
     updatedSlot: data.readBigUInt64LE(160).toString(),
     createdAt: data.readBigInt64LE(168).toString(),
     maxActions: data.readUInt32LE(176),
-    usedActions: data.readUInt32LE(180),
+    actionCount: data.readUInt32LE(180),
   };
 }
 
@@ -1871,11 +2157,18 @@ function decodeBackpackSlotSummary(data, offset, recordLength, index) {
 }
 
 function decodeBackpackResourceSummary(data, offset) {
-  const packedY = data.readInt16LE(offset + 4);
+  const encodedY = data.readInt16LE(offset + 4);
+  const packedBlockId = encodedY >= 0 ? encodedY >> 9 : 0;
+  const isPacked = packedBlockId > 0;
+  const yOffset = isPacked ? encodedY & 0x1ff : null;
+  const minBuildY = Number(runtimeConfig?.world?.minBuildY);
   return {
     worldX: data.readInt32LE(offset),
-    worldY: packedY & 0x1ff,
-    blockId: packedY >> 9,
+    worldY: isPacked ? (Number.isInteger(minBuildY) ? minBuildY + yOffset : null) : encodedY,
+    yOffset,
+    minBuildY: isPacked && Number.isInteger(minBuildY) ? minBuildY : null,
+    encodedY,
+    blockId: isPacked ? packedBlockId : 0,
     worldZ: data.readInt32LE(offset + 6),
   };
 }
@@ -2131,7 +2424,9 @@ function decodeBuildingShardAccount(data) {
   if (data.length < 64) throw new Error("Invalid BuildingShard length.");
   const payloadLen = data.readUInt16LE(12);
   const uploadedLen = data.readUInt16LE(14);
-  if (data.length !== 64 + payloadLen) throw new Error("Invalid BuildingShard payload length.");
+  if (!payloadLen || uploadedLen > payloadLen || data.length !== 64 + payloadLen) {
+    throw new Error("Invalid BuildingShard payload length.");
+  }
   return {
     magic: "NCKBDT01",
     version: data.readUInt8(8),
@@ -2143,7 +2438,8 @@ function decodeBuildingShardAccount(data) {
     globalConfig: readPubkey(data, 16),
     foundationId: data.readBigUInt64LE(48).toString(),
     revision: data.readUInt32LE(56),
-    payloadHash: Buffer.from(data.subarray(64)).toString("hex").slice(0, 32),
+    remainingBytes: payloadLen - uploadedLen,
+    payloadPrefixHex: Buffer.from(data.subarray(64, 64 + Math.min(uploadedLen, 16))).toString("hex"),
   };
 }
 

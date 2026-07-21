@@ -1077,10 +1077,11 @@ pub struct PlayerSessionInitArgs<'a> {
 
 /// Public session authorization account.
 ///
-/// A player wallet creates this PDA once per short gameplay session. High
-/// frequency gameplay transactions can then be signed by the temporary
-/// `session_authority` key while other programs verify the owner, world,
-/// action mask and expiry from this fixed layout.
+/// A player wallet creates or refreshes this expiry-bearing PDA. High-frequency
+/// gameplay transactions can then be signed by the `session_authority` key
+/// while other programs verify the owner, world, action mask, and expiry from
+/// this fixed layout. `max_actions` and `action_count` are stored fields, but
+/// current consumer validators do not enforce or increment them.
 pub struct PlayerSession;
 
 impl PlayerSession {

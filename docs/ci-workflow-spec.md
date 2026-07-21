@@ -11,8 +11,12 @@ Reviewers should run the checks that exist in this split repository. For this re
 ~~~bash
 npm ci
 npm run validate:release
-# Optional Rust workspace check when cargo is installed:
-cargo check --workspace
+# Rust workspace checks when cargo is installed:
+cargo check --workspace --locked
+cargo test --workspace --locked
+cargo check -p nicechunk_game --locked --no-default-features --features devnet
+cargo check -p nicechunk_game --locked --no-default-features --features testnet
+cargo check -p nicechunk_game --locked --no-default-features --features mainnet
 ~~~
 
 Some split repositories are documentation, assets, or C++ service surfaces without npm build scripts. In those cases, use `SECURITY.md`, `CONTRIBUTING.md`, repository health files, and the main-tree release validation as the source of CI evidence. If a command is optional or deferred because a local toolchain is unavailable, record that in the release evidence.

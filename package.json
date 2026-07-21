@@ -1,5 +1,5 @@
 {
-  "name": "nicechunk",
+  "name": "nicechunk-contracts",
   "version": "0.1.69",
   "private": true,
   "license": "Apache-2.0",
@@ -30,23 +30,20 @@
     "preview": "vite preview --host 0.0.0.0",
     "smelting:sync-recipes": "node scripts/sync-smelting-recipes.ts",
     "test:core": "node --loader ts-node/esm node_modules/mocha/bin/mocha -t 1000000 tests/**/*.ts",
+    "typecheck": "tsc --noEmit",
     "validate:core": "npm run test:core",
-    "validate:release": "npm run audit:deps && npm run audit:licenses && npm run test:core && npm run build"
+    "validate:release": "npm run audit:deps && npm run audit:licenses && npm run typecheck && npm run test:core && npm run build"
   },
   "dependencies": {
-    "@horang-corp/avr-gcc-wasm": "^0.2.0",
     "@solana/spl-token": "^0.4.14",
-    "avr8js": "^0.21.0",
-    "bs58": "^4.0.1",
-    "three": "^0.165.0",
+    "@solana/web3.js": "^1.98.4",
+    "buffer": "^6.0.3",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
-    "@solana/web3.js": "^1.98.4",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.9.3",
     "mocha": "^11.7.6",
-    "playwright": "^1.60.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "vite": "^8.1.0"

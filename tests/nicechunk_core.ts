@@ -18,7 +18,7 @@ function generatedArgs() {
 }
 
 describe("nicechunk_core native", () => {
-  it("derives the immutable GlobalConfig PDA", () => {
+  it("derives the deterministic one-time GlobalConfig PDA", () => {
     const [globalConfig] = pda("global-config");
 
     assert.equal(globalConfig.toBase58(), "46bTKGThh96ChxJEmcKz6GvudGi3d7YDiAFtVhKb2Y5f");
