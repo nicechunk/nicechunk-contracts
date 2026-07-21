@@ -1,0 +1,19 @@
+[package]
+name = "nicechunk_civilization"
+version = "0.1.0"
+description = "NiceChunk civilization rule proposal and signature program"
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "nicechunk_civilization"
+
+[features]
+default = ["devnet"]
+devnet = []
+testnet = []
+mainnet = []
+no-entrypoint = []
+
+[dependencies]
+solana-program.workspace = true

@@ -1,0 +1,73 @@
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+export const DEFAULT_DEVNET_URL = "https://solana-devnet.api.onfinality.io/public";
+export const DEVNET_NCK_MINT = "HSnWF5kjkWVrceW2SaSskScuLveUZE4gpthZ2ZXRPQPo";
+export const DEVNET_CORE_PROGRAM_ID = "9EhMCRYMJej1F21KzaA5Zao3khGGc5aJbDGbnxaogQHu";
+export const DEVNET_PLAYER_PROGRAM_ID = "CHZHsBCGn58ih2WrPfKSYhvCEjMPGhArTiYCH7AWWBkB";
+export const DEVNET_GAME_PROGRAM_ID = "6CurnvneezBuHwPUnrCiFg1QMWeUF67ufQxYebyr2UP7";
+export const DEVNET_CHUNK_PROGRAM_ID = "GnVKn442KDTDgCyjVG7SEtCQQLjaCiLvrEZDWSU13wbj";
+export const DEVNET_BUILDING_PROGRAM_ID = "39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx";
+export const DEVNET_GUARDIAN_PROGRAM_ID = "RQQZKA1fGELBxtxCQ6q7P26GJH4whWmPjH9XqmihVRK";
+
+export function clusterUrl(): string {
+  return process.env.CLUSTER_URL ?? process.env.SOLANA_RPC_URL ?? DEFAULT_DEVNET_URL;
+}
+
+export function connection(): Connection {
+  return new Connection(clusterUrl(), "confirmed");
+}
+
+export function programId(): PublicKey | undefined {
+  return process.env.NICECHUNK_CORE_PROGRAM_ID
+    ? new PublicKey(process.env.NICECHUNK_CORE_PROGRAM_ID)
+    : undefined;
+}
+
+export function coreProgramId(): PublicKey {
+  return new PublicKey(process.env.NICECHUNK_CORE_PROGRAM_ID ?? DEVNET_CORE_PROGRAM_ID);
+}
+
+export function playerProgramId(): PublicKey {
+  return new PublicKey(process.env.NICECHUNK_PLAYER_PROGRAM_ID ?? DEVNET_PLAYER_PROGRAM_ID);
+}
+
+export function chunkProgramId(): PublicKey {
+  return new PublicKey(process.env.NICECHUNK_CHUNK_PROGRAM_ID ?? process.env.NICECHUNK_GAME_PROGRAM_ID ?? DEVNET_CHUNK_PROGRAM_ID);
+}
+
+export function buildingProgramId(): PublicKey {
+  return new PublicKey(process.env.NICECHUNK_BUILDING_PROGRAM_ID ?? DEVNET_BUILDING_PROGRAM_ID);
+}
+
+export function guardianProgramId(): PublicKey {
+  return new PublicKey(process.env.NICECHUNK_GUARDIAN_PROGRAM_ID ?? DEVNET_GUARDIAN_PROGRAM_ID);
+}
+
+export function nckMint(): PublicKey {
+  return new PublicKey(process.env.NCK_MINT ?? DEVNET_NCK_MINT);
+}
+
+export function readPayerKeypair(): Keypair {
+  const keypairPath =
+    process.env.PAYER_KEYPAIR ??
+    process.env.ANCHOR_WALLET ??
+    path.join(os.homedir(), ".config/solana/id.json");
+  const resolved = keypairPath.startsWith("~")
+    ? path.join(os.homedir(), keypairPath.slice(1))
+    : keypairPath;
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Payer keypair not found: ${resolved}. Set PAYER_KEYPAIR to your devnet payer keypair path.`);
+  }
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(resolved, "utf8"))));
+}
+
+export function requireEnvNckMintForSend(): void {
+  if (!process.env.NCK_MINT) {
+    throw new Error(
+      `NCK_MINT is required before sending transactions. Current devnet NCK mint is ${DEVNET_NCK_MINT}. Export NCK_MINT=<mint> if you intentionally replace it.`,
+    );
+  }
+}

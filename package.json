@@ -1,17 +1,37 @@
 {
   "name": "nicechunk",
-  "version": "0.1.63",
+  "version": "0.1.69",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "audit:deps": "node scripts/audit-dependencies.mjs",
     "audit:licenses": "node scripts/audit-licenses.mjs",
+    "backpack:issue-blueprint": "node --loader ts-node/esm scripts/issue-blueprint.ts",
     "build": "vite build",
     "build:nginx": "vite build",
+    "chunk:init-surface-decorations": "node scripts/initialize-surface-decoration-table.ts",
+    "chunk:mine-block": "node scripts/mine-block.ts",
+    "chunk:record-block-change": "node scripts/record-block-change.ts",
+    "chunk:sync-surface-decorations": "node --loader ts-node/esm scripts/sync-surface-decoration-rules.ts",
+    "chunk:verify-generated-block": "node scripts/verify-generated-block.ts",
+    "civilization:settle-power": "node --loader ts-node/esm scripts/civilization-settle-power.ts",
+    "core:derive-pdas": "node scripts/derive-pdas.ts",
+    "core:init": "node scripts/init-global-config.ts",
+    "core:verify": "node scripts/verify-global-config.ts",
     "dev": "vite --host 0.0.0.0",
+    "generate:global-config": "node scripts/generate-global-config.ts",
+    "guardian:init-registry": "node scripts/init-guardian-registry.ts",
+    "guardian:list": "node scripts/list-guardians.ts",
+    "guardian:register": "node scripts/register-guardian.ts",
+    "guardian:sync-blueprint": "node scripts/sync-guardian-blueprint.ts",
+    "initialize:global-config": "node scripts/initialize-global-config.ts",
+    "player:init": "node scripts/init-player.ts",
     "preview": "vite preview --host 0.0.0.0",
-    "validate:release": "npm run audit:deps && npm run audit:licenses && npm run build"
+    "smelting:sync-recipes": "node scripts/sync-smelting-recipes.ts",
+    "test:core": "node --loader ts-node/esm node_modules/mocha/bin/mocha -t 1000000 tests/**/*.ts",
+    "validate:core": "npm run test:core",
+    "validate:release": "npm run audit:deps && npm run audit:licenses && npm run test:core && npm run build"
   },
   "dependencies": {
     "@horang-corp/avr-gcc-wasm": "^0.2.0",
@@ -32,6 +52,8 @@
     "vite": "^8.1.0"
   },
   "overrides": {
+    "brace-expansion": "^2.1.2",
+    "js-yaml": "^4.3.0",
     "mocha": {
       "diff": "^9.0.0",
       "serialize-javascript": "^7.0.6"

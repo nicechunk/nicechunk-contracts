@@ -2,7 +2,9 @@
 
 ![NiceChunk Contracts overview](docs/screenshots/overview.png)
 
-Developer-facing contract directory and source browser.
+Focused contract repository for the current NiceChunk Solana surface.
+
+This split contains the Rust native programs, TypeScript SDK helpers, contract operation scripts, focused tests, runtime rule data, public chain configuration, and the browser contract directory that explains the active PDA and instruction surface.
 
 ## Official Links
 
@@ -10,70 +12,99 @@ GitHub: [https://github.com/nicechunk/nicechunk-contracts](https://github.com/ni
 
 Website: [https://nicechunk.com/contracts/](https://nicechunk.com/contracts/)
 
-## Project Overview
+## Current Scope
 
-This repository contains the contract directory UI for NiceChunk. It presents program IDs, PDA seeds, instruction surfaces, integration flow, and source files in a browser-readable format.
+The workspace currently includes these Solana programs:
 
-The page is not the canonical source of the programs. Instead, it acts as a documentation and inspection layer that makes the current program surface easier to understand for frontend developers, auditors, and contributors.
+| Program | Role |
+| --- | --- |
+| `nicechunk_core` | Global configuration, authority seeds, and shared on-chain constants. |
+| `nicechunk_player` | Player profiles, session authority, identity, appearance, and profile state. |
+| `nicechunk_chunk` | Chunk state, generated block verification, broken block records, resource drop tables, and surface decoration tables. |
+| `nicechunk_game` | Game routing layer for shared program integration. |
+| `nicechunk_guardian` | Guardian registry, endpoint operations, proof state, operator rotation, and blueprint metadata. |
+| `nicechunk_backpack` | Backpack and inventory records used by gameplay and item custody flows. |
+| `nicechunk_market` | Marketplace listing state and listing lifecycle instructions. |
+| `nicechunk_smelting` | Smelting recipe tables, rule synchronization, and recipe retirement tests. |
+| `nicechunk_civilization` | Civilization rule books, signatures, tallies, execution receipts, value snapshots, and citizen power. |
+| `nicechunk_building` | Player build sites, NCM3 building manifests, upload shards, resize flow, legacy migration, and Guardian blueprint publishing. |
 
-The contract directory is useful during active development because it keeps Rust program files, SDK files, and integration notes visible in one place.
+## Building Program
 
-## Directory Architecture
+`nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.
 
-![Contract directory map](docs/diagrams/contract-directory-map.svg)
+Important account groups:
 
-This project is a source browser with product-quality navigation. The page imports raw Rust files, SDK files, localized explanations, program IDs, PDA seed notes, and integration steps so readers can move from a high-level role to the exact implementation path.
+| Account | Seeds | Size |
+| --- | --- | --- |
+| `BuildSite` | `["build-site-v1", globalConfig, foundationId:u64_le]` | 160 bytes, with 136-byte legacy decode support |
+| `BuildingManifest` | `["building-v2", globalConfig, foundationId:u64_le, revision:u32_le]` | 160 bytes |
+| `BuildingShard` | `["building-data-v1", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]` | 64-byte header plus payload, up to 8,256 bytes |
+| `GuardianBlueprintAuthority` | `["guardian-blueprint", globalConfig]` | PDA signer only |
 
-That is the difference between this repository and the program repository. Programs own execution. The contract directory owns orientation: what exists, where the source lives, which SDK helper matches it, and how a frontend or auditor should start reading it.
-
-## Source Panel Stack
-
-![Source panel stack](docs/diagrams/source-panel-stack.svg)
-
-Each program panel should keep implementation and integration next to each other. The reader should be able to start from a program role, jump to `lib.rs`, inspect `state.rs`, compare errors, and then open the matching SDK helper without guessing which files belong together.
-
-This structure makes the contract directory more than a catalog. It becomes a practical audit index for the current development surface.
-
-## System Principles
-
-- Show real source paths: the UI references actual program and SDK files rather than paraphrasing the implementation.
-- Prioritize integration boundaries: each program is described by its role, account surface, and dependency on other programs.
-- Document current devnet reality: the page is explicit about development status and avoids implying mainnet finality.
-- Keep copy localized through the page dictionaries while preserving technical identifiers exactly.
-
-## How It Works
-
-- Use the directory to locate a program, then inspect its Cargo file, cluster config, error list, instruction entrypoint, state layout, and SDK helper.
-- Update the page whenever a program is added, a program ID changes, or an account layout changes.
-- Use the integration flow section to explain how gameplay moves from wallet identity into player sessions, chunk state, Guardian coverage, and inventory or market operations.
-
-## Why This Project Matters
-
-Protocol code needs a reader-friendly surface. This repository gives developers a structured map of what exists today and how the pieces connect.
-
-Because the page is independent from the primary game client, it can evolve as a developer portal without risking gameplay regressions.
+The browser decoder in `contracts/contracts.js` can inspect `BuildSite`, `BuildingManifest`, and `BuildingShard` accounts from RPC alongside the other known PDA groups.
 
 ## Repository Layout
 
-- `contracts/`
-- `programs/`
-- `sdk/`
-- `src/site-ui.js`
+| Path | Purpose |
+| --- | --- |
+| `Cargo.toml` / `Cargo.lock` | Rust workspace for the included Solana programs. |
+| `programs/` | On-chain Rust program source. |
+| `sdk/` | TypeScript helpers for deriving accounts and building instructions. |
+| `scripts/` | Contract operation scripts for config, player init, mining, Guardian registry, building blueprints, smelting rules, and civilization settlement. |
+| `tests/` | Focused contract and rule tests. |
+| `contracts/` | Browser contract directory, account decoders, source panels, and localized copy. |
+| `public/mainnet.json` | Runtime chain configuration consumed by the contract directory and client surfaces. |
+| `public/contracts/locales/` | Built locale payloads for the hosted contract directory. |
+| `public/rules/smelting-rules.json` | Current smelting rule payload mirrored into the contract split. |
+| `civilization/` and `chunk.js/` | Runtime rule helpers needed by contract tests and synchronization scripts. |
 
-## Development Workflow
+## Public Chain Configuration
 
-1. Clone the repository and inspect the focused source tree before changing shared contracts or generated artifacts.
-2. Keep changes scoped to the domain of this repository. Cross-domain changes should be coordinated through the matching split repositories.
-3. Run the smallest meaningful validation for the touched surface: build checks for programs, browser checks for pages, or fixture checks for deterministic libraries.
-4. Update screenshots and documentation when behavior, visible UI, public constants, or developer-facing workflows change.
+`public/mainnet.json` is the current runtime configuration snapshot used by NiceChunk web surfaces. The contract directory reads it to show the configured cluster, RPC settings, token addresses, and program IDs. The file currently includes the Building program ID:
 
-## Future Development Direction
+```text
+39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx
+```
 
-- Generate source listings from tagged program releases instead of manually bundled files.
-- Add account layout diagrams and byte offset tables for each program.
-- Track program release history and devnet/mainnet program IDs separately.
-- Add deep links from each instruction to SDK examples and test fixtures.
+Keep this file synchronized whenever deployed program IDs, token accounts, or public RPC defaults change.
+
+## Contract Directory
+
+The `contracts/` page imports real Rust and SDK source files with Vite raw imports. It is intended to be a practical source browser for frontend developers, auditors, and contributors:
+
+- Program panels show role, status, program ID, instruction list, PDA seeds, account layouts, and notes.
+- Source tabs link each program to `Cargo.toml`, `lib.rs`, `state.rs`, errors, cluster config, and SDK files where available.
+- The RPC browser decodes known PDA layouts, including player sessions, chunk state, resource tables, Guardian regions, backpacks, smelting recipes, market listings, civilization records, and building records.
+
+## Validation
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build the browser contract directory:
+
+```bash
+npm run build
+```
+
+Run the focused TypeScript contract tests:
+
+```bash
+npm run test:core
+```
+
+Check the Rust workspace:
+
+```bash
+cargo check --workspace
+```
+
+Some operation scripts require real Solana RPC, wallet, mint, or treasury configuration. Do not commit private keys, wallet files, `.env` files, deployment-only machine config, or generated build artifacts.
 
 ## Maintenance Notes
 
-This repository is a focused split from the main NiceChunk working tree. Keep the public surface explicit: avoid committing private keys, wallet files, deployment-only scripts, machine-specific configuration, or generated build artifacts. Runtime user-facing copy should stay behind the i18n layer where the project has an i18n surface.
+This repository is generated as a focused split from the main NiceChunk working tree. Changes should stay aligned with the real program source, SDK helpers, public configuration, rule data, and contract directory copy. When a program ID, account layout, PDA seed, instruction discriminator, or SDK helper changes, update the matching Rust source, SDK file, browser decoder, locale text, and focused tests together.

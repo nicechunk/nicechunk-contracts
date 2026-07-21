@@ -45,6 +45,19 @@ import marketClusterConfig from "../programs/nicechunk_market/src/cluster_config
 import marketErrors from "../programs/nicechunk_market/src/errors.rs?raw";
 import marketLib from "../programs/nicechunk_market/src/lib.rs?raw";
 import marketState from "../programs/nicechunk_market/src/state.rs?raw";
+import civilizationCargo from "../programs/nicechunk_civilization/Cargo.toml?raw";
+import civilizationClusterConfig from "../programs/nicechunk_civilization/src/cluster_config.rs?raw";
+import civilizationErrors from "../programs/nicechunk_civilization/src/errors.rs?raw";
+import civilizationLib from "../programs/nicechunk_civilization/src/lib.rs?raw";
+import civilizationState from "../programs/nicechunk_civilization/src/state.rs?raw";
+import civilizationSdk from "../sdk/nicechunk-civilization.ts?raw";
+import buildingCargo from "../programs/nicechunk_building/Cargo.toml?raw";
+import buildingBuilding from "../programs/nicechunk_building/src/building.rs?raw";
+import buildingClusterConfig from "../programs/nicechunk_building/src/cluster_config.rs?raw";
+import buildingErrors from "../programs/nicechunk_building/src/errors.rs?raw";
+import buildingLib from "../programs/nicechunk_building/src/lib.rs?raw";
+import buildingState from "../programs/nicechunk_building/src/state.rs?raw";
+import buildingSdk from "../sdk/nicechunk-building.ts?raw";
 
 if (!globalThis.Buffer) globalThis.Buffer = Buffer;
 
@@ -120,21 +133,46 @@ const sourceTrees = {
     file("programs/nicechunk_market/src/lib.rs", "rust", marketLib),
     file("programs/nicechunk_market/src/state.rs", "rust", marketState),
   ],
+  civilization: [
+    file("programs/nicechunk_civilization/Cargo.toml", "toml", civilizationCargo),
+    file("programs/nicechunk_civilization/src/cluster_config.rs", "rust", civilizationClusterConfig),
+    file("programs/nicechunk_civilization/src/errors.rs", "rust", civilizationErrors),
+    file("programs/nicechunk_civilization/src/lib.rs", "rust", civilizationLib),
+    file("programs/nicechunk_civilization/src/state.rs", "rust", civilizationState),
+    file("sdk/nicechunk-civilization.ts", "typescript", civilizationSdk),
+  ],
+  building: [
+    file("programs/nicechunk_building/Cargo.toml", "toml", buildingCargo),
+    file("programs/nicechunk_building/src/building.rs", "rust", buildingBuilding),
+    file("programs/nicechunk_building/src/cluster_config.rs", "rust", buildingClusterConfig),
+    file("programs/nicechunk_building/src/errors.rs", "rust", buildingErrors),
+    file("programs/nicechunk_building/src/lib.rs", "rust", buildingLib),
+    file("programs/nicechunk_building/src/state.rs", "rust", buildingState),
+    file("sdk/nicechunk-building.ts", "typescript", buildingSdk),
+  ],
 };
 
 const pdaAccountTypes = [
   { id: "all", programKey: null, sizes: [], decoder: null },
   { id: "global-config", programKey: "core", sizes: [293], decoder: decodeGlobalConfigAccount },
-  { id: "player-profile", programKey: "player", sizes: [449, 417], decoder: decodePlayerProfileAccount },
+  { id: "player-profile", programKey: "player", sizes: [773], decoder: decodePlayerProfileAccount },
   { id: "player-session", programKey: "player", sizes: [184], decoder: decodePlayerSessionAccount },
   { id: "chunk-broken", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeChunkBrokenAccount },
   { id: "resource-drop-table", programKey: "chunk", sizes: [{ min: 16 }], decoder: decodeResourceDropTableAccount },
   { id: "guardian-registry", programKey: "guardian", sizes: [160], decoder: decodeGuardianRegistryAccount },
-  { id: "guardian-region", programKey: "guardian", sizes: [256], decoder: decodeGuardianRegionAccount },
-  { id: "backpack", programKey: "backpack", sizes: [6464, 1118], decoder: decodeBackpackAccount },
-  { id: "recipe-table", programKey: "smelting", sizes: [9552], decoder: decodeRecipeTableAccount },
+  { id: "guardian-region", programKey: "guardian", sizes: [256, 288], decoder: decodeGuardianRegionAccount },
+  { id: "backpack", programKey: "backpack", sizes: [8048], decoder: decodeBackpackAccount },
+  { id: "recipe-table", programKey: "smelting", sizes: [9936], decoder: decodeRecipeTableAccount },
   { id: "market-listing", programKey: "market", sizes: [216], decoder: decodeMarketListingAccount },
-  { id: "market-asset", programKey: "market", sizes: [256], decoder: decodeMarketAssetAccount },
+  { id: "civilization-rule-book", programKey: "civilization", sizes: [320], decoder: decodeCivilizationRuleBookAccount },
+  { id: "civilization-rule-signature", programKey: "civilization", sizes: [136], decoder: decodeCivilizationRuleSignatureAccount },
+  { id: "civilization-rule-tally", programKey: "civilization", sizes: [128], decoder: decodeCivilizationRuleTallyOrPowerSnapshotOrReceiptAccount },
+  { id: "civilization-execution-receipt", programKey: "civilization", sizes: [128], decoder: decodeCivilizationExecutionReceiptOrTallyOrSnapshotAccount },
+  { id: "civilization-power-snapshot", programKey: "civilization", sizes: [128], decoder: decodeCivilizationPowerSnapshotOrTallyOrReceiptAccount },
+  { id: "civilization-citizen-power", programKey: "civilization", sizes: [144], decoder: decodeCivilizationCitizenPowerAccount },
+  { id: "build-site", programKey: "building", sizes: [136, 160], decoder: decodeBuildSiteAccount },
+  { id: "building-manifest", programKey: "building", sizes: [160], decoder: decodeBuildingManifestAccount },
+  { id: "building-shard", programKey: "building", sizes: [{ min: 64, max: 8256 }], decoder: decodeBuildingShardAccount },
   { id: "forged-items", programKey: null, sizes: [], decoder: null, virtual: true },
 ];
 
@@ -146,6 +184,7 @@ for (const type of pdaAccountTypes) {
 }
 
 const contractsNav = document.querySelector("#contractsNav");
+const runtimeGrid = document.querySelector("#runtimeGrid");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
 const transparencyGrid = document.querySelector("#transparencyGrid");
@@ -172,14 +211,17 @@ let dictionary = {};
 let fallbackDictionary = {};
 const contractsConnections = new Map();
 let chainBrowserRecords = [];
+let runtimeConfig = null;
 
 void initContractsPage();
 
 async function initContractsPage() {
   setSiteLoadingProgress(36);
   dictionary = await loadDictionary(activeLanguage);
+  runtimeConfig = await loadRuntimeConfig();
   applyTranslations(document);
   renderNavigation();
+  renderRuntimeState();
   renderDirectory();
   renderFlow();
   renderTransparencyLedger();
@@ -235,6 +277,103 @@ function renderNavigation() {
       return link;
     }),
   );
+}
+
+async function loadRuntimeConfig() {
+  try {
+    const response = await fetch(`/mainnet.json?v=${encodeURIComponent(buildVersion)}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function renderRuntimeState() {
+  if (!runtimeGrid) return;
+  const runtime = runtimeConfig;
+  const configuredPrograms = runtime?.chain?.programs ?? {};
+  const cluster = runtime?.chain?.cluster ?? dictionary.runtime.unavailable;
+  const appVersion = runtime?.app?.version ?? dictionary.runtime.unavailable;
+  const configEntries = Object.entries(configuredPrograms);
+  const configuredValues = new Set(configEntries.map(([, id]) => id));
+  const civilizationProgram = dictionary.programs.find((program) => program.codeKey === "civilization");
+  const civilizationConfigured = civilizationProgram?.programId && configuredValues.has(civilizationProgram.programId);
+  const aliasGroups = groupProgramIds(configEntries);
+  const cards = [
+    {
+      label: dictionary.runtime.cards.config.label,
+      title: dictionary.runtime.cards.config.title,
+      body: formatText(dictionary.runtime.cards.config.body, { cluster, version: appVersion }),
+      facts: [
+        [dictionary.runtime.clusterLabel, cluster],
+        [dictionary.runtime.versionLabel, appVersion],
+        [dictionary.runtime.sourceLabel, "/mainnet.json"],
+      ],
+      state: "live",
+    },
+    {
+      label: dictionary.runtime.cards.programs.label,
+      title: dictionary.runtime.cards.programs.title,
+      body: dictionary.runtime.cards.programs.body,
+      facts: configEntries.map(([key, id]) => [key, id]),
+      state: "live",
+    },
+    {
+      label: dictionary.runtime.cards.alias.label,
+      title: dictionary.runtime.cards.alias.title,
+      body: dictionary.runtime.cards.alias.body,
+      facts: aliasGroups.map((group) => [group.id, group.keys.join(" / ")]),
+      state: "warn",
+    },
+    {
+      label: dictionary.runtime.cards.civilization.label,
+      title: dictionary.runtime.cards.civilization.title,
+      body: civilizationConfigured ? dictionary.runtime.cards.civilization.bodyConfigured : dictionary.runtime.cards.civilization.bodyGated,
+      facts: [
+        [dictionary.runtime.programIdLabel, civilizationProgram?.programId ?? dictionary.runtime.unavailable],
+        [dictionary.runtime.runtimeLabel, civilizationConfigured ? dictionary.runtime.configured : dictionary.runtime.notConfigured],
+        [dictionary.runtime.powerAuthorityLabel, "9XuoVVwqP2jipt3jpJVXCSS2N2jr9vDuV3d6K73FKVud"],
+      ],
+      state: civilizationConfigured ? "live" : "gated",
+    },
+  ];
+  runtimeGrid.replaceChildren(...cards.map(createRuntimeCard));
+}
+
+function groupProgramIds(entries) {
+  const groups = new Map();
+  for (const [key, id] of entries) {
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(key);
+  }
+  return [...groups.entries()]
+    .filter(([, keys]) => keys.length > 1)
+    .map(([id, keys]) => ({ id, keys }));
+}
+
+function createRuntimeCard(card) {
+  const article = document.createElement("article");
+  article.className = `runtime-card ${card.state || "live"}`;
+  article.innerHTML = `
+    <span></span>
+    <strong></strong>
+    <p></p>
+    <dl></dl>
+  `;
+  article.querySelector("span").textContent = card.label;
+  article.querySelector("strong").textContent = card.title;
+  article.querySelector("p").textContent = card.body;
+  article.querySelector("dl").replaceChildren(
+    ...card.facts.flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = label;
+      dd.textContent = value || "-";
+      return [dt, dd];
+    }),
+  );
+  return article;
 }
 
 function renderDirectory() {
@@ -844,20 +983,7 @@ async function scanAccountType(typeId) {
 }
 
 async function scanForgedItemAccounts() {
-  const [assetRecords, backpackRecords] = await Promise.all([
-    scanAccountType("market-asset"),
-    scanAccountType("backpack"),
-  ]);
-  const forgedAssets = assetRecords.filter((record) => isForgedAsset(record.decoded)).map((record) => ({
-    ...record,
-    typeId: "forged-items",
-    accountType: typeLabel("forged-items"),
-    decoded: {
-      sourceAccountType: record.accountType,
-      sourcePublicKey: record.publicKey,
-      ...record.decoded,
-    },
-  }));
+  const backpackRecords = await scanAccountType("backpack");
   const forgedBackpacks = backpackRecords.flatMap((record) => {
     const slots = (record.decoded.sampleSlots ?? []).filter(isForgedBackpackSlot);
     if (!slots.length) return [];
@@ -876,11 +1002,7 @@ async function scanForgedItemAccounts() {
       },
     }];
   });
-  return [...forgedAssets, ...forgedBackpacks];
-}
-
-function isForgedAsset(decoded) {
-  return decoded?.itemCode === 8 || decoded?.itemId === "forged_item";
+  return forgedBackpacks;
 }
 
 function isForgedBackpackSlot(slot) {
@@ -1020,10 +1142,20 @@ function accountSummary(record) {
       return [[labels.authority, data.authority], [labels.recipes, String(data.recipeCount)], [labels.updatedSlot, data.updatedSlot]];
     case "market-listing":
       return [[labels.seller, data.seller], [labels.state, data.stateLabel], [labels.price, data.price]];
-    case "market-asset":
-      return [[labels.owner, data.owner], [labels.state, data.stateLabel], [labels.item, data.itemId || String(data.itemCode)]];
     case "forged-items":
       return [[labels.source, data.sourceAccountType], [labels.owner, data.owner], [labels.forgedItems, String(data.forgedSampleSlots?.length ?? data.itemId ?? data.itemCode ?? "-")]];
+    case "civilization-rule-book":
+      return [[labels.author, data.author], [labels.status, data.statusLabel], [labels.requiredPower, data.requiredPower]];
+    case "civilization-rule-signature":
+      return [[labels.signer, data.signer], [labels.side, data.sideLabel], [labels.power, data.snapshotPower]];
+    case "civilization-rule-tally":
+      return [[labels.ruleBook, data.ruleBook], [labels.thresholdMet, String(data.thresholdMet)], [labels.yesPower, data.yesPower]];
+    case "civilization-execution-receipt":
+      return [[labels.ruleBook, data.ruleBook], [labels.executor, data.executor], [labels.executed, String(data.executed)]];
+    case "civilization-power-snapshot":
+      return [[labels.authority, data.authority], [labels.totalPower, data.totalActivePower], [labels.expiresAt, data.expiresAt]];
+    case "civilization-citizen-power":
+      return [[labels.citizen, data.citizen], [labels.power, data.power], [labels.expiresAt, data.expiresAt]];
     case "guardian-region":
       return [[labels.owner, data.owner], [labels.endpoint, data.endpoint], [labels.proofs, String(data.proofCount)]];
     case "guardian-registry":
@@ -1158,6 +1290,7 @@ function renderLanguageMenu() {
         localStorage.setItem(languageStorageKey, activeLanguage);
         applyTranslations(document);
         renderNavigation();
+        renderRuntimeState();
         renderDirectory();
         renderFlow();
         renderTransparencyLedger();
@@ -1235,8 +1368,9 @@ function decodeGlobalConfigAccount(data) {
 }
 
 function decodePlayerProfileAccount(data) {
-  if (data.length !== 449 && data.length !== 417) throw new Error("Invalid PlayerProfile length.");
+  if (data.length !== 773) throw new Error("Invalid PlayerProfile length.");
   assertMagic(data, "NCKPLY01");
+  const nameLength = data.readUInt16LE(463);
   return {
     magic: "NCKPLY01",
     version: data.readUInt16LE(8),
@@ -1253,9 +1387,16 @@ function decodePlayerProfileAccount(data) {
     health: data.readUInt16LE(90),
     energy: data.readUInt16LE(92),
     stamina: data.readUInt16LE(94),
-    equippedBackpack: data.length === 449 ? readOptionalPubkey(data, 393) : null,
-    createdSlot: data.readBigUInt64LE(data.length === 449 ? 425 : 393).toString(),
-    updatedSlot: data.readBigUInt64LE(data.length === 449 ? 433 : 401).toString(),
+    equippedBackpack: readOptionalPubkey(data, 393),
+    createdSlot: data.readBigUInt64LE(425).toString(),
+    updatedSlot: data.readBigUInt64LE(433).toString(),
+    forgingXp: data.readBigUInt64LE(449).toString(),
+    forgedItemCount: data.readUInt32LE(457),
+    bestForgedGrade: data.readUInt8(461),
+    bestForgedItemLevel: data.readUInt8(462),
+    playerName: nameLength > 0 && nameLength <= 300
+      ? Buffer.from(data.subarray(465, 465 + nameLength)).toString("utf8")
+      : "",
   };
 }
 
@@ -1347,7 +1488,8 @@ function decodeGuardianRegistryAccount(data) {
 }
 
 function decodeGuardianRegionAccount(data) {
-  assertMagic(data, "NCKGRG01", 256);
+  if (data.length !== 256 && data.length !== 288) throw new Error("Invalid NCKGRG01 length.");
+  assertMagic(data, "NCKGRG01");
   const hostLength = Math.min(data.readUInt8(132), 64);
   const host = new TextDecoder().decode(data.subarray(133, 133 + hostLength));
   const port = data.readUInt16LE(197);
@@ -1379,14 +1521,18 @@ function decodeGuardianRegionAccount(data) {
     penaltyCursorAt: data.readBigInt64LE(236).toString(),
     proofCount: data.readBigUInt64LE(244).toString(),
     updatedSlot: data.readUInt32LE(252),
+    blueprintHash: data.length === 288 ? data.subarray(256, 272).toString("hex") : null,
+    blueprintRevision: data.length === 288 ? data.readBigUInt64LE(272).toString() : "0",
+    blueprintRecordCount: data.length === 288 ? data.readUInt32LE(280) : 0,
+    accountLength: data.length,
   };
 }
 
 function decodeBackpackAccount(data) {
-  if (data.length !== 6464 && data.length !== 1118) throw new Error("Invalid Backpack length.");
-  assertMagic(data, "NCKBPK01");
+  assertMagic(data, "NCKBPK01", 8048);
   const version = data.readUInt16LE(8);
-  const recordLength = version === 1 ? 10 : 64;
+  if (version !== 3) throw new Error("Invalid Backpack version.");
+  const recordLength = 80;
   const capacity = data.readUInt8(52);
   const itemCount = data.readUInt8(53);
   const readableCount = Math.min(itemCount, capacity, 99);
@@ -1410,9 +1556,6 @@ function decodeBackpackAccount(data) {
 }
 
 function decodeBackpackSlotSummary(data, offset, recordLength, index) {
-  if (recordLength === 10) {
-    return { index, kind: "block", resource: decodeBackpackResourceSummary(data, offset) };
-  }
   const kindCode = data.readUInt8(offset);
   return {
     index,
@@ -1424,6 +1567,12 @@ function decodeBackpackSlotSummary(data, offset, recordLength, index) {
     itemId: data.readBigUInt64LE(offset + 20).toString(),
     itemPda: readOptionalPubkey(data, offset + 28),
     volumeMm3: data.readUInt32LE(offset + 60),
+    durabilityCurrent: data.readUInt32LE(offset + 64),
+    durabilityMax: data.readUInt32LE(offset + 68),
+    grade: data.readUInt8(offset + 72),
+    itemLevel: data.readUInt8(offset + 73),
+    qualityBps: data.readUInt16LE(offset + 74),
+    metadata: data.readUInt32LE(offset + 76),
   };
 }
 
@@ -1431,14 +1580,14 @@ function decodeBackpackResourceSummary(data, offset) {
   const packedY = data.readInt16LE(offset + 4);
   return {
     worldX: data.readInt32LE(offset),
-    worldY: packedY >> 9,
-    blockId: packedY & 0x1ff,
+    worldY: packedY & 0x1ff,
+    blockId: packedY >> 9,
     worldZ: data.readInt32LE(offset + 6),
   };
 }
 
 function decodeRecipeTableAccount(data) {
-  assertMagic(data, "NCKSMR01", 9552);
+  assertMagic(data, "NCKSMR01", 9936);
   const recipeCount = data.readUInt16LE(52);
   return {
     magic: "NCKSMR01",
@@ -1451,7 +1600,7 @@ function decodeRecipeTableAccount(data) {
     createdSlot: data.readBigUInt64LE(54).toString(),
     updatedSlot: data.readBigUInt64LE(62).toString(),
     createdAt: data.readBigInt64LE(70).toString(),
-    sampleRecipes: Array.from({ length: 12 }, (_, index) => decodeRecipeRecordSummary(data, 96 + index * 788, index)).filter(Boolean).slice(0, 8),
+    sampleRecipes: Array.from({ length: 10 }, (_, index) => decodeRecipeRecordSummary(data, 96 + index * 984, index)).filter(Boolean).slice(0, 8),
   };
 }
 
@@ -1465,15 +1614,18 @@ function decodeRecipeRecordSummary(data, offset, index) {
     minHeatTier: data.readUInt8(offset + 9),
     inputCount: data.readUInt8(offset + 10),
     outputCount: data.readUInt8(offset + 11),
-    updatedSlot: data.readBigUInt64LE(offset + 780).toString(),
+    updatedSlot: data.readBigUInt64LE(offset + 976).toString(),
   };
 }
 
 function decodeMarketListingAccount(data) {
   assertMagic(data, "NCKMKT01", 216);
-  const currency = data.readUInt8(53) === 2 ? "SOL" : "NCK";
-  const priceBaseUnits = data.readBigUInt64LE(61);
+  const currency = data.readUInt8(52) === 2 ? "SOL" : "NCK";
+  const priceBaseUnits = data.readBigUInt64LE(54);
   const state = data.readUInt8(11);
+  const sourceSlot = decodeBackpackSlotSummary(data, 62, 80, data.readUInt8(53));
+  const sourceTypeCode = data.readUInt8(214);
+  const source = sourceTypeCode === 2 ? "equipment" : "backpack";
   return {
     magic: "NCKMKT01",
     version: data.readUInt16LE(8),
@@ -1482,52 +1634,243 @@ function decodeMarketListingAccount(data) {
     stateLabel: state === 1 ? "active" : state === 2 ? "canceled" : state === 3 ? "sold" : "unknown",
     seller: readPubkey(data, 12),
     listingId: data.readBigUInt64LE(44).toString(),
-    categoryCode: data.readUInt8(52),
+    categoryCode: sourceSlot.category,
     currency,
-    sourceKind: data.readUInt8(54) === 2 ? "asset" : "backpack",
-    sourceIndex: data.readUInt16LE(55),
-    quantity: data.readUInt32LE(57),
+    source,
+    sourceTypeCode,
+    sourceIndex: data.readUInt8(53),
+    quantity: sourceSlot.quantity,
     priceBaseUnits: priceBaseUnits.toString(),
     price: formatMarketBaseUnits(priceBaseUnits, currency),
-    itemHash: Buffer.from(data.subarray(69, 101)).toString("hex"),
-    sourceInventory: readPubkey(data, 101),
-    sourceRecord: { worldX: data.readInt32LE(133), worldY: data.readInt16LE(137), worldZ: data.readInt32LE(139) },
-    createdSlot: data.readBigUInt64LE(143).toString(),
-    updatedSlot: data.readBigUInt64LE(151).toString(),
-    createdAt: data.readBigInt64LE(159).toString(),
-    buyer: readOptionalPubkey(data, 167),
-    soldSlot: data.readBigUInt64LE(199).toString(),
-    soldAt: data.readBigInt64LE(207).toString(),
+    sourceSlot,
+    sourceRecord: sourceSlot.resource,
+    createdSlot: data.readBigUInt64LE(142).toString(),
+    updatedSlot: data.readBigUInt64LE(150).toString(),
+    createdAt: data.readBigInt64LE(158).toString(),
+    buyer: readOptionalPubkey(data, 166),
+    soldSlot: data.readBigUInt64LE(198).toString(),
+    soldAt: data.readBigInt64LE(206).toString(),
   };
 }
 
-function decodeMarketAssetAccount(data) {
-  assertMagic(data, "NCKAST01", 256);
-  const state = data.readUInt8(11);
-  const itemCode = data.readUInt16LE(145);
-  const payloadLength = Math.min(data.readUInt16LE(155), 96);
+function decodeCivilizationRuleBookAccount(data) {
+  assertMagic(data, "NCKCVR01", 320);
+  const status = data.readUInt8(11);
+  const targetStatus = data.readUInt8(254);
   return {
-    magic: "NCKAST01",
+    magic: "NCKCVR01",
     version: data.readUInt16LE(8),
     bump: data.readUInt8(10),
-    state,
-    stateLabel: state === 1 ? "active" : state === 2 ? "listed" : "unknown",
-    owner: readPubkey(data, 12),
-    assetId: data.readBigUInt64LE(44).toString(),
-    categoryCode: data.readUInt8(52),
-    quantity: data.readUInt32LE(53),
-    itemHash: Buffer.from(data.subarray(57, 89)).toString("hex"),
-    listing: readOptionalPubkey(data, 89),
-    createdSlot: data.readBigUInt64LE(121).toString(),
-    updatedSlot: data.readBigUInt64LE(129).toString(),
-    createdAt: data.readBigInt64LE(137).toString(),
-    itemCode,
-    itemId: marketAssetItemId(itemCode, data.subarray(157, 157 + payloadLength)),
-    stackCount: data.readUInt32LE(147),
-    durability: data.readUInt32LE(151),
-    payloadLength,
-    payloadHex: Buffer.from(data.subarray(157, 157 + payloadLength)).toString("hex"),
+    status,
+    statusLabel: civilizationRuleStatusLabel(status),
+    author: readPubkey(data, 12),
+    ruleIdHash: readHashHex(data, 44),
+    textHash: readHashHex(data, 76),
+    patchHash: readHashHex(data, 108),
+    snapshotHash: readHashHex(data, 140),
+    targetProgram: readPubkey(data, 172),
+    targetPda: readPubkey(data, 204),
+    totalActivePower: data.readBigUInt64LE(236).toString(),
+    requiredPower: data.readBigUInt64LE(244).toString(),
+    thresholdBps: data.readUInt16LE(252),
+    targetStatus,
+    targetStatusLabel: civilizationTargetStatusLabel(targetStatus),
+    riskLevel: data.readUInt8(255),
+    yesPower: data.readBigUInt64LE(256).toString(),
+    noPower: data.readBigUInt64LE(264).toString(),
+    abstainPower: data.readBigUInt64LE(272).toString(),
+    challengePower: data.readBigUInt64LE(280).toString(),
+    createdSlot: data.readBigUInt64LE(288).toString(),
+    finalizedSlot: data.readBigUInt64LE(296).toString(),
+    executedSlot: data.readBigUInt64LE(304).toString(),
+    createdAt: data.readBigInt64LE(312).toString(),
   };
+}
+
+function decodeCivilizationRuleSignatureAccount(data) {
+  assertMagic(data, "NCKCVS01", 136);
+  const side = data.readUInt8(11);
+  return {
+    magic: "NCKCVS01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    side,
+    sideLabel: civilizationSideLabel(side),
+    ruleBook: readPubkey(data, 12),
+    signer: readPubkey(data, 44),
+    snapshotHash: readHashHex(data, 76),
+    snapshotPower: data.readBigUInt64LE(108).toString(),
+    signedSlot: data.readBigUInt64LE(116).toString(),
+    signedAt: data.readBigInt64LE(124).toString(),
+  };
+}
+
+function decodeCivilizationRuleTallyOrPowerSnapshotOrReceiptAccount(data) {
+  assertMagic(data, "NCKCVT01", 128);
+  return {
+    magic: "NCKCVT01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    thresholdMet: data.readUInt8(11) === 1,
+    ruleBook: readPubkey(data, 12),
+    yesPower: data.readBigUInt64LE(44).toString(),
+    noPower: data.readBigUInt64LE(52).toString(),
+    abstainPower: data.readBigUInt64LE(60).toString(),
+    challengePower: data.readBigUInt64LE(68).toString(),
+    requiredPower: data.readBigUInt64LE(76).toString(),
+    finalizedSlot: data.readBigUInt64LE(84).toString(),
+    finalizedAt: data.readBigInt64LE(92).toString(),
+  };
+}
+
+function decodeCivilizationExecutionReceiptOrTallyOrSnapshotAccount(data) {
+  assertMagic(data, "NCKCVE01", 128);
+  return {
+    magic: "NCKCVE01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    executed: data.readUInt8(11) === 1,
+    ruleBook: readPubkey(data, 12),
+    executor: readPubkey(data, 44),
+    executedSlot: data.readBigUInt64LE(76).toString(),
+    executedAt: data.readBigInt64LE(84).toString(),
+  };
+}
+
+function decodeCivilizationPowerSnapshotOrTallyOrReceiptAccount(data) {
+  assertMagic(data, "NCKCVP01", 128);
+  return {
+    magic: "NCKCVP01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    authority: readPubkey(data, 11),
+    snapshotHash: readHashHex(data, 43),
+    totalActivePower: data.readBigUInt64LE(75).toString(),
+    windowStartEpoch: data.readBigUInt64LE(83).toString(),
+    windowEndEpoch: data.readBigUInt64LE(91).toString(),
+    createdSlot: data.readBigUInt64LE(99).toString(),
+    expiresAt: data.readBigInt64LE(107).toString(),
+    createdAt: data.readBigInt64LE(115).toString(),
+  };
+}
+
+function decodeCivilizationCitizenPowerAccount(data) {
+  assertMagic(data, "NCKCVC01", 144);
+  return {
+    magic: "NCKCVC01",
+    version: data.readUInt16LE(8),
+    bump: data.readUInt8(10),
+    powerSnapshot: readPubkey(data, 11),
+    citizen: readPubkey(data, 43),
+    snapshotHash: readHashHex(data, 75),
+    power: data.readBigUInt64LE(107).toString(),
+    settledSlot: data.readBigUInt64LE(115).toString(),
+    settledAt: data.readBigInt64LE(123).toString(),
+    expiresAt: data.readBigInt64LE(131).toString(),
+  };
+}
+
+function decodeBuildSiteAccount(data) {
+  assertMagic(data, "NCKSITE1");
+  const version = data.readUInt8(8);
+  const status = data.readUInt8(10);
+  if (data.length !== 136 && data.length !== 160) throw new Error("Invalid BuildSite length.");
+  if (version !== 1 && version !== 2) throw new Error("Invalid BuildSite version.");
+  if (version === 1 && data.length !== 136) throw new Error("Invalid legacy BuildSite length.");
+  if (version === 2 && data.length !== 160) throw new Error("Invalid BuildSite v2 length.");
+  return {
+    magic: "NCKSITE1",
+    version,
+    status,
+    statusLabel: buildSiteStatusLabel(status),
+    bump: data.readUInt8(9),
+    owner: readPubkey(data, 16),
+    globalConfig: readPubkey(data, 48),
+    foundationId: data.readBigUInt64LE(80).toString(),
+    minX: data.readInt32LE(88),
+    minZ: data.readInt32LE(92),
+    surfaceY: data.readInt16LE(96),
+    width: data.readUInt32LE(100),
+    depth: data.readUInt32LE(104),
+    createdSlot: data.readBigUInt64LE(108).toString(),
+    activeRevision: data.readUInt32LE(116),
+    pendingRevision: data.readUInt32LE(120),
+    updatedSlot: data.readBigUInt64LE(124).toString(),
+    registeredChunks: data.length === 160 ? data.readBigUInt64LE(132).toString() : "0",
+    totalChunks: data.length === 160 ? data.readBigUInt64LE(140).toString() : "0",
+    stagedWidth: data.length === 160 ? data.readUInt32LE(148) : 0,
+    stagedDepth: data.length === 160 ? data.readUInt32LE(152) : 0,
+    accountLength: data.length,
+  };
+}
+
+function decodeBuildingManifestAccount(data) {
+  assertMagic(data, "NCKBLD02", 160);
+  const status = data.readUInt8(10);
+  return {
+    magic: "NCKBLD02",
+    version: data.readUInt8(8),
+    status,
+    statusLabel: buildingStatusLabel(status),
+    bump: data.readUInt8(9),
+    quarterTurns: data.readUInt8(11),
+    shardCount: data.readUInt8(12),
+    uploadedBitmap: data.readUInt16LE(14),
+    owner: readPubkey(data, 16),
+    globalConfig: readPubkey(data, 48),
+    foundationId: data.readBigUInt64LE(80).toString(),
+    revision: data.readUInt32LE(88),
+    payloadLen: data.readUInt32LE(92),
+    expectedHash: readHashHex(data, 96),
+    sizeX: data.readUInt16LE(128),
+    sizeY: data.readUInt16LE(130),
+    sizeZ: data.readUInt16LE(132),
+    createdSlot: data.readBigUInt64LE(136).toString(),
+    updatedSlot: data.readBigUInt64LE(144).toString(),
+    offsetX: data.readInt32LE(152),
+    offsetZ: data.readInt32LE(156),
+  };
+}
+
+function decodeBuildingShardAccount(data) {
+  assertMagic(data, "NCKBDT01");
+  if (data.length < 64) throw new Error("Invalid BuildingShard length.");
+  const payloadLen = data.readUInt16LE(12);
+  const uploadedLen = data.readUInt16LE(14);
+  if (data.length !== 64 + payloadLen) throw new Error("Invalid BuildingShard payload length.");
+  return {
+    magic: "NCKBDT01",
+    version: data.readUInt8(8),
+    bump: data.readUInt8(9),
+    shardIndex: data.readUInt8(10),
+    payloadLen,
+    uploadedLen,
+    uploadedPercent: payloadLen ? Math.round((uploadedLen / payloadLen) * 100) : 0,
+    globalConfig: readPubkey(data, 16),
+    foundationId: data.readBigUInt64LE(48).toString(),
+    revision: data.readUInt32LE(56),
+    payloadHash: Buffer.from(data.subarray(64)).toString("hex").slice(0, 32),
+  };
+}
+
+function buildSiteStatusLabel(status) {
+  return status === 0 ? "indexing" : status === 1 ? "active" : status === 2 ? "edit indexing" : status === 3 ? "edit cleaning" : "unknown";
+}
+
+function buildingStatusLabel(status) {
+  return status === 0 ? "uploading" : status === 1 ? "active" : "unknown";
+}
+
+function civilizationRuleStatusLabel(status) {
+  return status === 1 ? "published" : status === 2 ? "finalized" : status === 3 ? "executed" : "unknown";
+}
+
+function civilizationTargetStatusLabel(status) {
+  return status === 1 ? "governable" : status === 2 ? "adapter pending" : status === 3 ? "readonly" : status === 4 ? "protected" : "unknown";
+}
+
+function civilizationSideLabel(side) {
+  return side === 1 ? "agree" : side === 2 ? "reject" : side === 3 ? "abstain" : side === 4 ? "challenge" : "unknown";
 }
 
 function assertMagic(data, magic, expectedLength = null) {
@@ -1544,6 +1887,10 @@ function readOptionalPubkey(data, offset) {
   return bytes.some((byte) => byte !== 0) ? new PublicKey(bytes).toBase58() : null;
 }
 
+function readHashHex(data, offset) {
+  return Buffer.from(data.subarray(offset, offset + 32)).toString("hex");
+}
+
 function formatMarketBaseUnits(amount, currency) {
   const decimals = currency === "SOL" ? 9n : 6n;
   const divisor = 10n ** decimals;
@@ -1551,23 +1898,6 @@ function formatMarketBaseUnits(amount, currency) {
   const fraction = amount % divisor;
   const trimmed = fraction.toString().padStart(Number(decimals), "0").replace(/0+$/, "");
   return `${whole.toString()}${trimmed ? `.${trimmed}` : ""} ${currency}`;
-}
-
-function marketAssetItemId(itemCode, payload) {
-  const known = new Map([
-    [1, "iron_pickaxe"],
-    [2, "dirt"],
-    [3, "stone"],
-    [4, "sand"],
-    [5, "trunk"],
-    [6, "leaves"],
-    [7, "red_flower"],
-    [8, "forged_item"],
-    [9, "backpack_resource"],
-  ]);
-  if (known.has(itemCode)) return known.get(itemCode);
-  if (itemCode !== 65535) return null;
-  return new TextDecoder().decode(payload).replace(/\0+$/, "") || null;
 }
 
 function setupScrollLinks() {

@@ -1,19 +1,23 @@
 use solana_program::{entrypoint::ProgramResult, pubkey::Pubkey};
 
+use crate::cluster_config::GUARDIAN_TREASURY_WALLET;
 use crate::errors::NicechunkGuardianError;
 
 pub const GUARDIAN_REGISTRY_MAGIC: [u8; 8] = *b"NCKGDR01";
 pub const GUARDIAN_REGION_MAGIC: [u8; 8] = *b"NCKGRG01";
 pub const GUARDIAN_REGISTRY_VERSION: u16 = 1;
-pub const GUARDIAN_REGION_VERSION: u16 = 1;
+pub const GUARDIAN_REGION_VERSION: u16 = 2;
+pub const EMPTY_BLUEPRINT_HASH: [u8; 16] = [
+    37, 35, 34, 132, 228, 156, 242, 203, 66, 1, 187, 7, 46, 39, 98, 108,
+];
 pub const GUARDIAN_REGISTRY_SEED: &[u8] = b"guardian-registry";
 pub const GUARDIAN_REGION_SEED: &[u8] = b"guardian-region";
 pub const GUARDIAN_TREASURY_AUTHORITY_SEED: &[u8] = b"guardian-treasury";
 pub const REGION_SIZE_CHUNKS: i32 = 100;
 pub const REGION_SIZE_CHUNKS_U16: u16 = 100;
 pub const GUARDIAN_STAKE_AMOUNT: u64 = 100_000_000_000;
+// This policy value remains encoded for layout stability; no V2 instruction can slash stake.
 pub const GUARDIAN_SLASH_AMOUNT: u64 = GUARDIAN_STAKE_AMOUNT / 10;
-pub const PROOF_INTERVAL_SECONDS: i64 = 3_600;
 pub const MAX_HOST_LEN: usize = 64;
 pub const REGION_STATUS_EMPTY: u8 = 0;
 pub const REGION_STATUS_ACTIVE: u8 = 1;
@@ -68,7 +72,7 @@ impl GuardianRegistry {
     }
 
     pub fn validate(data: &[u8], global_config: &Pubkey) -> ProgramResult {
-        if data.len() != Self::LEN || data[0..8] != GUARDIAN_REGISTRY_MAGIC {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidRegistryData.into());
         }
         if &data[Self::GLOBAL_CONFIG_OFFSET..Self::GLOBAL_CONFIG_OFFSET + 32]
@@ -80,7 +84,7 @@ impl GuardianRegistry {
     }
 
     pub fn treasury_token(data: &[u8]) -> Result<Pubkey, NicechunkGuardianError> {
-        if data.len() != Self::LEN {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidRegistryData);
         }
         Ok(Pubkey::new_from_array(
@@ -91,14 +95,14 @@ impl GuardianRegistry {
     }
 
     pub fn genesis_registered(data: &[u8]) -> Result<bool, NicechunkGuardianError> {
-        if data.len() != Self::LEN {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidRegistryData);
         }
         Ok(data[Self::GENESIS_REGISTERED_OFFSET] == 1)
     }
 
     pub fn add_active(data: &mut [u8], is_genesis: bool) -> ProgramResult {
-        if data.len() != Self::LEN {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidRegistryData.into());
         }
         let active = read_u64(data, Self::ACTIVE_COUNT_OFFSET)
@@ -117,14 +121,10 @@ impl GuardianRegistry {
         Ok(())
     }
 
-    pub fn remove_active(data: &mut [u8]) -> ProgramResult {
-        if data.len() != Self::LEN {
-            return Err(NicechunkGuardianError::InvalidRegistryData.into());
-        }
-        let active = read_u64(data, Self::ACTIVE_COUNT_OFFSET).saturating_sub(1);
-        data[Self::ACTIVE_COUNT_OFFSET..Self::ACTIVE_COUNT_OFFSET + 8]
-            .copy_from_slice(&active.to_le_bytes());
-        Ok(())
+    fn has_valid_layout(data: &[u8]) -> bool {
+        data.len() == Self::LEN
+            && data[0..8] == GUARDIAN_REGISTRY_MAGIC
+            && u16::from_le_bytes([data[8], data[9]]) == GUARDIAN_REGISTRY_VERSION
     }
 }
 
@@ -146,7 +146,7 @@ pub struct GuardianRegionInitArgs<'a> {
 pub struct GuardianRegion;
 
 impl GuardianRegion {
-    pub const LEN: usize = 256;
+    pub const LEN: usize = 288;
     pub const STATUS_OFFSET: usize = 11;
     pub const REGION_X_OFFSET: usize = 12;
     pub const REGION_Y_OFFSET: usize = 16;
@@ -165,11 +165,20 @@ impl GuardianRegion {
     pub const PENALTY_CURSOR_AT_OFFSET: usize = 236;
     pub const PROOF_COUNT_OFFSET: usize = 244;
     pub const UPDATED_SLOT_OFFSET: usize = 252;
+    pub const BLUEPRINT_HASH_OFFSET: usize = 256;
+    pub const BLUEPRINT_REVISION_OFFSET: usize = 272;
+    pub const BLUEPRINT_RECORD_COUNT_OFFSET: usize = 280;
+    pub const BLUEPRINT_RESERVED_OFFSET: usize = 284;
 
     pub fn pack(dst: &mut [u8], args: &GuardianRegionInitArgs) -> ProgramResult {
-        if dst.len() != Self::LEN || args.host.len() > MAX_HOST_LEN {
+        if dst.len() != Self::LEN
+            || args.owner != &GUARDIAN_TREASURY_WALLET
+            || args.operator == &Pubkey::default()
+        {
             return Err(NicechunkGuardianError::InvalidGuardianRegionData.into());
         }
+        validate_host(args.host)?;
+        validate_port(args.port)?;
 
         let mut host_buf = [0_u8; MAX_HOST_LEN];
         host_buf[..args.host.len()].copy_from_slice(args.host);
@@ -205,6 +214,10 @@ impl GuardianRegion {
         writer.i64(args.created_at)?;
         writer.u64(0)?;
         writer.u32(args.created_slot as u32)?;
+        writer.bytes(&EMPTY_BLUEPRINT_HASH)?;
+        writer.u64(0)?;
+        writer.u32(0)?;
+        writer.u32(0)?;
 
         if writer.offset != Self::LEN {
             return Err(NicechunkGuardianError::PackSizeMismatch.into());
@@ -218,7 +231,7 @@ impl GuardianRegion {
         region_x: i32,
         region_y: i32,
     ) -> ProgramResult {
-        if data.len() != Self::LEN || data[0..8] != GUARDIAN_REGION_MAGIC {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidGuardianRegionData.into());
         }
         if data[Self::STATUS_OFFSET] != REGION_STATUS_ACTIVE {
@@ -226,6 +239,8 @@ impl GuardianRegion {
         }
         if read_i32(data, Self::REGION_X_OFFSET) != region_x
             || read_i32(data, Self::REGION_Y_OFFSET) != region_y
+            || &data[Self::OWNER_OFFSET..Self::OWNER_OFFSET + 32]
+                != GUARDIAN_TREASURY_WALLET.as_ref()
             || &data[Self::GLOBAL_CONFIG_OFFSET..Self::GLOBAL_CONFIG_OFFSET + 32]
                 != global_config.as_ref()
         {
@@ -235,14 +250,14 @@ impl GuardianRegion {
     }
 
     pub fn status(data: &[u8]) -> Result<u8, NicechunkGuardianError> {
-        if data.len() != Self::LEN || data[0..8] != GUARDIAN_REGION_MAGIC {
+        if !Self::has_valid_layout(data) {
             return Ok(REGION_STATUS_EMPTY);
         }
         Ok(data[Self::STATUS_OFFSET])
     }
 
     pub fn operator(data: &[u8]) -> Result<Pubkey, NicechunkGuardianError> {
-        if data.len() != Self::LEN {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidGuardianRegionData);
         }
         Ok(Pubkey::new_from_array(
@@ -253,7 +268,7 @@ impl GuardianRegion {
     }
 
     pub fn owner(data: &[u8]) -> Result<Pubkey, NicechunkGuardianError> {
-        if data.len() != Self::LEN {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidGuardianRegionData);
         }
         Ok(Pubkey::new_from_array(
@@ -265,24 +280,23 @@ impl GuardianRegion {
 
     pub fn update_endpoint(
         data: &mut [u8],
-        owner: &Pubkey,
+        authority: &Pubkey,
         host: &[u8],
         port: u16,
         use_tls: bool,
         slot: u64,
     ) -> ProgramResult {
-        if data.len() != Self::LEN || data[0..8] != GUARDIAN_REGION_MAGIC {
+        if !Self::has_valid_layout(data) {
             return Err(NicechunkGuardianError::InvalidGuardianRegionData.into());
         }
         if data[Self::STATUS_OFFSET] != REGION_STATUS_ACTIVE {
             return Err(NicechunkGuardianError::GuardianNotActive.into());
         }
-        if &Self::owner(data)? != owner {
-            return Err(NicechunkGuardianError::InvalidGuardianOwner.into());
+        if &Self::operator(data)? != authority {
+            return Err(NicechunkGuardianError::InvalidOperatorAuthority.into());
         }
-        if host.len() > MAX_HOST_LEN {
-            return Err(NicechunkGuardianError::InvalidHost.into());
-        }
+        validate_host(host)?;
+        validate_port(port)?;
 
         let mut host_buf = [0_u8; MAX_HOST_LEN];
         host_buf[..host.len()].copy_from_slice(host);
@@ -295,73 +309,94 @@ impl GuardianRegion {
         Ok(())
     }
 
-    pub fn settle(data: &mut [u8], now: i64) -> Result<bool, NicechunkGuardianError> {
-        if data.len() != Self::LEN || data[0..8] != GUARDIAN_REGION_MAGIC {
-            return Err(NicechunkGuardianError::InvalidGuardianRegionData);
+    pub fn set_operator(data: &mut [u8], operator: &Pubkey, slot: u64) -> ProgramResult {
+        if !Self::has_valid_layout(data) {
+            return Err(NicechunkGuardianError::InvalidGuardianRegionData.into());
         }
-        if data[Self::STATUS_OFFSET] != REGION_STATUS_ACTIVE {
-            return Ok(false);
-        }
-
-        let cursor = read_i64(data, Self::PENALTY_CURSOR_AT_OFFSET);
-        if now <= cursor + PROOF_INTERVAL_SECONDS {
-            return Ok(false);
-        }
-
-        let missed = ((now - cursor) / PROOF_INTERVAL_SECONDS) as u64;
-        let slash_amount = missed.saturating_mul(GUARDIAN_SLASH_AMOUNT);
-        let stake = read_u64(data, Self::STAKE_AMOUNT_OFFSET);
-        let slash = slash_amount.min(stake);
-        let next_stake = stake.saturating_sub(slash);
-        let total_slashed = read_u64(data, Self::TOTAL_SLASHED_OFFSET).saturating_add(slash);
-        let penalty_count = read_u32(data, Self::PENALTY_COUNT_OFFSET)
-            .saturating_add(u32::try_from(missed).unwrap_or(u32::MAX));
-        let next_cursor = cursor.saturating_add(
-            i64::try_from(missed)
-                .unwrap_or(i64::MAX)
-                .saturating_mul(PROOF_INTERVAL_SECONDS),
-        );
-
-        data[Self::STAKE_AMOUNT_OFFSET..Self::STAKE_AMOUNT_OFFSET + 8]
-            .copy_from_slice(&next_stake.to_le_bytes());
-        data[Self::TOTAL_SLASHED_OFFSET..Self::TOTAL_SLASHED_OFFSET + 8]
-            .copy_from_slice(&total_slashed.to_le_bytes());
-        data[Self::PENALTY_COUNT_OFFSET..Self::PENALTY_COUNT_OFFSET + 4]
-            .copy_from_slice(&penalty_count.to_le_bytes());
-        data[Self::PENALTY_CURSOR_AT_OFFSET..Self::PENALTY_CURSOR_AT_OFFSET + 8]
-            .copy_from_slice(&next_cursor.to_le_bytes());
-
-        if next_stake == 0 {
-            data[Self::STATUS_OFFSET] = REGION_STATUS_REMOVED;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    pub fn proof(data: &mut [u8], operator: &Pubkey, now: i64, slot: u64) -> ProgramResult {
-        Self::validate_active(
-            data,
-            &Pubkey::new_from_array(
-                data[Self::GLOBAL_CONFIG_OFFSET..Self::GLOBAL_CONFIG_OFFSET + 32]
-                    .try_into()
-                    .map_err(|_| NicechunkGuardianError::InvalidGuardianRegionData)?,
-            ),
-            read_i32(data, Self::REGION_X_OFFSET),
-            read_i32(data, Self::REGION_Y_OFFSET),
-        )?;
-        if &Self::operator(data)? != operator {
+        if data[Self::STATUS_OFFSET] != REGION_STATUS_ACTIVE || operator == &Pubkey::default() {
             return Err(NicechunkGuardianError::InvalidOperatorAuthority.into());
         }
-        let proof_count = read_u64(data, Self::PROOF_COUNT_OFFSET).saturating_add(1);
-        data[Self::LAST_PROOF_AT_OFFSET..Self::LAST_PROOF_AT_OFFSET + 8]
-            .copy_from_slice(&now.to_le_bytes());
-        data[Self::PENALTY_CURSOR_AT_OFFSET..Self::PENALTY_CURSOR_AT_OFFSET + 8]
-            .copy_from_slice(&now.to_le_bytes());
-        data[Self::PROOF_COUNT_OFFSET..Self::PROOF_COUNT_OFFSET + 8]
-            .copy_from_slice(&proof_count.to_le_bytes());
+        data[Self::OPERATOR_OFFSET..Self::OPERATOR_OFFSET + 32].copy_from_slice(operator.as_ref());
         data[Self::UPDATED_SLOT_OFFSET..Self::UPDATED_SLOT_OFFSET + 4]
             .copy_from_slice(&(slot as u32).to_le_bytes());
         Ok(())
+    }
+
+    pub fn update_blueprint(
+        data: &mut [u8],
+        blueprint_hash: &[u8; 16],
+        revision: u64,
+        record_count: u32,
+        slot: u64,
+    ) -> ProgramResult {
+        if !Self::has_valid_layout(data) {
+            return Err(NicechunkGuardianError::InvalidGuardianRegionData.into());
+        }
+        if data[Self::STATUS_OFFSET] != REGION_STATUS_ACTIVE {
+            return Err(NicechunkGuardianError::GuardianNotActive.into());
+        }
+        let current_revision = u64::from_le_bytes(
+            data[Self::BLUEPRINT_REVISION_OFFSET..Self::BLUEPRINT_REVISION_OFFSET + 8]
+                .try_into()
+                .map_err(|_| NicechunkGuardianError::InvalidGuardianRegionData)?,
+        );
+        let current_count = u32::from_le_bytes(
+            data[Self::BLUEPRINT_RECORD_COUNT_OFFSET..Self::BLUEPRINT_RECORD_COUNT_OFFSET + 4]
+                .try_into()
+                .map_err(|_| NicechunkGuardianError::InvalidGuardianRegionData)?,
+        );
+        let same_hash = data[Self::BLUEPRINT_HASH_OFFSET..Self::BLUEPRINT_HASH_OFFSET + 16]
+            == blueprint_hash[..];
+        if revision < current_revision
+            || revision == current_revision && (!same_hash || record_count != current_count)
+        {
+            return Err(NicechunkGuardianError::InvalidBlueprintRevision.into());
+        }
+        if revision == current_revision {
+            return Ok(());
+        }
+
+        data[Self::BLUEPRINT_HASH_OFFSET..Self::BLUEPRINT_HASH_OFFSET + 16]
+            .copy_from_slice(blueprint_hash);
+        data[Self::BLUEPRINT_REVISION_OFFSET..Self::BLUEPRINT_REVISION_OFFSET + 8]
+            .copy_from_slice(&revision.to_le_bytes());
+        data[Self::BLUEPRINT_RECORD_COUNT_OFFSET..Self::BLUEPRINT_RECORD_COUNT_OFFSET + 4]
+            .copy_from_slice(&record_count.to_le_bytes());
+        data[Self::BLUEPRINT_RESERVED_OFFSET..Self::BLUEPRINT_RESERVED_OFFSET + 4].fill(0);
+        data[Self::UPDATED_SLOT_OFFSET..Self::UPDATED_SLOT_OFFSET + 4]
+            .copy_from_slice(&(slot as u32).to_le_bytes());
+        Ok(())
+    }
+
+    pub fn blueprint_hash(data: &[u8]) -> Result<Option<[u8; 16]>, NicechunkGuardianError> {
+        if !Self::has_valid_layout(data) {
+            return Err(NicechunkGuardianError::InvalidGuardianRegionData);
+        }
+        Ok(Some(
+            data[Self::BLUEPRINT_HASH_OFFSET..Self::BLUEPRINT_HASH_OFFSET + 16]
+                .try_into()
+                .map_err(|_| NicechunkGuardianError::InvalidGuardianRegionData)?,
+        ))
+    }
+
+    pub fn blueprint_revision(data: &[u8]) -> Result<u64, NicechunkGuardianError> {
+        if !Self::has_valid_layout(data) {
+            return Err(NicechunkGuardianError::InvalidGuardianRegionData);
+        }
+        Ok(read_u64(data, Self::BLUEPRINT_REVISION_OFFSET))
+    }
+
+    pub fn blueprint_record_count(data: &[u8]) -> Result<u32, NicechunkGuardianError> {
+        if !Self::has_valid_layout(data) {
+            return Err(NicechunkGuardianError::InvalidGuardianRegionData);
+        }
+        Ok(read_u32(data, Self::BLUEPRINT_RECORD_COUNT_OFFSET))
+    }
+
+    fn has_valid_layout(data: &[u8]) -> bool {
+        data.len() == Self::LEN
+            && data[0..8] == GUARDIAN_REGION_MAGIC
+            && u16::from_le_bytes([data[8], data[9]]) == GUARDIAN_REGION_VERSION
     }
 }
 
@@ -392,19 +427,6 @@ pub fn read_i32(data: &[u8], offset: usize) -> i32 {
         data[offset + 1],
         data[offset + 2],
         data[offset + 3],
-    ])
-}
-
-pub fn read_i64(data: &[u8], offset: usize) -> i64 {
-    i64::from_le_bytes([
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        data[offset + 3],
-        data[offset + 4],
-        data[offset + 5],
-        data[offset + 6],
-        data[offset + 7],
     ])
 }
 

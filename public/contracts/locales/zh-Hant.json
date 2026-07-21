@@ -1,0 +1,1209 @@
+{
+  "_meta": {
+    "language": "zh-Hant",
+    "label": "Traditional Chinese",
+    "version": "contracts-locale-zh-Hant-1f35cc1ad1139636",
+    "contentHash": "1f35cc1ad1139636"
+  },
+  "meta": {
+    "title": "NiceChunk 合約"
+  },
+  "nav": {
+    "aria": "主导航",
+    "home": "首頁",
+    "roadbook": "路書",
+    "worldRules": "世界規則",
+    "resources": "資源",
+    "elements": "元素表",
+    "fairness": "公平",
+    "proofOfFrontier": "证明",
+    "guardians": "守護者",
+    "contracts": "合約",
+    "docs": "文件",
+    "enterWorld": "進入世界"
+  },
+  "language": {
+    "aria": "语言"
+  },
+  "sidebar": {
+    "aria": "合约目录",
+    "title": "合約"
+  },
+  "hero": {
+    "eyebrow": "运行状态合约目录",
+    "title": "NiceChunk 合约、真实游戏配置与 PDA 透明度。",
+    "subtitle": "这个页面现在会区分游戏客户端真实使用的运行配置，以及代码里已经存在但仍门禁的合约。玩家可以在同一页检查源码、PDA 结构和公开 devnet 账户。",
+    "directory": "查看目录",
+    "flow": "查看当前流程",
+    "networkLabel": "网络",
+    "networkValue": "Solana 开发网",
+    "networkNote": "当前游戏运行配置通过 mainnet.json 指向 Solana devnet。这里不声称主网最终状态，也不声称文明治理已经真实开放。",
+    "browser": "浏览 PDA"
+  },
+  "directory": {
+    "eyebrow": "目录",
+    "title": "当前 NiceChunk 程序与运行状态。",
+    "body": "下表列出仓库里的合约、Program ID，以及它们当前是否已进入游戏运行配置或仍处于门禁。",
+    "columns": [
+      "程序",
+      "Program ID",
+      "状态",
+      "作用"
+    ]
+  },
+  "flow": {
+    "eyebrow": "当前流程",
+    "title": "当前游戏流程如何触达链上程序",
+    "steps": [
+      {
+        "title": "读取创世配置",
+        "body": "客户端从 Core 程序推导 GlobalConfig，并读取世界种子、Chunk 大小、建造高度、NCK mint 和公开配置哈希。"
+      },
+      {
+        "title": "创建玩家档案",
+        "body": "Player 程序记录钱包拥有的玩家档案、默认属性、坐标、装备槽和背包样式。"
+      },
+      {
+        "title": "开启挖矿会话",
+        "body": "玩家可以创建一个短期 session authority，让连续挖矿不需要每破坏一个方块都弹出钱包确认。"
+      },
+      {
+        "title": "记录已破坏方块",
+        "body": "Chunk 程序校验单点生成方块，然后把 3 字节压缩记录写入 chunk-broken PDA。"
+      },
+      {
+        "title": "追加资源记录",
+        "body": "Backpack 程序已经预留好在 session 校验后追加挖掘资源记录，是挖矿到背包流程的库存侧桥接。"
+      },
+      {
+        "title": "把资源熔炼成物品",
+        "body": "Smelting 程序读取 RecipeTable PDA，验证选中的背包输入和燃料槽，通过 Backpack 程序移除这些槽位，再由 smelting-authority PDA 把材料或物品产物追加回同一个背包。"
+      },
+      {
+        "title": "挂单资源或资产",
+        "body": "Marketplace 会验证背包资源槽或 Market Asset PDA，然后在可购买前把物品锁定到 Listing PDA 中。"
+      },
+      {
+        "title": "结算市场订单",
+        "body": "買家用 NCK 或 SOL 支付，程式把 1% 市場手續費轉到 treasury，並透過市場 authority 把被託管的背包 slot 交付給買家。"
+      },
+      {
+        "title": "Publish Player Buildings",
+        "body": "The building program validates player sessions, indexes foundation chunks, stages NCM3 payload shards, finalizes a hashed manifest, and can publish Guardian blueprint summaries."
+      }
+    ]
+  },
+  "details": {
+    "eyebrow": "程序详情",
+    "title": "合约代码、instruction、PDA seed 与存储数据"
+  },
+  "developer": {
+    "eyebrow": "开发者说明",
+    "title": "前端和脚本对接参考",
+    "programIdsTitle": "Program IDs",
+    "pdaTitle": "PDA seed 示例",
+    "boundaryTitle": "当前边界",
+    "boundaryBody": "本页记录当前面向 devnet 的合约表面，以及从 mainnet.json 加载的游戏运行配置。它不声称已经完成最终主网治理、文明真实执行、土地所有权、完整实时去中心化或完整玩法去中心化。",
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drop-table\", globalConfig, tableId:u64_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+  },
+  "labels": {
+    "programId": "Program ID",
+    "source": "合約程式碼",
+    "sdk": "SDK",
+    "magic": "Magic",
+    "accountSize": "帳戶大小",
+    "instructions": "指令",
+    "pdaSeeds": "PDA Seeds",
+    "storage": "儲存資料",
+    "notes": "對接說明",
+    "viewCode": "程式碼",
+    "sourceTree": "源碼樹",
+    "copyCode": "複製",
+    "copied": "已複製",
+    "viewPda": "PDA 結構",
+    "viewLive": "鏈上 PDA",
+    "fields": "欄位",
+    "copyAddress": "複製地址",
+    "status": "状态",
+    "requiredPower": "所需权力",
+    "author": "作者",
+    "signer": "签署者",
+    "side": "选择",
+    "power": "权力",
+    "ruleBook": "规则书",
+    "thresholdMet": "达标",
+    "yesPower": "赞成权力",
+    "executor": "执行者",
+    "executed": "已执行",
+    "totalPower": "总权力",
+    "citizen": "玩家"
+  },
+  "navigation": [
+    {
+      "id": "overview",
+      "label": "概览"
+    },
+    {
+      "id": "runtime-state",
+      "label": "运行状态"
+    },
+    {
+      "id": "directory",
+      "label": "目录"
+    },
+    {
+      "id": "integration-flow",
+      "label": "当前流程"
+    },
+    {
+      "id": "transparency-ledger",
+      "label": "透明帳本"
+    },
+    {
+      "id": "nicechunk-core",
+      "label": "创世 Core"
+    },
+    {
+      "id": "nicechunk-player",
+      "label": "玩家程序"
+    },
+    {
+      "id": "nicechunk-chunk",
+      "label": "Chunk / 挖矿"
+    },
+    {
+      "id": "nicechunk-building",
+      "label": "Building"
+    },
+    {
+      "id": "nicechunk-guardian",
+      "label": "Guardian 登记表"
+    },
+    {
+      "id": "nicechunk-backpack",
+      "label": "背包程序"
+    },
+    {
+      "id": "nicechunk-smelting",
+      "label": "熔煉"
+    },
+    {
+      "id": "nicechunk-market",
+      "label": "Marketplace"
+    },
+    {
+      "id": "nicechunk-civilization",
+      "label": "文明合约"
+    },
+    {
+      "id": "developer-notes",
+      "label": "开发说明"
+    },
+    {
+      "id": "chain-pda-browser",
+      "label": "鏈上 PDA 瀏覽器"
+    }
+  ],
+  "programs": [
+    {
+      "id": "nicechunk-core",
+      "codeKey": "core",
+      "name": "NiceChunk Genesis Core",
+      "kind": "创世配置层",
+      "programId": "9EhMCRYMJej1F21KzaA5Zao3khGGc5aJbDGbnxaogQHu",
+      "status": "开发网",
+      "role": "不可变世界配置与 NCK mint 校验。",
+      "source": "programs/nicechunk_core/src/lib.rs",
+      "sdk": "sdk/nicechunk-core.ts",
+      "magic": "NCKCFG01",
+      "accountSize": "GlobalConfig: 293 bytes",
+      "summary": "Core 程序只负责一次性初始化 GlobalConfig PDA。它写入编译期创世参数，包括世界种子、世界 ID、配置哈希、NCK mint、NCK decimals、创世供应量、费用、Chunk 限制和 Guardian 参数。它不负责铸造物品、不管理背包、不提供管理员更新配置，也不承载复杂玩法逻辑。",
+      "instructions": [
+        "0 initialize_global_config",
+        "校验 SPL Token mint 布局、decimals、初始化状态、创世供应量、mint authority 已关闭、freeze authority 已关闭。",
+        "即使 PDA 被提前转入 dust lamports，也可以安全 create 或 allocate GlobalConfig PDA。"
+      ],
+      "pdaSeeds": [
+        "GlobalConfig: [\"global-config\"]"
+      ],
+      "storage": [
+        "世界 ID 和 32 字节世界种子。",
+        "地形、资源规则和客户端世界配置哈希。",
+        "NCK mint、decimals、创世供应量和开发钱包。",
+        "Chunk 大小、section 高度、建造范围、最大地形高度、海平面、冷却和 Guardian 设置。"
+      ],
+      "notes": [
+        "这是当前开发网版本的不可变创世配置层。",
+        "未来的合成、库存、Chunk 状态、世界知识和声望系统应放在独立程序或 PDA 规格稳定后的后续模块。",
+        "开发网和测试网必须使用各自独立的 NCK mint，不应该把主网 mint 直接用于开发集群。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "GlobalConfig",
+          "seeds": "[\"global-config\"]",
+          "magic": "NCKCFG01",
+          "size": "293 字节",
+          "purpose": "当前世界不可变的创世配置。",
+          "fields": [
+            "nckMint、nckDecimals、nckGenesisSupply",
+            "worldId 和 32 字节 worldSeed",
+            "terrainConfigHash、resourceRuleHash、clientWorldConfigHash",
+            "chunkSize、sectionHeight、建造高度、seaLevel",
+            "Guardian 参数和 mineCooldownSlots"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-player",
+      "codeKey": "player",
+      "name": "NiceChunk Player",
+      "kind": "玩家身份与会话层",
+      "programId": "CHZHsBCGn58ih2WrPfKSYhvCEjMPGhArTiYCH7AWWBkB",
+      "status": "开发网",
+      "role": "钱包拥有的玩家档案、坐标、装备槽、背包样式和挖矿会话授权。",
+      "source": "programs/nicechunk_player/src/lib.rs",
+      "sdk": "sdk/nicechunk-player.ts",
+      "magic": "NCKPLY01 / NCKSES01",
+      "accountSize": "PlayerProfile: 773 bytes; PlayerSession: 184 bytes",
+      "summary": "Player 程序创建钱包绑定的玩家档案，并支持短期 session authority。session 让游戏可以提交重复的允许操作，例如破坏方块，而不需要每挖一个方块都打开钱包确认。",
+      "instructions": [
+        "0 initialize_player",
+        "1 update_position",
+        "2 set_equipment_slot",
+        "3 set_backpack_style",
+        "5 set_equipped_backpack",
+        "4 create_or_refresh_player_session"
+      ],
+      "pdaSeeds": [
+        "PlayerProfile: [\"player-v7\", owner]",
+        "PlayerSession: [\"session\", owner, sessionAuthority]"
+      ],
+      "storage": [
+        "Owner 钱包、GlobalConfig 地址、world ID、已绑定背包公钥、bump 和时间戳。",
+        "基础属性：生命、能量、体力、挖掘力、建造力和防御。",
+        "当前坐标、9 个装备槽和已绑定背包公钥。",
+        "Session authority、允许动作 bitmask、过期时间、最大动作次数和已用次数。"
+      ],
+      "notes": [
+        "玩家档案是公开状态。它保存已绑定背包公钥，私密背包内容应在玩家打开背包流程时单独加载。",
+        "当前 session 模型用于减少连续挖矿时的钱包弹窗。",
+        "Session 受过期时间、允许动作和最大动作次数限制。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "PlayerProfile",
+          "seeds": "[\"player-v7\", owner]",
+          "magic": "NCKPLY01",
+          "size": "449 字节；旧版 417 字节",
+          "purpose": "钱包拥有的公开玩家状态，以及已装备背包指针。",
+          "fields": [
+            "owner、globalConfig、worldId",
+            "position x/y/z",
+            "基础生命、能量、体力和能力字段",
+            "装备槽和背包样式",
+            "equippedBackpack、createdSlot、updatedSlot"
+          ]
+        },
+        {
+          "name": "PlayerSession",
+          "seeds": "[\"session\", owner, sessionAuthority]",
+          "magic": "NCKSES01",
+          "size": "184 字节",
+          "purpose": "短期玩法授权，让连续允许行为不必每次弹钱包。",
+          "fields": [
+            "owner、sessionAuthority、playerProfile、globalConfig",
+            "worldId、allowedActions、expiresAt",
+            "createdSlot、updatedSlot、createdAt",
+            "maxActions 和 actionCount"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-chunk",
+      "codeKey": "chunk",
+      "name": "NiceChunk Chunk",
+      "kind": "Chunk 状态与挖矿层",
+      "programId": "GnVKn442KDTDgCyjVG7SEtCQQLjaCiLvrEZDWSU13wbj",
+      "status": "开发网",
+      "role": "校验单点生成方块，并按 Chunk 记录极简已破坏方块状态。",
+      "source": "programs/nicechunk_chunk/src/lib.rs",
+      "sdk": "sdk/nicechunk-chunk.ts",
+      "magic": "NCKCHK01 / NCBK",
+      "accountSize": "ChunkState: 8,280 bytes; ChunkBrokenState: 16-byte header + 3 bytes per record",
+      "summary": "Chunk 程序支持旧版 Chunk delta 账户，也支持当前优化后的挖矿路径。挖矿时，玩家提交一个世界方块坐标。程序推导所在 Chunk，校验生成方块，拒绝空气、水、基岩或已经被挖过的位置，然后追加一条压缩的已破坏方块记录。",
+      "instructions": [
+        "0 initialize_chunk",
+        "1 record_block_change",
+        "2 delegate_chunk",
+        "3 record_block_change_with_session",
+        "4 verify_generated_block",
+        "5 mine_block"
+      ],
+      "pdaSeeds": [
+        "ChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+        "ChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
+      ],
+      "storage": [
+        "旧版 ChunkState 最多记录 128 条 64 字节 block delta。",
+        "ChunkBrokenState 存 16 字节 header 和每条 3 字节的已挖记录。",
+        "记录会打包 local x、local z 和 y offset。初始容量 64，每次扩容 64，最大 2,048 条。",
+        "生成方块校验使用 GlobalConfig 中的世界种子、Chunk 大小、建造高度、最大地形高度和海平面。"
+      ],
+      "notes": [
+        "这是当前浏览器客户端使用的挖矿写入路径。",
+        "代码里保留了 MagicBlock delegation hook，但当前玩法路径不依赖 MagicBlock。",
+        "背包资源结算刻意拆成独立程序，方便挖矿状态和库存状态分别演进。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "ChunkBrokenState",
+          "seeds": "[\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+          "magic": "NCBK",
+          "size": "16 + capacity * 3 字节",
+          "purpose": "记录玩家破坏过的生成方块，不存完整地形。",
+          "fields": [
+            "version、bump、count、capacity、minY",
+            "3 字节 packed 本地方块记录",
+            "通过扩容存稀疏变化，而不是存整块地形"
+          ]
+        },
+        {
+          "name": "ResourceDropTable",
+          "seeds": "[\"resource-drops-v2\", globalConfig]",
+          "magic": "NCKDRP02",
+          "size": "16 + ruleCount * 23 字节",
+          "purpose": "奖励挖矿的有界额外掉落规则。",
+          "fields": [
+            "sourceBlockId, dropBlockId, baseChanceBps",
+            "altitude and depth bounds",
+            "salt plus min/max drop volume in mm³"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-building",
+      "codeKey": "building",
+      "name": "NiceChunk Building",
+      "kind": "Build sites, NCM3 building manifests, and Guardian blueprint publishing",
+      "programId": "39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx",
+      "status": "Devnet",
+      "role": "Owns BuildSite v2 accounts, chunk indexing, building manifests, upload shards, resize flow, and Guardian blueprint publishing authority.",
+      "source": "programs/nicechunk_building/src/lib.rs",
+      "sdk": "sdk/nicechunk-building.ts",
+      "magic": "NCKSITE1 / NCKBLD02 / NCKBDT01",
+      "accountSize": "BuildSite: 160 bytes; legacy BuildSite: 136 bytes; BuildingManifest: 160 bytes; BuildingShard: 64 + payload bytes",
+      "summary": "The Building program is the active devnet surface for player-owned foundations and NCM3 building payloads. It validates player sessions, creates and resizes BuildSite accounts, registers occupied chunks through the chunk authority PDA, stages building uploads in shards, finalizes manifests after hash and fit checks, supports legacy BuildSite migration, and publishes Guardian blueprint updates through a program-derived authority.",
+      "instructions": [
+        "0 create_build_site",
+        "1 register_build_site_chunks",
+        "2 begin_building_upload",
+        "3 write_building_shard",
+        "4 finalize_building",
+        "5 cancel_building_upload",
+        "6 migrate_legacy_build_site",
+        "7 begin_build_site_resize",
+        "8 publish_guardian_blueprint"
+      ],
+      "pdaSeeds": [
+        "BuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]",
+        "BuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
+        "BuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+        "ChunkAuthority: [\"chunk-authority-v1\", globalConfig]",
+        "GuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+      ],
+      "storage": [
+        "BuildSite stores owner, global config, foundation ID, footprint, surface Y, active and pending revisions, indexed chunk counters, staged resize dimensions, and update slots.",
+        "BuildingManifest stores owner, global config, foundation ID, revision, payload length, expected NCM3 hash, dimensions, rotation, offsets, shard count, uploaded bitmap, and status.",
+        "BuildingShard stores one bounded payload segment for an NCM3 building upload, with uploaded length and payload bytes after the 64-byte header."
+      ],
+      "notes": [
+        "Build actions require a valid PlayerSession and matching PlayerProfile before state changes are accepted.",
+        "A BuildingManifest only becomes active after all shards are written, the payload hash matches, and the NCM3 dimensions fit the BuildSite footprint and world height limits.",
+        "Guardian blueprint publication is restricted to the treasury or configured blueprint publisher wallet and calls the Guardian program through the Building program PDA.",
+        "The 136-byte legacy BuildSite layout is still decoded so deployed foundations can be migrated safely."
+      ],
+      "pdaAccounts": [
+        {
+          "name": "BuildSite",
+          "seeds": "[\"build-site-v1\", globalConfig, foundationId:u64_le]",
+          "magic": "NCKSITE1",
+          "size": "160 bytes; legacy layout is 136 bytes",
+          "purpose": "Player-owned foundation footprint and revision state for a build site.",
+          "fields": [
+            "owner, globalConfig, foundationId",
+            "minX, minZ, surfaceY, width, depth",
+            "activeRevision and pendingRevision",
+            "registeredChunks, totalChunks, stagedWidth, stagedDepth"
+          ]
+        },
+        {
+          "name": "BuildingManifest",
+          "seeds": "[\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
+          "magic": "NCKBLD02",
+          "size": "160 bytes",
+          "purpose": "Upload and activation manifest for one NCM3 building revision.",
+          "fields": [
+            "owner, globalConfig, foundationId, revision",
+            "payloadLen, expectedHash, shardCount, uploadedBitmap",
+            "sizeX, sizeY, sizeZ, quarterTurns",
+            "createdSlot, updatedSlot, offsetX, offsetZ"
+          ]
+        },
+        {
+          "name": "BuildingShard",
+          "seeds": "[\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+          "magic": "NCKBDT01",
+          "size": "64-byte header plus payload, up to 8,256 bytes",
+          "purpose": "Bounded shard payload used to upload an NCM3 building before finalization.",
+          "fields": [
+            "shardIndex, payloadLen, uploadedLen",
+            "globalConfig, foundationId, revision",
+            "payload bytes after the header"
+          ]
+        },
+        {
+          "name": "GuardianBlueprintAuthority",
+          "seeds": "[\"guardian-blueprint\", globalConfig]",
+          "magic": "PDA signer only",
+          "size": "No data account",
+          "purpose": "Program signer for publishing verified building blueprint summaries into Guardian regions.",
+          "fields": [
+            "Derived under the Building program",
+            "Calls Guardian update_blueprint with the expected region and global config"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-guardian",
+      "codeKey": "guardian",
+      "name": "NiceChunk Guardian Registry",
+      "kind": "守护者端点登记表",
+      "programId": "RQQZKA1fGELBxtxCQ6q7P26GJH4whWmPjH9XqmihVRK",
+      "status": "开发网",
+      "role": "登记 Guardian 区域、服务端点、NCK 国库支付、存活证明、结算和端点更新。",
+      "source": "programs/nicechunk_guardian/src/lib.rs",
+      "sdk": "sdk/nicechunk-guardian.ts",
+      "magic": "NCKGDR01 / NCKGRG01",
+      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion: 288 bytes",
+      "summary": "Guardian 程序记录区域实时基础设施的公开服务端点。Guardian 注册区域，向国库 token account 支付 NCK 注册金额，并周期性提交证明。登记表是非托管的，不替玩家签名或处理链上交易。",
+      "instructions": [
+        "0 initialize_registry",
+        "1 register_genesis_guardian",
+        "2 register_guardian",
+        "3 submit_guardian_proof",
+        "4 settle_guardian",
+        "5 update_guardian_endpoint",
+        "6 update_guardian_blueprint",
+        "8 update_guardian_operator"
+      ],
+      "pdaSeeds": [
+        "GuardianRegistry: [\"guardian-registry\", globalConfig]",
+        "GuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
+        "GuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]"
+      ],
+      "storage": [
+        "Registry 存 GlobalConfig、NCK mint、treasury token account、active count 和 genesis flag。",
+        "Region 存状态、区域坐标、owner/operator 钱包、endpoint host、port、TLS flag、质押金额、slash 总额、证明次数和时间戳。",
+        "区域大小是 100 x 100 个 Chunk。注册需要支付 100,000 NCK 到国库，NCK 为 6 decimals。",
+        "证明间隔是 3,600 秒。结算可以对未按时证明的节点每次扣 10%，直到移除。"
+      ],
+      "notes": [
+        "当前网页 Guardian 页面从开发网读取 registry 和 region PDA 数据。",
+        "端點更新僅允許目前的 Guardian 營運錢包執行。國庫治理錢包可輪換營運錢包；治理錢包或受限的藍圖發布錢包可更新藍圖中繼資料。",
+        "注册支付进入国库 token account；该登记表不提供用户主动 unstake 或 withdraw。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "GuardianRegistry",
+          "seeds": "[\"guardian-registry\", globalConfig]",
+          "magic": "NCKGDR01",
+          "size": "160 字节",
+          "purpose": "全局 Guardian 注册表和国库指针。",
+          "fields": [
+            "globalConfig、nckMint、treasuryToken",
+            "activeCount、totalRegistrations、genesisRegistered",
+            "regionSizeChunks、stakeAmount、slashAmount",
+            "createdSlot 和 createdAt"
+          ]
+        },
+        {
+          "name": "GuardianRegion",
+          "seeds": "[\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
+          "magic": "NCKGRG01",
+          "size": "288 字节",
+          "purpose": "已注册实时区域端点和质押状态。",
+          "fields": [
+            "区域坐标和 Chunk 边界",
+            "owner、operator、globalConfig",
+            "host、port、useTls",
+            "stakeAmount、处罚、proof 计数、updatedSlot",
+            "blueprintHash、blueprintRevision、blueprintRecordCount"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-backpack",
+      "codeKey": "backpack",
+      "name": "NiceChunk Backpack",
+      "kind": "Inventory slot layer for blocks, resources, and items",
+      "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
+      "status": "Devnet",
+      "role": "Creates player backpacks, stores block-resource and item slots, removes selected slots, and accepts marketplace or smelting-authorized delivery.",
+      "source": "programs/nicechunk_backpack/src/lib.rs",
+      "sdk": "sdk/nicechunk-backpack.ts",
+      "magic": "NCKBPK01",
+      "accountSize": "BackpackAccount v3: 8,048 bytes; BackpackSlotRecord: 80 bytes",
+      "summary": "The backpack program is the inventory storage layer for mined block resources, smelted materials, forged items, and marketplace escrow. Version 3 stores fixed 80-byte slots that represent block resources, material items, and forged items with durability, grade, item level, quality, and metadata. Mining appends block-resource slots through validated player sessions, marketplace flows can remove and restore resources, and smelting can append item slots only through the smelting authority PDA.",
+      "instructions": [
+        "0 initialize_backpack",
+        "requires a PlayerProfile with no equipped backpack",
+        "1 append_mined_resource",
+        "2 remove_resource",
+        "3 append_market_resource",
+        "4 remove_resources",
+        "5 append_smelting_item"
+      ],
+      "pdaSeeds": [
+        "Backpack: [\"backpack\", creator, backpackId:u64_le]"
+      ],
+      "storage": [
+        "Backpack header stores backpack ID, owner, capacity, item count, state, placement fields, timestamps, and flags.",
+        "Default capacity is 50 slots. Max capacity is 99 slots.",
+        "Each v3 BackpackSlotRecord is 80 bytes: kind, category, flags, quantity, resource coordinate, item code, item ID, item PDA, volume, durability, grade, item level, quality, and metadata.",
+        "Slot kind 1 stores block resources. Slot kind 2 stores item/material records such as smelted outputs or forged outputs.",
+        "The decoder only accepts the current v3 account layout."
+      ],
+      "notes": [
+        "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
+        "The marketplace program can escrow or deliver backpack resources through the market-authority PDA.",
+        "The smelting program can append material or item outputs through the smelting-authority PDA; users cannot mint arbitrary item slots directly.",
+        "Direct player appends remain restricted to validated mining sessions for block resources."
+      ],
+      "pdaAccounts": [
+        {
+          "name": "Backpack",
+          "seeds": "[\"backpack\", creator, backpackId:u64_le]",
+          "magic": "NCKBPK01",
+          "size": "8048 字节",
+          "purpose": "钱包拥有的库存 PDA，保存方块资源和物品引用。",
+          "fields": [
+            "backpackId、owner、capacity、itemCount",
+            "state、flags、placed position",
+            "createdSlot、updatedSlot、createdAt",
+            "最多 99 个 slot，记录方块资源或物品引用"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-smelting",
+      "codeKey": "smelting",
+      "name": "NiceChunk Smelting",
+      "kind": "Recipe table and backpack item creation layer",
+      "programId": "7imEiNtpiN487HRwrftdLrMFs8TcAnjLE94vKsDgU6L7",
+      "status": "Devnet",
+      "role": "Stores smelting recipe tables, consumes selected backpack resources and fuels, and appends material or item outputs back into the backpack.",
+      "source": "programs/nicechunk_smelting/src/lib.rs",
+      "sdk": "sdk/nicechunk-smelting.ts",
+      "magic": "NCKSMR01",
+      "accountSize": "RecipeTable: 9,936 bytes; RecipeRecord: 984 bytes",
+      "summary": "The smelting program separates recipe authority from backpack storage. A recipe table PDA stores up to 12 recipes, each with up to 8 input slots and 4 output slots. Executing a recipe validates selected backpack inputs and fuel, removes those slots through the backpack program, then appends material or item outputs through the smelting authority PDA.",
+      "instructions": [
+        "0 initialize_recipe_table",
+        "1 upsert_recipe",
+        "2 execute_smelting",
+        "3 set_recipe_table_authority",
+        "execute_smelting supports input indexes, fuel indexes, and a batch multiplier."
+      ],
+      "pdaSeeds": [
+        "RecipeTable: [\"smelting-recipes\", tableId:u64_le]",
+        "SmeltingAuthority: [\"smelting-authority\"]"
+      ],
+      "storage": [
+        "RecipeTable stores table ID, authority, recipe count, timestamps, and fixed-size recipe records.",
+        "Each RecipeRecord stores recipe ID, enabled flag, minimum heat tier, input count, output count, up to 8 input BackpackSlot records, up to 4 output BackpackSlot records, and updated slot.",
+        "BackpackSlot records support block resources and item/material outputs.",
+        "Recipe table authority can upsert recipes or transfer authority."
+      ],
+      "notes": [
+        "The recipe table is intentionally independent so civilization or governance systems can add and update recipes later.",
+        "Execution validates backpack ownership, recipe matching, input slots, fuel slots, and batch multiplier before consuming inventory.",
+        "Outputs are appended through the backpack program using the smelting authority PDA; users cannot mint arbitrary smelting outputs directly."
+      ],
+      "pdaAccounts": [
+        {
+          "name": "RecipeTable",
+          "seeds": "[\"smelting-recipes\", tableId:u64_le]",
+          "magic": "NCKSMR01",
+          "size": "9936 字节",
+          "purpose": "由 authority 管理、供熔炼程序读取的配方表。",
+          "fields": [
+            "tableId、authority、recipeCount",
+            "createdSlot、updatedSlot、createdAt",
+            "最多 12 条 recipe 记录",
+            "每条配方保存热力等级、输入槽、输出槽和 updatedSlot"
+          ]
+        },
+        {
+          "name": "SmeltingAuthority",
+          "seeds": "[\"smelting-authority\"]",
+          "magic": "仅 PDA 签名器",
+          "size": "无数据账户",
+          "purpose": "配方验证后，用作把产物追加回背包的程序签名 PDA。",
+          "fields": [
+            "派生签名 PDA",
+            "不保存玩家可变资产状态"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-market",
+      "codeKey": "market",
+      "name": "NiceChunk Marketplace",
+      "kind": "背包 slot 市場結算層",
+      "programId": "1PwPzFtdJ5gQqku5gBo4b6Wvo48Qe8NuXSogUP8TWpR",
+      "status": "Devnet",
+      "role": "從賣家 Backpack PDA 建立掛單，託管完整 80 位元組 slot，結算 NCK 或 SOL 付款，並在取消或購買時恢復/交付庫存。",
+      "source": "programs/nicechunk_market/src/lib.rs",
+      "sdk": "src/chain/nicechunkChain.js",
+      "magic": "NCKMKT01",
+      "accountSize": "ListingAccount: 216 bytes",
+      "summary": "市場程式是目前 devnet 的背包庫存交易面。賣家只能從自己的 Backpack PDA 選擇一個既有 slot 上架；合約會讀取該 slot、移除它，並把完整 80 位元組 slot 快照寫入 Listing PDA。取消會把 slot 還給賣家，購買會把 slot 交付給買家；使用者 payload 不再提供分類、數量、耐久、品級、等級或 item hash。",
+      "instructions": [
+        "0 create_listing",
+        "1 cancel_listing",
+        "2 buy_listing",
+        "3 initialize_asset（已停用）",
+        "建立掛單只接受 listingId、currency、sourceIndex 和 price；物品參數從 Backpack PDA 讀取。",
+        "取消和購買透過 market-authority PDA 把 Listing 內保存的 80 位元組 slot 寫回目標 Backpack。",
+        "支付支援 NCK 和 SOL，並收取 1% 市場手續費。"
+      ],
+      "pdaSeeds": [
+        "Listing: [\"listing\", seller, listingId:u64_le]",
+        "MarketAuthority: [\"market-authority\"]"
+      ],
+      "storage": [
+        "Listing 保存賣家錢包、listing ID、幣種、來源背包索引、價格、完整來源 slot 快照、時間戳、買家和最終結算欄位。",
+        "來源 slot 在 create_listing 時從 Backpack v3 slot 資料複製；category、quantity、itemCode、durability、grade、itemLevel 和 quality 都不接受使用者 payload。",
+        "Listing 狀態為 active、canceled 或 sold。"
+      ],
+      "notes": [
+        "只有掛單賣家可以取消活躍掛單。",
+        "買家不能購買自己的掛單。",
+        "只有 marketplace PDA 可以透過背包程式恢復或交付託管 slot。",
+        "Treasury 費用為所選幣種掛單價格的 1%。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "MarketplaceListing",
+          "seeds": "[\"listing\", seller, listingId:u64_le]",
+          "magic": "NCKMKT01",
+          "size": "216 bytes",
+          "purpose": "賣家擁有的背包 slot 託管和市場結算狀態。",
+          "fields": [
+            "seller、listingId、state",
+            "currency、sourceIndex、priceBaseUnits",
+            "完整 80 位元組 sourceSlot 快照",
+            "buyer、soldSlot 和 soldAt 欄位"
+          ]
+        },
+        {
+          "name": "MarketplaceAuthority",
+          "seeds": "[\"market-authority\"]",
+          "magic": "PDA signer only",
+          "size": "No data account",
+          "purpose": "託管恢復、交付和結算邊界的程式簽名者。",
+          "fields": [
+            "Derived signer PDA",
+            "Does not custody player wallets outside explicit instructions"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nicechunk-civilization",
+      "codeKey": "civilization",
+      "name": "NiceChunk Civilization 文明合约",
+      "kind": "规则书与贡献权力层",
+      "programId": "3MRG4UjxTK1rMq7TGM4bX1GrD8C36bQtt1RdTmJD7Jah",
+      "status": "代码已具备 / 仍门禁",
+      "role": "发布规则书、签名、计票、执行回执、文明值快照和玩家文明值账户。",
+      "source": "programs/nicechunk_civilization/src/lib.rs",
+      "sdk": "sdk/nicechunk-civilization.ts",
+      "magic": "NCKCVR01 / NCKCVS01 / NCKCVT01 / NCKCVE01 / NCKCVP01 / NCKCVC01",
+      "accountSize": "RuleBook: 320; Signature: 136; Tally: 128; Receipt: 128; PowerSnapshot: 128; CitizenPower: 144 bytes",
+      "summary": "文明合约已经存在于仓库和 SDK 中，但还没有进入当前 mainnet.json 游戏运行配置。它是门禁中的规则层，用于发布文明规则提案、用已结算贡献权力签署、计票、记录执行，并通过 PDA 账户让文明值可审计。",
+      "instructions": [
+        "0 publish_rule_book",
+        "1 sign_rule",
+        "2 finalize_rule_tally",
+        "3 execute_rule_receipt",
+        "4 publish_power_snapshot",
+        "5 settle_citizen_power"
+      ],
+      "pdaSeeds": [
+        "RuleBook: [\"rule-book\", ruleIdHash]",
+        "RuleSignature: [\"rule-signature\", ruleBook, signer]",
+        "RuleTally: [\"rule-tally\", ruleBook]",
+        "ExecutionReceipt: [\"rule-execution\", ruleBook]",
+        "PowerSnapshot: [\"power-snapshot\", snapshotHash]",
+        "CitizenPower: [\"citizen-power\", powerSnapshot, citizen]",
+        "CivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
+      ],
+      "storage": [
+        "RuleBook 保存哈希、目标程序/PDA、阈值、风险等级、总权力、所需权力和计票计数。",
+        "RuleSignature 保存签署方选择和已结算快照权力。",
+        "PowerSnapshot 保存 authority 签名的总活跃权力、窗口 epoch、哈希和过期时间。",
+        "CitizenPower 保存绑定到一个快照和有效期窗口的玩家文明值。"
+      ],
+      "notes": [
+        "程序部署和 devnet e2e 证明完成前，玩家链上提交故意保持门禁。",
+        "文明值不能自报；权力快照和玩家文明值结算需要配置的 authority 签名。",
+        "现在公开展示此合约，是为了让玩家在真实治理启用前检查 PDA 结构。"
+      ],
+      "pdaAccounts": [
+        {
+          "name": "RuleBook",
+          "seeds": "[\"rule-book\", ruleIdHash]",
+          "magic": "NCKCVR01",
+          "size": "320 bytes",
+          "purpose": "绑定目标程序和目标 PDA 的文明规则提案。",
+          "fields": [
+            "author、ruleIdHash、textHash、patchHash、snapshotHash",
+            "targetProgram 和 targetPda",
+            "totalActivePower、requiredPower、thresholdBps",
+            "yes/no/abstain/challenge 权力计数",
+            "created/finalized/executed slots"
+          ]
+        },
+        {
+          "name": "RuleSignature",
+          "seeds": "[\"rule-signature\", ruleBook, signer]",
+          "magic": "NCKCVS01",
+          "size": "136 bytes",
+          "purpose": "规则书中一个签署者的选择和已结算贡献权力。",
+          "fields": [
+            "side: agree/reject/abstain/challenge",
+            "ruleBook 和 signer",
+            "snapshotHash 和 snapshotPower",
+            "signedSlot 和 signedAt"
+          ]
+        },
+        {
+          "name": "RuleTally",
+          "seeds": "[\"rule-tally\", ruleBook]",
+          "magic": "NCKCVT01",
+          "size": "128 bytes",
+          "purpose": "规则书最终计票记录。",
+          "fields": [
+            "thresholdMet",
+            "yes/no/abstain/challenge power",
+            "requiredPower",
+            "finalizedSlot 和 finalizedAt"
+          ]
+        },
+        {
+          "name": "ExecutionReceipt",
+          "seeds": "[\"rule-execution\", ruleBook]",
+          "magic": "NCKCVE01",
+          "size": "128 bytes",
+          "purpose": "记录已通过规则被执行或确认的回执。",
+          "fields": [
+            "executed flag",
+            "ruleBook",
+            "executor",
+            "executedSlot 和 executedAt"
+          ]
+        },
+        {
+          "name": "PowerSnapshot",
+          "seeds": "[\"power-snapshot\", snapshotHash]",
+          "magic": "NCKCVP01",
+          "size": "128 bytes",
+          "purpose": "authority 签名的文明值窗口快照。",
+          "fields": [
+            "authority",
+            "snapshotHash",
+            "totalActivePower",
+            "windowStartEpoch 和 windowEndEpoch",
+            "createdSlot、expiresAt、createdAt"
+          ]
+        },
+        {
+          "name": "CitizenPower",
+          "seeds": "[\"citizen-power\", powerSnapshot, citizen]",
+          "magic": "NCKCVC01",
+          "size": "144 bytes",
+          "purpose": "某个快照窗口内一个玩家的贡献权力。",
+          "fields": [
+            "powerSnapshot",
+            "citizen",
+            "snapshotHash",
+            "power",
+            "settledSlot、settledAt、expiresAt"
+          ]
+        }
+      ]
+    }
+  ],
+  "chainBrowser": {
+    "eyebrow": "鏈上 PDA 瀏覽器",
+    "title": "直接从 RPC 读取公开开发网状态。",
+    "body": "Scan NiceChunk program accounts, decode known PDA layouts, and inspect players, build sites, buildings, backpacks, smelting tables, market listings, Guardian regions, and chunk deltas without trusting a private database.",
+    "typeLabel": "PDA 分组",
+    "refresh": "刷新",
+    "ready": "选择一个 PDA 分组并刷新，即可读取公开开发网状态。",
+    "loadingAll": "正在从开发网 RPC 扫描所有已知 NiceChunk PDA 分组...",
+    "loadingType": "正在从开发网 RPC 扫描 {type}...",
+    "loaded": "已載入 {count} 個可解碼 PDA 帳戶。",
+    "loadedType": "已載入 {count} 個 {type} 帳戶。",
+    "error": "RPC 扫描失败：{message}",
+    "empty": "這個分組暫時沒有可解碼帳戶。",
+    "total": "已解碼總數",
+    "program": "程序",
+    "lamports": "Lamports",
+    "scanFailed": "扫描失败",
+    "programTitle": "即時帳戶掃描",
+    "programBody": "讀取這個程式擁有的公開 PDA 帳戶。掃描是唯讀操作，使用目前配置的 Solana RPC 端點。",
+    "programPrompt": "选择这个程序的一个 PDA 分组。",
+    "noKnownTypes": "这个程序暂时没有已知数据 PDA 分组。",
+    "types": {
+      "all": "全部已知 PDA 分组",
+      "global-config": "GlobalConfig",
+      "player-profile": "PlayerProfile",
+      "player-session": "PlayerSession",
+      "chunk-broken": "ChunkBrokenState",
+      "resource-drop-table": "ResourceDropTable",
+      "guardian-registry": "GuardianRegistry",
+      "guardian-region": "GuardianRegion",
+      "backpack": "Backpack",
+      "recipe-table": "RecipeTable",
+      "market-listing": "MarketplaceListing",
+      "forged-items": "鍛造物品記錄",
+      "civilization-rule-book": "文明 RuleBook",
+      "civilization-rule-signature": "文明签名",
+      "civilization-rule-tally": "文明计票",
+      "civilization-execution-receipt": "文明执行回执",
+      "civilization-power-snapshot": "文明值快照",
+      "civilization-citizen-power": "玩家文明值",
+      "build-site": "BuildSite",
+      "building-manifest": "BuildingManifest",
+      "building-shard": "BuildingShard"
+    },
+    "summary": {
+      "owner": "Owner",
+      "position": "坐标",
+      "backpack": "背包",
+      "authority": "Authority",
+      "expiresAt": "过期时间",
+      "items": "物品",
+      "updatedSlot": "更新 Slot",
+      "recipes": "配方",
+      "seller": "卖家",
+      "state": "状态",
+      "price": "价格",
+      "item": "物品",
+      "endpoint": "端点",
+      "proofs": "Proofs",
+      "active": "活跃",
+      "total": "总数",
+      "treasury": "国库",
+      "chunk": "Chunk",
+      "records": "记录",
+      "version": "版本",
+      "rules": "规则",
+      "world": "世界",
+      "seed": "种子",
+      "nckMint": "NCK mint",
+      "minY": "最低 Y",
+      "source": "來源",
+      "forgedItems": "鍛造物品",
+      "status": "状态",
+      "requiredPower": "所需权力",
+      "author": "作者",
+      "signer": "签署者",
+      "side": "选择",
+      "power": "权力",
+      "ruleBook": "规则书",
+      "thresholdMet": "达标",
+      "yesPower": "赞成权力",
+      "executor": "执行者",
+      "executed": "已执行",
+      "totalPower": "总权力",
+      "citizen": "玩家"
+    },
+    "timeout": "RPC 请求超时，请稍后重试或切换更稳定的 RPC。",
+    "searchLabel": "搜尋",
+    "searchPlaceholder": "按地址、擁有者、物品或解碼 JSON 篩選",
+    "filtered": "正在顯示 {shown}/{total} 個已解碼帳戶。",
+    "visibleLabel": "可見資料",
+    "trustLabel": "信任價值",
+    "quickTypes": [
+      "player-profile",
+      "backpack",
+      "forged-items",
+      "recipe-table",
+      "civilization-rule-book",
+      "civilization-power-snapshot",
+      "civilization-citizen-power"
+    ],
+    "typeInfo": {
+      "all": {
+        "title": "全部已知 PDA 分組",
+        "body": "掃描本頁可解碼的每個 NiceChunk 帳戶家族。這是公開 RPC 讀取，不是後端匯出。",
+        "visible": "程式擁有者、PDA 地址、解碼後的頭部欄位，以及有邊界帳戶資料中的安全樣本。",
+        "trust": "玩家可以在一個畫面中對比官網、源碼、PDA 佈局和開發網即時狀態。"
+      },
+      "global-config": {
+        "title": "GlobalConfig",
+        "body": "目前開發網世界的不可變創世配置。",
+        "visible": "NCK mint、世界 ID、世界種子雜湊材料、配置雜湊、Chunk 限制和守護者參數。",
+        "trust": "證明世界種子、資源配置或核心限制不是由私有伺服器偷偷改變。"
+      },
+      "player-profile": {
+        "title": "PlayerProfile",
+        "body": "錢包擁有的公開玩家身份狀態。",
+        "visible": "Owner 錢包、位置、屬性、裝備摘要、已裝備背包指標和更新 slot。",
+        "trust": "玩家可以看到有哪些身份存在，以及每個公開檔案指向哪個背包。"
+      },
+      "player-session": {
+        "title": "PlayerSession",
+        "body": "用於減少連續玩法操作錢包彈窗的短期 authority。",
+        "visible": "Owner、session authority、允許動作標記、過期時間、最大動作數和已用動作數。",
+        "trust": "證明 session 權限是有邊界的，而不是無限制隱藏操作鑰匙。"
+      },
+      "chunk-broken": {
+        "title": "ChunkBrokenState",
+        "body": "每個 Chunk 中玩家已經破壞方塊的壓縮記錄。",
+        "visible": "版本、容量、minY、數量，以及 packed broken-block 記錄樣本。",
+        "trust": "在不把完整地形上鏈的情況下，讓挖礦地形變化可審計。"
+      },
+      "resource-drop-table": {
+        "title": "ResourceDropTable",
+        "body": "挖矿奖励使用的有界 v2 资源掉落规则表。",
+        "visible": "来源方块、掉落方块、基础概率基点、海拔/深度范围、salt 和掉落体积范围。",
+        "trust": "玩家可以檢查掉落規則，而不是信任黑箱獎勵邏輯。"
+      },
+      "guardian-registry": {
+        "title": "GuardianRegistry",
+        "body": "即時服務覆蓋的全域註冊表。",
+        "visible": "國庫 token、活躍數量、註冊總數、質押金額、懲罰金額和區域大小。",
+        "trust": "證明服務經濟和覆蓋規則是公開 PDA 資料。"
+      },
+      "guardian-region": {
+        "title": "GuardianRegion",
+        "body": "已註冊即時區域端點和證明狀態。",
+        "visible": "區域邊界、擁有者、操作者、端點、TLS 標記、質押、懲罰和證明計數。",
+        "trust": "玩家可以驗證誰在服務某個區域，以及是否持續提交存活證明。"
+      },
+      "backpack": {
+        "title": "Backpack",
+        "body": "玩家擁有的庫存 PDA，用於方塊資源、材料槽和物品引用。",
+        "visible": "擁有者、背包 ID、容量、物品數量、放置位置、更新 slot 和安全樣本槽位。",
+        "trust": "庫存可以從公開帳戶資料檢查，而不是只能相信遊戲 UI。"
+      },
+      "recipe-table": {
+        "title": "RecipeTable",
+        "body": "Smelting 程式使用的 authority-owned 熔煉配方表。",
+        "visible": "Authority、配方數量、更新 slot、熱量等級、輸入數量、輸出數量和 recipe ID。",
+        "trust": "玩家在消耗背包資源前，可以檢查哪些配方真實存在。"
+      },
+      "market-listing": {
+        "title": "MarketplaceListing",
+        "body": "背包 slot 的公開市場掛單狀態。",
+        "visible": "Seller、listing ID、幣種、來源索引、完整來源 slot、價格、買家和最終狀態。",
+        "trust": "市場託管和結算可以被審計，不需要信任私有訂單簿。"
+      },
+      "forged-items": {
+        "title": "鍛造物品記錄",
+        "body": "一個便利掃描，會從已上線的 Backpack 帳戶中找出鍛造產物。",
+        "visible": "來源帳戶類型、owner、backpack identity、鍛造樣本 slots、item code 和 item ID。",
+        "trust": "透過真實帳戶資料展示鍛造結果，同時誠實說明獨立鍛造 PDA 家族尚未上線。"
+      },
+      "civilization-rule-book": {
+        "title": "文明 RuleBook",
+        "body": "文明规则提案账户。",
+        "visible": "作者、哈希、目标程序/PDA、阈值、风险等级、计票和状态。",
+        "trust": "玩家可以在规则影响游戏前检查提案目标和权力阈值。"
+      },
+      "civilization-rule-signature": {
+        "title": "文明签名",
+        "body": "一个玩家对规则的签署记录。",
+        "visible": "签署者、选择、快照哈希、快照权力和签署时间。",
+        "trust": "签名权力来自已结算文明值，而不是自报数字。"
+      },
+      "civilization-rule-tally": {
+        "title": "文明计票",
+        "body": "规则计票账户。",
+        "visible": "赞成、反对、弃权、挑战权力，所需权力和是否达标。",
+        "trust": "让玩家检查规则是否真的达到阈值。"
+      },
+      "civilization-execution-receipt": {
+        "title": "文明执行回执",
+        "body": "记录规则执行或确认的账户。",
+        "visible": "规则书、执行者、执行 slot 和时间。",
+        "trust": "把执行动作与通过的规则绑定。"
+      },
+      "civilization-power-snapshot": {
+        "title": "文明值快照",
+        "body": "authority 签名的文明值窗口快照。",
+        "visible": "authority、快照哈希、总活跃权力、窗口和过期时间。",
+        "trust": "玩家能检查本轮可用文明值总量和有效期。"
+      },
+      "civilization-citizen-power": {
+        "title": "玩家文明值",
+        "body": "某个玩家在一个快照窗口里的文明值。",
+        "visible": "玩家、快照、权力、结算 slot 和过期时间。",
+        "trust": "证明单个签署者的权力来自已结算账户。"
+      }
+    }
+  },
+  "transparency": {
+    "eyebrow": "透明帳本",
+    "title": "玩家可以從合約程式碼一路審計到公開 PDA 狀態。",
+    "body": "NiceChunk 把公開狀態作為遊戲介面的一部分。玩家應該能檢查誰存在、哪些背包和掛單存在、哪些配方啟用、哪些區域服務即時玩法，以及哪些規則或帳戶仍只是計畫。",
+    "cards": [
+      {
+        "kicker": "身份",
+        "title": "玩家是公開帳戶記錄，不是私有資料庫裡的隱藏列。",
+        "body": "PlayerProfile 和 PlayerSession PDA 會公開錢包、位置、已裝備背包指標、session authority，以及客戶端被允許使用的邊界。",
+        "points": [
+          "錢包歸屬可見。",
+          "Session 限制可檢查。",
+          "已裝備背包連結公開。"
+        ]
+      },
+      {
+        "kicker": "庫存",
+        "title": "背包和市場掛單是可讀取的儲存物件。",
+        "body": "Backpack 和 MarketplaceListing 帳戶會顯示物品數量、擁有者、狀態、價格和安全樣本 slot，方便玩家審計庫存流轉。",
+        "points": [
+          "背包歸屬明確。",
+          "掛單公開託管狀態。",
+          "鍛造物品透過 Backpack item slot 顯示。"
+        ]
+      },
+      {
+        "kicker": "世界",
+        "title": "地形和挖礦狀態綁定到可驗證的世界配置。",
+        "body": "GlobalConfig 固定世界種子和配置雜湊，ChunkBrokenState 與 ResourceDropTable 公開哪些方塊被挖過、以及哪些額外掉落規則存在。",
+        "points": [
+          "世界種子和雜湊公開。",
+          "破壞方塊記錄壓縮但可讀。",
+          "掉落表是有邊界的 PDA 資料。"
+        ]
+      },
+      {
+        "kicker": "文明",
+        "title": "治理必须先可检查，再拥有权力。",
+        "body": "文明合约已经定义规则书、签名、计票、执行回执和文明值账户，但真实玩家提交仍必须等 devnet 证明。",
+        "points": [
+          "运行配置和门禁合约分开展示。",
+          "文明值需要 authority 结算。",
+          "规则目标必须指向可检查 PDA。"
+        ]
+      }
+    ],
+    "map": [
+      {
+        "surface": "玩家",
+        "status": "已上線 PDA",
+        "audit": "讀取 PlayerProfile 帳戶，可查看錢包、位置、裝備槽和已裝備背包指標。",
+        "typeId": "player-profile",
+        "action": "查看玩家"
+      },
+      {
+        "surface": "背包",
+        "status": "已上線 PDA",
+        "audit": "讀取 Backpack 帳戶，可檢查擁有者、容量、物品數量、方塊資源和 item/material 槽位。",
+        "typeId": "backpack",
+        "action": "查看背包"
+      },
+      {
+        "surface": "鍛造產物",
+        "status": "聚合 PDA 檢視",
+        "audit": "從 Backpack item slots 中讀取鍛造記錄，不虛構一個尚未上線的獨立鍛造程式。",
+        "typeId": "forged-items",
+        "action": "查看鍛造"
+      },
+      {
+        "surface": "熔煉配方",
+        "status": "已上線 PDA",
+        "audit": "讀取 RecipeTable 帳戶，可檢查配方表、熱量等級、輸入數量、輸出數量和更新 slot。",
+        "typeId": "recipe-table",
+        "action": "查看配方"
+      },
+      {
+        "surface": "Buildings",
+        "status": "Live PDA",
+        "audit": "Read BuildSite, BuildingManifest, and BuildingShard accounts to inspect foundation footprints, upload progress, active revisions, and NCM3 payload metadata.",
+        "typeId": "build-site",
+        "action": "View buildings"
+      },
+      {
+        "surface": "守護者服務",
+        "status": "已上線 PDA",
+        "audit": "讀取 GuardianRegion 和 GuardianRegistry 帳戶，可審計即時區域擁有者、端點、質押、證明次數和懲罰。",
+        "typeId": "guardian-region",
+        "action": "查看守護者"
+      },
+      {
+        "surface": "市場結算",
+        "status": "已上線 PDA",
+        "audit": "讀取 MarketplaceListing，可檢查賣家、買家、價格、幣種、託管 slot、狀態和結算 slot。",
+        "typeId": "market-listing",
+        "action": "查看市場"
+      },
+      {
+        "surface": "文明规则",
+        "status": "合约已具备 / 仍门禁",
+        "audit": "读取 RuleBook、签名、计票、执行回执、文明值快照和玩家文明值账户，检查治理路径。",
+        "typeId": "civilization-rule-book",
+        "action": "查看文明规则"
+      }
+    ]
+  },
+  "runtime": {
+    "eyebrow": "运行状态",
+    "title": "游戏客户端现在实际配置使用什么。",
+    "body": "本区块读取公开 mainnet.json 运行索引，把已经进入游戏配置的程序和代码存在但仍门禁的合约分开。",
+    "clusterLabel": "集群",
+    "versionLabel": "应用版本",
+    "sourceLabel": "来源",
+    "programIdLabel": "Program ID",
+    "runtimeLabel": "运行配置",
+    "powerAuthorityLabel": "文明值 Authority",
+    "configured": "已进入 mainnet.json",
+    "notConfigured": "未进入 mainnet.json",
+    "unavailable": "不可用",
+    "cards": {
+      "config": {
+        "label": "运行索引",
+        "title": "游戏仍使用公开运行配置。",
+        "body": "mainnet.json 当前显示集群 {cluster}，应用版本 {version}。它保持为高频游戏配置，不是官网 i18n 大包。"
+      },
+      "programs": {
+        "label": "活跃程序",
+        "title": "当前客户端引用的程序。",
+        "body": "这些 ID 是当前浏览器客户端从 mainnet.json 获取的权威程序 ID。"
+      },
+      "alias": {
+        "label": "共享游戏程序",
+        "title": "部分模块当前指向同一个 Program ID。",
+        "body": "这就是当前真实游戏状态：chunk、backpack、smelting、market 仍接到共享 game program，直到拆分部署正式激活。"
+      },
+      "civilization": {
+        "label": "文明系统",
+        "title": "文明合约已存在，但真实提交仍门禁。",
+        "bodyConfigured": "文明合约已经出现在运行配置中。",
+        "bodyGated": "文明合约已在这里文档化并可解码，但还没有进入当前 mainnet.json 运行配置。"
+      }
+    }
+  }
+}

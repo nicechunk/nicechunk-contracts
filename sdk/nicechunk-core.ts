@@ -3,6 +3,7 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { Buffer } from "buffer";
 
 const env = typeof process !== "undefined" ? process.env : {};
 

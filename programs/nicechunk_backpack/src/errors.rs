@@ -28,6 +28,19 @@ pub enum NicechunkBackpackError {
     InvalidSmeltingAuthority = 6422,
     InvalidInventoryItem = 6423,
     InvalidForgingMaterial = 6424,
+    InvalidChunkAuthority = 6425,
+    InvalidGlobalConfig = 6426,
+    InvalidForgeMaterialRequirements = 6427,
+    InsufficientForgeMaterialParameters = 6428,
+    UnverifiedForgeInstructionDisabled = 6429,
+    InvalidBlueprintIssuer = 6430,
+    InvalidBlueprintPda = 6431,
+    BlueprintAlreadyIssued = 6432,
+    InvalidBlueprintItem = 6433,
+    InvalidPlayerEquipment = 6434,
+    InvalidEquipmentTransferAuthority = 6435,
+    InvalidEquipmentSlot = 6436,
+    EquipmentSlotEmpty = 6437,
 }
 
 impl From<NicechunkBackpackError> for ProgramError {

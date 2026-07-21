@@ -24,4 +24,4 @@ NiceChunk sync commits should use:
 nicechunk <293527782+nicechunk@users.noreply.github.com>
 ~~~
 
-GitHub maps commit authors by email, so avoid personal or agent-derived emails for project sync commits.
+GitHub maps commit authors by email, so avoid personal or temporary tool-derived emails for project sync commits.

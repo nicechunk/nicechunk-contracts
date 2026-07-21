@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
 
@@ -11,12 +11,11 @@ const buildVersion = `${pkg.version}-${new Date()
 const pageInputs = Object.fromEntries(
   Object.entries({
     home: "index.html",
-    play: "play/index.html",
     login: "login/index.html",
-    docs: "docs/index.html",
     roadmap: "roadmap/index.html",
     fairness: "fairness/index.html",
     player_set: "player_set/index.html",
+    player_creat: "player_creat/index.html",
     world_rule: "world_rule/index.html",
     resource_rule: "resource_rule/index.html",
     ncm: "ncm/index.html",
@@ -25,14 +24,17 @@ const pageInputs = Object.fromEntries(
     fourier_pickaxe: "fourier-pickaxe/index.html",
     fourier_voxel: "fourier-voxel/index.html",
     elements: "elements/index.html",
-    forging: "forging/index.html",
     mining: "mining/index.html",
     seed: "seed/index.html",
     chip: "chip/index.html",
+    texturearray: "texturearray/index.html",
     guardian: "guardian/index.html",
     contracts: "contracts/index.html",
     civilization: "civilization/index.html",
+    civilization_rules: "civilization/rules.html",
+    civilization_value: "civilization/value.html",
     trust: "trust/index.html",
+    whitepaper: "whitepaper/index.html",
     proof_of_frontier: "proof-of-frontier/index.html",
   })
     .map(([name, path]) => [name, resolve(__dirname, path)])
@@ -43,7 +45,7 @@ function appendAssetVersion() {
   return {
     name: "append-asset-version",
     transformIndexHtml(html) {
-      const versionedHtml = html.replace(
+      const versionedHtml = html.replaceAll("__NICECHUNK_BUILD_VERSION__", buildVersion).replace(
         /(src|href)="([^"]+\.(?:js|css))"/g,
         (_match, attr, url) => `${attr}="${url}?v=${buildVersion}"`,
       );
@@ -55,8 +57,29 @@ function appendAssetVersion() {
   };
 }
 
+function serveClassicPlayLoaders() {
+  const files = new Map([
+    ["/play/play-loader.js", resolve(__dirname, "play/play-loader.js")],
+    ["/play/play-onboarding-loader.js", resolve(__dirname, "play/play-onboarding-loader.js")],
+  ]);
+  return {
+    name: "serve-classic-play-loaders",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url || "/", "http://localhost").pathname;
+        const file = files.get(pathname);
+        if (!file) return next();
+        response.statusCode = 200;
+        response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+        response.setHeader("Cache-Control", "no-store");
+        response.end(readFileSync(file));
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [appendAssetVersion()],
+  plugins: [serveClassicPlayLoaders(), appendAssetVersion()],
   define: {
     __BUILD_VERSION__: JSON.stringify(buildVersion),
   },
@@ -78,11 +101,19 @@ export default defineConfig({
     target: "es2022",
     outDir: "dist",
     emptyOutDir: true,
+    manifest: true,
     rollupOptions: {
       input: pageInputs,
       output: {
-        manualChunks(id) {
-          return id.replaceAll("\\", "/").endsWith("/src/render/resourcePreview.js") ? "resourcePreview" : undefined;
+        entryFileNames(chunkInfo) {
+          return chunkInfo.name === "nicechunkChain"
+            ? "assets/nicechunkChain.js"
+            : "assets/[name]-[hash].js";
+        },
+        chunkFileNames(chunkInfo) {
+          return chunkInfo.name === "nicechunkChain"
+            ? "assets/nicechunkChain.js"
+            : "assets/[name]-[hash].js";
         },
       },
     },

@@ -20,6 +20,13 @@ const allowedLicenses = new Set([
 
 const trackedExceptions = new Map([
   [
+    "@horang-corp/avr-gcc-wasm",
+    {
+      license: "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+      reason: "Direct WebAssembly AVR compiler dependency with package-specific third-party notices; used by the client toolchain and tracked explicitly.",
+    },
+  ],
+  [
     "argparse",
     {
       license: "Python-2.0",

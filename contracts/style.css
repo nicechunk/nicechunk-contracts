@@ -96,7 +96,9 @@ button {
 }
 
 .sidebar-nav a {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   padding: 9px 10px;
   border: 1px solid transparent;
   border-radius: 7px;
@@ -206,7 +208,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgba(140, 255, 0, 0.28);
   border-radius: 8px;
@@ -317,6 +319,7 @@ a.directory-row:hover {
 .flow-card,
 .note-panel,
 .program-panel,
+.runtime-card,
 .transparency-card,
 .transparency-map-row {
   border: 1px solid var(--line);
@@ -325,11 +328,13 @@ a.directory-row:hover {
 }
 
 .flow-card,
+.runtime-card,
 .transparency-card {
   padding: 18px;
 }
 
 .flow-card span,
+.runtime-card span,
 .transparency-card span {
   display: block;
   margin-bottom: 18px;
@@ -339,6 +344,7 @@ a.directory-row:hover {
 }
 
 .flow-card strong,
+.runtime-card strong,
 .transparency-card strong {
   display: block;
   color: #f5f9ff;
@@ -347,11 +353,67 @@ a.directory-row:hover {
 }
 
 .flow-card p,
+.runtime-card p,
 .transparency-card p {
   margin: 9px 0 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.runtime-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-width: 0;
+}
+
+.runtime-card.live {
+  border-color: rgba(140, 255, 0, 0.26);
+}
+
+.runtime-card.warn {
+  border-color: rgba(255, 216, 118, 0.28);
+}
+
+.runtime-card.gated {
+  border-color: rgba(152, 203, 255, 0.28);
+}
+
+.runtime-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.runtime-card dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: rgba(232, 241, 255, 0.56);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.runtime-card dd {
+  min-width: 0;
+  margin: -4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--blue);
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .transparency-grid {
@@ -409,7 +471,11 @@ a.directory-row:hover {
 .transparency-map-row button,
 .chain-browser-quick-link,
 .account-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  min-height: 44px;
   padding: 7px 10px;
   border: 1px solid rgba(152, 203, 255, 0.24);
   border-radius: 999px;
@@ -491,6 +557,7 @@ a.directory-row:hover {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 44px;
   border-color: rgba(152, 203, 255, 0.24);
   color: var(--blue);
   background: rgba(152, 203, 255, 0.065);
@@ -768,7 +835,7 @@ a.directory-row:hover {
 
 .chain-browser-controls select,
 .chain-browser-controls input {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid rgba(152, 203, 255, 0.18);
   border-radius: 8px;
@@ -969,6 +1036,20 @@ a.directory-row:hover {
   line-height: 1.55;
 }
 
+#pdaCode {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#programIdsCode {
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .code-explorer {
   min-width: 0;
   margin-top: 22px;
@@ -1011,6 +1092,7 @@ a.directory-row:hover {
 
 .source-dir,
 .source-file {
+  min-height: 44px;
   min-width: 0;
   padding: 8px 8px 8px calc(8px + var(--depth, 0) * 14px);
   border: 1px solid transparent;
@@ -1122,6 +1204,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .runtime-grid,
   .transparency-grid,
   .program-columns,
   .pda-structure-grid,
@@ -1147,9 +1230,16 @@ a.directory-row:hover {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .contracts-shell {
     padding-top: var(--nc-mobile-page-top, 92px);
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .contracts-hero,
+  .contracts-section {
+    min-width: 0;
   }
 
   .contracts-sidebar {
@@ -1162,8 +1252,13 @@ a.directory-row:hover {
   }
 
   .contracts-hero h1 {
-    font-size: 42px;
+    font-size: clamp(32px, 11vw, 42px);
     line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .contracts-section h2 {
+    overflow-wrap: anywhere;
   }
 
   .directory-table {
@@ -1210,6 +1305,7 @@ a.directory-row:hover {
   }
 
   .flow-grid,
+  .runtime-grid,
   .transparency-grid,
   .program-columns,
   .fact-grid,
@@ -1291,5 +1387,11 @@ a.directory-row:hover {
   .source-code {
     max-height: 58vh;
     font-size: 10px;
+  }
+
+  .source-code code {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 }

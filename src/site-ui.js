@@ -46,10 +46,13 @@ function installSiteUi() {
   if (window.__nicechunkSiteUiInstalled) return;
   window.__nicechunkSiteUiInstalled = true;
   document.documentElement.classList.add("site-ui-ready");
-  ensureUnifiedNavigation();
+  const usesSharedHeader = Boolean(document.querySelector("[data-site-header-root]"));
+  if (!usesSharedHeader) ensureUnifiedNavigation();
   ensureUnifiedFooter();
-  installMobileMenu();
-  installHeaderMetrics();
+  if (!usesSharedHeader) {
+    installMobileMenu();
+    installHeaderMetrics();
+  }
   startSiteLoading(16);
   installRouteLoading();
   window.addEventListener("load", () => {
@@ -75,6 +78,7 @@ const unifiedNavItems = [
   { key: "contracts", href: "/contracts/" },
   { key: "civilization", href: "/civilization/" },
   { key: "trust", href: "/trust/" },
+  { key: "whitepaper", href: "/whitepaper/" },
   { key: "docs", href: "/docs/" },
 ];
 
@@ -132,6 +136,7 @@ const unifiedNavLabels = {
     contracts: "Contracts",
     civilization: "Civilization",
     trust: "Trust",
+    whitepaper: "Whitepaper",
     docs: "Docs",
   },
   es: {
@@ -149,6 +154,7 @@ const unifiedNavLabels = {
     contracts: "Contratos",
     civilization: "Civilización",
     trust: "Confianza",
+    whitepaper: "Whitepaper",
     docs: "Docs",
   },
   fr: {
@@ -166,6 +172,7 @@ const unifiedNavLabels = {
     contracts: "Contrats",
     civilization: "Civilisation",
     trust: "Confiance",
+    whitepaper: "Whitepaper",
     docs: "Docs",
   },
   de: {
@@ -183,6 +190,7 @@ const unifiedNavLabels = {
     contracts: "Contracts",
     civilization: "Zivilisation",
     trust: "Trust",
+    whitepaper: "Whitepaper",
     docs: "Docs",
   },
   ja: {
@@ -200,6 +208,7 @@ const unifiedNavLabels = {
     contracts: "契約",
     civilization: "文明",
     trust: "信頼",
+    whitepaper: "Whitepaper",
     docs: "ドキュメント",
   },
   ru: {
@@ -217,6 +226,7 @@ const unifiedNavLabels = {
     contracts: "Контракты",
     civilization: "Цивилизация",
     trust: "Доверие",
+    whitepaper: "Whitepaper",
     docs: "Документы",
   },
   ko: {
@@ -234,6 +244,7 @@ const unifiedNavLabels = {
     contracts: "컨트랙트",
     civilization: "문명",
     trust: "신뢰",
+    whitepaper: "Whitepaper",
     docs: "문서",
   },
   "zh-Hant": {
@@ -251,6 +262,7 @@ const unifiedNavLabels = {
     contracts: "合約",
     civilization: "文明",
     trust: "信任",
+    whitepaper: "Whitepaper",
     docs: "文檔",
   },
   "zh-Hans": {
@@ -268,6 +280,7 @@ const unifiedNavLabels = {
     contracts: "合约",
     civilization: "文明",
     trust: "信任",
+    whitepaper: "Whitepaper",
     docs: "文档",
   },
 };

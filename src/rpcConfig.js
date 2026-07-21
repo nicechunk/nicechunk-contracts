@@ -1,4 +1,4 @@
-export const publicDevnetRpcUrl = "https://solana-devnet.api.onfinality.io/public";
+export const publicDevnetRpcUrl = "https://explorer-api.devnet.solana.com";
 export const heliusApiKeyStorageKey = "nicechunk.heliusApiKey";
 export const rpcOverrideStorageKey = "nicechunk.devnetRpcUrl";
 export const rpcConfigChangedEventName = "nicechunk:rpc-config-changed";
