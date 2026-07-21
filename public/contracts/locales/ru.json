@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ru",
     "label": "Russian",
-    "version": "contracts-locale-ru-2508d83ab8f67f69",
-    "contentHash": "2508d83ab8f67f69"
+    "version": "contracts-locale-ru-2f4212366ea8874f",
+    "contentHash": "2f4212366ea8874f"
   },
   "meta": {
     "title": "Контракты NiceChunk"
@@ -198,6 +198,10 @@
     {
       "id": "account-lifecycle",
       "label": "Account Lifecycle"
+    },
+    {
+      "id": "payload-truth",
+      "label": "Payload Truth"
     },
     {
       "id": "audit-matrix",

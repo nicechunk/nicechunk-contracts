@@ -195,6 +195,8 @@ const cpiAuthorityLegend = document.querySelector("#cpiAuthorityLegend");
 const cpiAuthorityAtlas = document.querySelector("#cpiAuthorityAtlas");
 const accountLifecycleLegend = document.querySelector("#accountLifecycleLegend");
 const accountLifecycleAtlas = document.querySelector("#accountLifecycleAtlas");
+const payloadTruthLegend = document.querySelector("#payloadTruthLegend");
+const payloadTruthAtlas = document.querySelector("#payloadTruthAtlas");
 const auditMatrix = document.querySelector("#auditMatrix");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
@@ -245,6 +247,7 @@ async function initContractsPage() {
   renderInstructionSurface();
   renderCpiAuthority();
   renderAccountLifecycle();
+  renderPayloadTruth();
   renderAuditMatrix();
   renderDirectory();
   renderFlow();
@@ -437,6 +440,14 @@ function renderAccountLifecycle() {
   if (!accountLifecycleAtlas || !lifecycle) return;
   renderLogicLegend(accountLifecycleLegend, lifecycle.legend ?? []);
   accountLifecycleAtlas.replaceChildren(...(lifecycle.diagrams ?? []).map(createLogicDiagram));
+  window.requestAnimationFrame(updateLogicLinks);
+}
+
+function renderPayloadTruth() {
+  const truth = dictionary.payloadTruth ?? fallbackDictionary.payloadTruth;
+  if (!payloadTruthAtlas || !truth) return;
+  renderLogicLegend(payloadTruthLegend, truth.legend ?? []);
+  payloadTruthAtlas.replaceChildren(...(truth.diagrams ?? []).map(createLogicDiagram));
   window.requestAnimationFrame(updateLogicLinks);
 }
 
@@ -1560,6 +1571,7 @@ function renderLanguageMenu() {
         renderInstructionSurface();
         renderCpiAuthority();
         renderAccountLifecycle();
+        renderPayloadTruth();
         renderAuditMatrix();
         renderDirectory();
         renderFlow();

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "zh-Hant",
     "label": "Traditional Chinese",
-    "version": "contracts-locale-zh-Hant-16244bb1b00c03c8",
-    "contentHash": "16244bb1b00c03c8"
+    "version": "contracts-locale-zh-Hant-96a52189f7138391",
+    "contentHash": "96a52189f7138391"
   },
   "meta": {
     "title": "NiceChunk 合約"
@@ -199,6 +199,10 @@
     {
       "id": "account-lifecycle",
       "label": "帳戶生命週期"
+    },
+    {
+      "id": "payload-truth",
+      "label": "Payload 真實性"
     },
     {
       "id": "audit-matrix",
@@ -4321,6 +4325,585 @@
           "Purchased listings remain durable sold records",
           "Building cancel refunds upload artifact rent",
           "Appearance close is treasury-authority gated"
+        ]
+      }
+    ]
+  },
+  "payloadTruth": {
+    "eyebrow": "Payload 真實性邊界",
+    "title": "把使用者提交的位元組，與由 PDA、雜湊、配方和規則證據重算出的事實分開看。",
+    "body": "這些圖說明哪些 payload 欄位只是選擇器或意圖，哪些物品、建築、配方、身分、端點和治理事實必須先從合約擁有的證據重新推導，才能改變狀態。",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "簽名者或意圖"
+      },
+      {
+        "kind": "offchain",
+        "label": "使用者提交 payload"
+      },
+      {
+        "kind": "program",
+        "label": "校驗閘門"
+      },
+      {
+        "kind": "pda",
+        "label": "合約推導事實"
+      },
+      {
+        "kind": "proof",
+        "label": "持久證據"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "inventory-listing-payload-truth",
+        "kicker": "庫存上架 Payload 真實性",
+        "title": "市場上架只把 19 位元組當作意圖，真正託管的是 Backpack 槽位快照。",
+        "body": "CreateListingArgs 只選擇 listing、幣種、來源類型、來源索引和價格。物品類別、數量、耐久、品級、等級和物品身分不從上架 payload 信任，而是從經過 owner 校驗的 Backpack 或裝備檔案路徑讀取。",
+        "lanes": [
+          {
+            "label": "上架意圖",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "market-seller",
+                "kind": "wallet",
+                "label": "賣家簽名者",
+                "badge": "owner",
+                "detail": "賣家必須簽名，並與 Backpack owner 或已裝備 PlayerProfile owner 匹配，listing 才會被接受。",
+                "evidence": "create_listing account gate"
+              },
+              {
+                "id": "market-args",
+                "kind": "offchain",
+                "label": "CreateListingArgs",
+                "badge": "19 位元組",
+                "detail": "使用者 payload 只解析 listing_id、currency、source_type、source_index 和 price_base_units。",
+                "evidence": "CreateListingArgs::LEN = 19"
+              }
+            ]
+          },
+          {
+            "label": "來源校驗",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "market-owner-pda",
+                "kind": "program",
+                "label": "Backpack / profile 閘門",
+                "badge": "owner + PDA",
+                "detail": "Market 重新檢查 Backpack magic、v3 owner、容量、數量、PDA seed，以及可選 PlayerProfile 裝備身分。",
+                "evidence": "validate_backpack_data_and_pda"
+              },
+              {
+                "id": "market-slot-copy",
+                "kind": "program",
+                "label": "槽位查找",
+                "badge": "kind + volume",
+                "detail": "被選擇的 Backpack 槽位必須是 block 或 item 記錄，並且 volume 非零，才可進入託管。",
+                "evidence": "copy_valid_backpack_slot"
+              }
+            ]
+          },
+          {
+            "label": "託管事實",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "market-source-slot",
+                "kind": "pda",
+                "label": "Backpack v3 槽位",
+                "badge": "80 位元組",
+                "detail": "來源槽位提供 listing 使用的真實材料、item PDA、座標、中繼資料、耐久和體積。",
+                "evidence": "BACKPACK_SLOT_RECORD_LEN = 80"
+              },
+              {
+                "id": "market-listing-snapshot",
+                "kind": "proof",
+                "label": "Listing source_slot",
+                "badge": "快照",
+                "detail": "ListingAccount 保存完整 source slot 位元組，後續取消或購買不再信任新的使用者 payload。",
+                "evidence": "ListingAccount::SOURCE_SLOT_OFFSET"
+              }
+            ]
+          },
+          {
+            "label": "終態動作",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-cancel-buy",
+                "kind": "program",
+                "label": "取消或購買",
+                "badge": "結算",
+                "detail": "取消把快照還給賣家 Backpack；購買通過 MarketAuthority 交付同一快照，並保留 sold listing 作為結算證據。",
+                "evidence": "append_market_slot_to_backpack"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "market-seller",
+            "to": "market-args",
+            "label": "提交",
+            "kind": "guard"
+          },
+          {
+            "from": "market-args",
+            "to": "market-owner-pda",
+            "label": "只做選擇",
+            "kind": "read"
+          },
+          {
+            "from": "market-owner-pda",
+            "to": "market-slot-copy",
+            "label": "授權讀取",
+            "kind": "guard"
+          },
+          {
+            "from": "market-slot-copy",
+            "to": "market-source-slot",
+            "label": "複製事實",
+            "kind": "read"
+          },
+          {
+            "from": "market-source-slot",
+            "to": "market-listing-snapshot",
+            "label": "託管",
+            "kind": "write"
+          },
+          {
+            "from": "market-listing-snapshot",
+            "to": "market-cancel-buy",
+            "label": "按快照結算",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_market/src/state.rs",
+          "CreateListingArgs::LEN = 19",
+          "BACKPACK_SLOT_RECORD_LEN = 80",
+          "copy_valid_backpack_slot"
+        ]
+      },
+      {
+        "id": "building-ncm3-payload-truth",
+        "kicker": "建築 NCM3 Payload 真實性",
+        "title": "上傳的建築位元組必須通過分片完整性、雜湊、NCM3 解析和適配檢查後，才會成為狀態。",
+        "body": "Building 程式接受 expected hash、宣告長度、revision、旋轉、偏移和有界分片寫入。finalize 會重組分片 payload，並在啟用 manifest 前重新計算關鍵建築事實。",
+        "lanes": [
+          {
+            "label": "上傳意圖",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "building-begin-args",
+                "kind": "offchain",
+                "label": "BeginBuildingArgs",
+                "badge": "49 或 57 位元組",
+                "detail": "foundation ID、revision、quarter turns、payload length、expected hash，以及可選 X/Z 偏移宣告上傳目標。",
+                "evidence": "BeginBuildingArgs::unpack"
+              },
+              {
+                "id": "building-shard-args",
+                "kind": "offchain",
+                "label": "WriteBuildingShardArgs",
+                "badge": "<= 700 位元組/次",
+                "detail": "每次寫入宣告 foundation、revision、shard index、offset 和 bytes；超大寫入在儲存前直接拒絕。",
+                "evidence": "BUILDING_MAX_WRITE_LEN = 700"
+              }
+            ]
+          },
+          {
+            "label": "暫存 PDA",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "building-manifest-stage",
+                "kind": "pda",
+                "label": "BuildingManifest",
+                "badge": "hash + bitmap",
+                "detail": "manifest 保存 payload 長度、expected hash、分片數、旋轉、偏移和上傳 bitmap。",
+                "evidence": "BUILDING_MAX_PAYLOAD_LEN = 65,535; BUILDING_MAX_SHARDS = 8"
+              },
+              {
+                "id": "building-shard-stage",
+                "kind": "pda",
+                "label": "BuildingShard PDAs",
+                "badge": "有界切片",
+                "detail": "分片帳號綁定 GlobalConfig、foundation ID、revision、shard index、uploaded length 和預期分片長度。",
+                "evidence": "building_shard_payload_len"
+              }
+            ]
+          },
+          {
+            "label": "最終校驗",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "building-hash-check",
+                "kind": "program",
+                "label": "Payload 雜湊",
+                "badge": "重算",
+                "detail": "finalize 收集所有上傳分片；如果 hash_payload_slices 與 expected_hash 不一致，manifest 會被拒絕。",
+                "evidence": "BuildingHashMismatch"
+              },
+              {
+                "id": "building-ncm3-parse",
+                "kind": "program",
+                "label": "NCM3 解析器",
+                "badge": "規範事實",
+                "detail": "解析器要求 NCM3 version 1、三軸尺寸 1 到 256、命令數最多 4,096，再推導佔地和高度。",
+                "evidence": "validate_ncm3_payload"
+              }
+            ]
+          },
+          {
+            "label": "世界證據",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "building-fit-proof",
+                "kind": "proof",
+                "label": "BuildSite 適配檢查",
+                "badge": "surface + bounds",
+                "detail": "推導出的 NCM3 footprint 必須在旋轉和偏移後適配 BuildSite 與世界高度；使用者位元組不能直接設定 active dimensions。",
+                "evidence": "building_axis_fits + max_build_y"
+              },
+              {
+                "id": "building-active-revision",
+                "kind": "pda",
+                "label": "Active revision",
+                "badge": "manifest 證據",
+                "detail": "只有 finalized manifest 和 BuildSite revision 更新才代表持久建築狀態；取消上傳會關閉暫時分片證據。",
+                "evidence": "finalize_building / cancel_building_upload"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "building-begin-args",
+            "to": "building-manifest-stage",
+            "label": "宣告",
+            "kind": "write"
+          },
+          {
+            "from": "building-shard-args",
+            "to": "building-shard-stage",
+            "label": "填充分片",
+            "kind": "write"
+          },
+          {
+            "from": "building-manifest-stage",
+            "to": "building-hash-check",
+            "label": "要求 bitmap 完整",
+            "kind": "guard"
+          },
+          {
+            "from": "building-shard-stage",
+            "to": "building-hash-check",
+            "label": "重組 payload",
+            "kind": "read"
+          },
+          {
+            "from": "building-hash-check",
+            "to": "building-ncm3-parse",
+            "label": "雜湊通過",
+            "kind": "guard"
+          },
+          {
+            "from": "building-ncm3-parse",
+            "to": "building-fit-proof",
+            "label": "推導尺寸",
+            "kind": "read"
+          },
+          {
+            "from": "building-fit-proof",
+            "to": "building-active-revision",
+            "label": "啟用",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_building/src/building.rs",
+          "BUILDING_MAX_PAYLOAD_LEN = 65,535",
+          "NCM3_MAX_DIMENSION = 256",
+          "NCM3_MAX_COMMANDS = 4,096"
+        ]
+      },
+      {
+        "id": "recipe-rule-payload-truth",
+        "kicker": "配方與規則 Payload 真實性",
+        "title": "冶煉和 Civilization 都先把 payload 当選擇器，直到配方、Backpack、簽名、tally 和 receipt 證據一致。",
+        "body": "配方執行和治理執行都從緊湊 payload 開始，但持久事實來自合約擁有的表和可獨立解碼的證據帳號。",
+        "lanes": [
+          {
+            "label": "使用者選擇器",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "smelting-selector",
+                "kind": "offchain",
+                "label": "冶煉執行 payload",
+                "badge": "recipe + indexes",
+                "detail": "owner 提供 recipe_id、input indexes、fuel indexes 和可選 multiplier；payload 本身不會建立輸出身分。",
+                "evidence": "execute_smelting payload shape"
+              },
+              {
+                "id": "civilization-publish",
+                "kind": "offchain",
+                "label": "RuleBook payload",
+                "badge": "204 位元組",
+                "detail": "PublishRuleBookArgs 保存 hash commitments、target program、target PDA、total active power、threshold、target status 和 risk。",
+                "evidence": "PublishRuleBookArgs::LEN = 204"
+              }
+            ]
+          },
+          {
+            "label": "規則表",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "smelting-recipe-table",
+                "kind": "pda",
+                "label": "RecipeTable",
+                "badge": "authority 維護",
+                "detail": "RecipeRecord 資料定義 enabled 狀態、heat tier、輸入記錄、輸出記錄和 yield，也保留 retired recipe identity。",
+                "evidence": "RecipeRecord::unpack_args"
+              },
+              {
+                "id": "civilization-rule-book",
+                "kind": "pda",
+                "label": "RuleBook",
+                "badge": "hash commitments",
+                "detail": "rule book 是公開的 target-bound commitment，不是私有服務器指令。",
+                "evidence": "RuleBookAccount::pack"
+              }
+            ]
+          },
+          {
+            "label": "執行期校驗",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "smelting-backpack-validate",
+                "kind": "program",
+                "label": "Backpack 輸入校驗",
+                "badge": "真實槽位",
+                "detail": "程式讀取 owner 校驗過的 Backpack 槽位，並與 recipe 匹配後才移除資源。",
+                "evidence": "BackpackAccountView::validate_recipe_inputs"
+              },
+              {
+                "id": "civilization-sign-tally",
+                "kind": "program",
+                "label": "簽名與 tally 檢查",
+                "badge": "power bounded",
+                "detail": "簽名綁定 side、snapshot hash、citizen power、過期時間和 signer PDA；finalize 拒絕重複簽名和不可能的 counted power。",
+                "evidence": "sign_rule / finalize_rule_tally"
+              }
+            ]
+          },
+          {
+            "label": "推導輸出",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "smelting-output",
+                "kind": "proof",
+                "label": "標準化冶煉產物",
+                "badge": "recipe-derived",
+                "detail": "輸出體積由 input volume、recipe input volume、multiplier、recipe yield 和 skill output bps 計算，再由 SmeltingAuthority 追加 Backpack 槽位。",
+                "evidence": "append_smelting_output_to_backpack"
+              },
+              {
+                "id": "civilization-receipt",
+                "kind": "proof",
+                "label": "ExecutionReceipt",
+                "badge": "adapter gated",
+                "detail": "執行要求 finalized 且 threshold-met 的 tally；governable target 还要求 target-bound adapter authority PDA。",
+                "evidence": "execute_rule_receipt"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "smelting-selector",
+            "to": "smelting-recipe-table",
+            "label": "選擇配方",
+            "kind": "read"
+          },
+          {
+            "from": "smelting-recipe-table",
+            "to": "smelting-backpack-validate",
+            "label": "定義 IO",
+            "kind": "guard"
+          },
+          {
+            "from": "smelting-backpack-validate",
+            "to": "smelting-output",
+            "label": "推導輸出",
+            "kind": "write"
+          },
+          {
+            "from": "civilization-publish",
+            "to": "civilization-rule-book",
+            "label": "提交雜湊",
+            "kind": "write"
+          },
+          {
+            "from": "civilization-rule-book",
+            "to": "civilization-sign-tally",
+            "label": "綁定簽名",
+            "kind": "guard"
+          },
+          {
+            "from": "civilization-sign-tally",
+            "to": "civilization-receipt",
+            "label": "閾值通過",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_smelting/src/lib.rs",
+          "RecipeTable::find_recipe",
+          "nicechunk_civilization/src/state.rs",
+          "RuleTallyAccount::validate_threshold_met"
+        ]
+      },
+      {
+        "id": "identity-service-payload-truth",
+        "kicker": "身分與服務 Payload 真實性",
+        "title": "Player 和 Guardian 中繼資料只有通過規範化、長度檢查、PDA owner 與角色權限後才會被接受。",
+        "body": "名稱、角色碼、裝備模型、Guardian endpoint 和 blueprint summary 都是面向人的資料，但每個欄位都會被限制，並綁定到 signer、PDA、雜湊或程式衍生權限。",
+        "lanes": [
+          {
+            "label": "人類輸入",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "player-name-appearance",
+                "kind": "offchain",
+                "label": "名稱與外觀 payload",
+                "badge": "bounded text/code",
+                "detail": "Player 名稱有長度上限，並會規範化為 username PDA hash；appearance title 和 NCM model code 長度會被檢查。",
+                "evidence": "PLAYER_NAME_MAX_CHARS / APPEARANCE_MODEL_CODE_MAX_BYTES"
+              },
+              {
+                "id": "guardian-endpoint-input",
+                "kind": "offchain",
+                "label": "Guardian endpoint payload",
+                "badge": "host + port + TLS",
+                "detail": "endpoint 更新解析 host length、port 和 TLS flag，並拒絕空 host、超长 host、非法字元和 port 0。",
+                "evidence": "MAX_HOST_LEN = 64"
+              }
+            ]
+          },
+          {
+            "label": "權限閘門",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "player-canonical-gate",
+                "kind": "program",
+                "label": "Player 規範化閘門",
+                "badge": "owner + PDA",
+                "detail": "profile 寫入要求 player authority，以及預期的 PlayerProfile、UsernameIndex、Appearance 或 Equipment PDA。",
+                "evidence": "canonical_player_name_hash"
+              },
+              {
+                "id": "guardian-role-gate",
+                "kind": "program",
+                "label": "Guardian 角色閘門",
+                "badge": "operator or PDA",
+                "detail": "endpoint 變更要求 region operator 簽名；blueprint 變更要求 Building 衍生的 guardian-blueprint PDA authority。",
+                "evidence": "validate_blueprint_authority"
+              }
+            ]
+          },
+          {
+            "label": "推導公開狀態",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "player-public-state",
+                "kind": "pda",
+                "label": "Player public records",
+                "badge": "hash + model + slot",
+                "detail": "UsernameIndex 保存規範化名稱 hash，Appearance 保存展示中繼資料，PlayerEquipment 嵌入已校驗 Backpack 記錄和模型雜湊。",
+                "evidence": "UsernameIndex / PlayerAppearance / PlayerEquipment"
+              },
+              {
+                "id": "guardian-region-state",
+                "kind": "pda",
+                "label": "GuardianRegion",
+                "badge": "endpoint + blueprint",
+                "detail": "GuardianRegion 保存 region 座標、operator、endpoint、blueprint hash、revision、record count 和 update slots。",
+                "evidence": "GuardianRegion::LEN = 288"
+              }
+            ]
+          },
+          {
+            "label": "審計證據",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "identity-service-review",
+                "kind": "proof",
+                "label": "Metadata 真實性檢查",
+                "badge": "RPC decodable",
+                "detail": "審計者可以比對 payload 限制、authority signer、PDA seed、儲存 hash 和 decoded record owner，而不需要信任客戶端快取狀態。",
+                "evidence": "contracts RPC decoders"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "player-name-appearance",
+            "to": "player-canonical-gate",
+            "label": "規範化",
+            "kind": "guard"
+          },
+          {
+            "from": "player-canonical-gate",
+            "to": "player-public-state",
+            "label": "寫入狀態",
+            "kind": "write"
+          },
+          {
+            "from": "player-public-state",
+            "to": "identity-service-review",
+            "label": "解碼",
+            "kind": "read"
+          },
+          {
+            "from": "guardian-endpoint-input",
+            "to": "guardian-role-gate",
+            "label": "角色檢查",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-role-gate",
+            "to": "guardian-region-state",
+            "label": "更新",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-region-state",
+            "to": "identity-service-review",
+            "label": "解碼",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "nicechunk_player/src/lib.rs",
+          "PlayerEquipment::validate_model_code",
+          "nicechunk_guardian/src/lib.rs",
+          "GuardianRegion::update_endpoint"
         ]
       }
     ]

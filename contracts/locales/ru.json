@@ -194,6 +194,10 @@
       "label": "Account Lifecycle"
     },
     {
+      "id": "payload-truth",
+      "label": "Payload Truth"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "fr",
     "label": "French",
-    "version": "contracts-locale-fr-2e0a0e8c82bf98fc",
-    "contentHash": "2e0a0e8c82bf98fc"
+    "version": "contracts-locale-fr-05a3f543a23f2393",
+    "contentHash": "05a3f543a23f2393"
   },
   "meta": {
     "title": "Contrats NiceChunk"
@@ -198,6 +198,10 @@
     {
       "id": "account-lifecycle",
       "label": "Account Lifecycle"
+    },
+    {
+      "id": "payload-truth",
+      "label": "Payload Truth"
     },
     {
       "id": "audit-matrix",

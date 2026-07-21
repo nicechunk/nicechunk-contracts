@@ -194,6 +194,10 @@
       "label": "Account Lifecycle"
     },
     {
+      "id": "payload-truth",
+      "label": "Payload Truth"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },
@@ -4314,6 +4318,585 @@
           "Purchased listings remain durable sold records",
           "Building cancel refunds upload artifact rent",
           "Appearance close is treasury-authority gated"
+        ]
+      }
+    ]
+  },
+  "payloadTruth": {
+    "eyebrow": "Payload Truth Boundary",
+    "title": "Separate user-supplied bytes from facts recomputed from PDAs, hashes, recipes, and rule evidence.",
+    "body": "These maps show which payload fields are accepted as selectors or intent, and which item, building, recipe, identity, endpoint, and governance facts are re-derived from contract-owned evidence before state changes.",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "Signer or intent"
+      },
+      {
+        "kind": "offchain",
+        "label": "User-supplied payload"
+      },
+      {
+        "kind": "program",
+        "label": "Validation gate"
+      },
+      {
+        "kind": "pda",
+        "label": "Contract-derived truth"
+      },
+      {
+        "kind": "proof",
+        "label": "Durable evidence"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "inventory-listing-payload-truth",
+        "kicker": "Inventory Listing Payload Truth",
+        "title": "Marketplace listings use 19 bytes of intent, then escrow the real Backpack slot snapshot.",
+        "body": "CreateListingArgs selects a listing, currency, source type, source index, and price. Item category, quantity, durability, grade, level, and item identity are not trusted from the listing payload; they are read from the owner-validated Backpack or equipped profile path.",
+        "lanes": [
+          {
+            "label": "Listing intent",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "market-seller",
+                "kind": "wallet",
+                "label": "Seller signer",
+                "badge": "owner",
+                "detail": "The seller must sign and match the Backpack owner or equipped PlayerProfile owner before the listing is accepted.",
+                "evidence": "create_listing account gate"
+              },
+              {
+                "id": "market-args",
+                "kind": "offchain",
+                "label": "CreateListingArgs",
+                "badge": "19 bytes",
+                "detail": "Only listing_id, currency, source_type, source_index, and price_base_units are parsed from the user payload.",
+                "evidence": "CreateListingArgs::LEN = 19"
+              }
+            ]
+          },
+          {
+            "label": "Source validation",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "market-owner-pda",
+                "kind": "program",
+                "label": "Backpack / profile gate",
+                "badge": "owner + PDA",
+                "detail": "Market re-checks Backpack magic, v3 owner, capacity, item count, PDA seed, and optional PlayerProfile equipment identity.",
+                "evidence": "validate_backpack_data_and_pda"
+              },
+              {
+                "id": "market-slot-copy",
+                "kind": "program",
+                "label": "Slot lookup",
+                "badge": "kind + volume",
+                "detail": "The selected Backpack slot must be a block or item record and must carry nonzero volume before it can be escrowed.",
+                "evidence": "copy_valid_backpack_slot"
+              }
+            ]
+          },
+          {
+            "label": "Escrow truth",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "market-source-slot",
+                "kind": "pda",
+                "label": "Backpack v3 slot",
+                "badge": "80 bytes",
+                "detail": "The source slot supplies the actual material, item PDA, coordinates, metadata, durability, and volume used by the listing.",
+                "evidence": "BACKPACK_SLOT_RECORD_LEN = 80"
+              },
+              {
+                "id": "market-listing-snapshot",
+                "kind": "proof",
+                "label": "Listing source_slot",
+                "badge": "snapshot",
+                "detail": "ListingAccount stores the full source slot bytes, so later cancel or purchase does not re-trust a new payload.",
+                "evidence": "ListingAccount::SOURCE_SLOT_OFFSET"
+              }
+            ]
+          },
+          {
+            "label": "Terminal action",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-cancel-buy",
+                "kind": "program",
+                "label": "Cancel or buy",
+                "badge": "settle",
+                "detail": "Cancel restores the snapshot to the seller Backpack; buy delivers the same snapshot through MarketAuthority and leaves a sold listing as settlement evidence.",
+                "evidence": "append_market_slot_to_backpack"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "market-seller",
+            "to": "market-args",
+            "label": "submits",
+            "kind": "guard"
+          },
+          {
+            "from": "market-args",
+            "to": "market-owner-pda",
+            "label": "selects only",
+            "kind": "read"
+          },
+          {
+            "from": "market-owner-pda",
+            "to": "market-slot-copy",
+            "label": "authorizes read",
+            "kind": "guard"
+          },
+          {
+            "from": "market-slot-copy",
+            "to": "market-source-slot",
+            "label": "copies truth",
+            "kind": "read"
+          },
+          {
+            "from": "market-source-slot",
+            "to": "market-listing-snapshot",
+            "label": "escrows",
+            "kind": "write"
+          },
+          {
+            "from": "market-listing-snapshot",
+            "to": "market-cancel-buy",
+            "label": "settles from snapshot",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_market/src/state.rs",
+          "CreateListingArgs::LEN = 19",
+          "BACKPACK_SLOT_RECORD_LEN = 80",
+          "copy_valid_backpack_slot"
+        ]
+      },
+      {
+        "id": "building-ncm3-payload-truth",
+        "kicker": "Building NCM3 Payload Truth",
+        "title": "Uploaded building bytes become state only after shard completeness, hash, NCM3 parsing, and fit checks pass.",
+        "body": "The Building program accepts an expected hash, declared length, revision, rotation, offsets, and bounded shard writes. Finalization reconstructs the shard payload and re-computes every building fact that matters before activating a manifest.",
+        "lanes": [
+          {
+            "label": "Upload intent",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "building-begin-args",
+                "kind": "offchain",
+                "label": "BeginBuildingArgs",
+                "badge": "49 or 57 bytes",
+                "detail": "Foundation ID, revision, quarter turns, payload length, expected hash, and optional X/Z offsets declare the upload target.",
+                "evidence": "BeginBuildingArgs::unpack"
+              },
+              {
+                "id": "building-shard-args",
+                "kind": "offchain",
+                "label": "WriteBuildingShardArgs",
+                "badge": "<= 700 bytes/write",
+                "detail": "Each write names foundation, revision, shard index, offset, and bytes; oversized write payloads are rejected before storage.",
+                "evidence": "BUILDING_MAX_WRITE_LEN = 700"
+              }
+            ]
+          },
+          {
+            "label": "Staging PDAs",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "building-manifest-stage",
+                "kind": "pda",
+                "label": "BuildingManifest",
+                "badge": "hash + bitmap",
+                "detail": "The manifest stores payload length, expected hash, shard count, rotation, offsets, and upload bitmap.",
+                "evidence": "BUILDING_MAX_PAYLOAD_LEN = 65,535; BUILDING_MAX_SHARDS = 8"
+              },
+              {
+                "id": "building-shard-stage",
+                "kind": "pda",
+                "label": "BuildingShard PDAs",
+                "badge": "bounded slices",
+                "detail": "Shard accounts are tied to GlobalConfig, foundation ID, revision, shard index, uploaded length, and expected per-shard length.",
+                "evidence": "building_shard_payload_len"
+              }
+            ]
+          },
+          {
+            "label": "Final verification",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "building-hash-check",
+                "kind": "program",
+                "label": "Payload hash",
+                "badge": "recomputed",
+                "detail": "Finalize gathers every uploaded shard and rejects the manifest if hash_payload_slices does not match expected_hash.",
+                "evidence": "BuildingHashMismatch"
+              },
+              {
+                "id": "building-ncm3-parse",
+                "kind": "program",
+                "label": "NCM3 parser",
+                "badge": "canonical facts",
+                "detail": "The parser requires NCM3 version 1, dimensions from 1 to 256, and at most 4,096 commands before deriving footprint height and width.",
+                "evidence": "validate_ncm3_payload"
+              }
+            ]
+          },
+          {
+            "label": "World evidence",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "building-fit-proof",
+                "kind": "proof",
+                "label": "BuildSite fit check",
+                "badge": "surface + bounds",
+                "detail": "The derived NCM3 footprint must fit the BuildSite and world height after rotation and offsets; user bytes never set active dimensions directly.",
+                "evidence": "building_axis_fits + max_build_y"
+              },
+              {
+                "id": "building-active-revision",
+                "kind": "pda",
+                "label": "Active revision",
+                "badge": "manifest evidence",
+                "detail": "Only a finalized manifest and BuildSite revision update represent durable building state; canceled uploads close transient shard evidence.",
+                "evidence": "finalize_building / cancel_building_upload"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "building-begin-args",
+            "to": "building-manifest-stage",
+            "label": "declares",
+            "kind": "write"
+          },
+          {
+            "from": "building-shard-args",
+            "to": "building-shard-stage",
+            "label": "fills slices",
+            "kind": "write"
+          },
+          {
+            "from": "building-manifest-stage",
+            "to": "building-hash-check",
+            "label": "requires complete bitmap",
+            "kind": "guard"
+          },
+          {
+            "from": "building-shard-stage",
+            "to": "building-hash-check",
+            "label": "rebuilds payload",
+            "kind": "read"
+          },
+          {
+            "from": "building-hash-check",
+            "to": "building-ncm3-parse",
+            "label": "hash passes",
+            "kind": "guard"
+          },
+          {
+            "from": "building-ncm3-parse",
+            "to": "building-fit-proof",
+            "label": "derives dimensions",
+            "kind": "read"
+          },
+          {
+            "from": "building-fit-proof",
+            "to": "building-active-revision",
+            "label": "activates",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_building/src/building.rs",
+          "BUILDING_MAX_PAYLOAD_LEN = 65,535",
+          "NCM3_MAX_DIMENSION = 256",
+          "NCM3_MAX_COMMANDS = 4,096"
+        ]
+      },
+      {
+        "id": "recipe-rule-payload-truth",
+        "kicker": "Recipe And Rule Payload Truth",
+        "title": "Smelting and Civilization treat payloads as selectors until recipe, Backpack, signature, tally, and receipt evidence agree.",
+        "body": "Recipe execution and governance execution both start with compact payloads, but the durable facts come from contract-owned tables and independently decodable evidence accounts.",
+        "lanes": [
+          {
+            "label": "User selectors",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "smelting-selector",
+                "kind": "offchain",
+                "label": "Smelting execution payload",
+                "badge": "recipe + indexes",
+                "detail": "The owner supplies recipe_id, input indexes, fuel indexes, and optional multiplier; the payload does not create output identity by itself.",
+                "evidence": "execute_smelting payload shape"
+              },
+              {
+                "id": "civilization-publish",
+                "kind": "offchain",
+                "label": "RuleBook payload",
+                "badge": "204 bytes",
+                "detail": "PublishRuleBookArgs stores hash commitments, target program, target PDA, total active power, threshold, target status, and risk.",
+                "evidence": "PublishRuleBookArgs::LEN = 204"
+              }
+            ]
+          },
+          {
+            "label": "Rule tables",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "smelting-recipe-table",
+                "kind": "pda",
+                "label": "RecipeTable",
+                "badge": "authority maintained",
+                "detail": "RecipeRecord data defines enabled state, heat tier, input records, output records, and yield, including retired recipe identities.",
+                "evidence": "RecipeRecord::unpack_args"
+              },
+              {
+                "id": "civilization-rule-book",
+                "kind": "pda",
+                "label": "RuleBook",
+                "badge": "hash commitments",
+                "detail": "The rule book is a public target-bound commitment, not a private server instruction.",
+                "evidence": "RuleBookAccount::pack"
+              }
+            ]
+          },
+          {
+            "label": "Runtime verification",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "smelting-backpack-validate",
+                "kind": "program",
+                "label": "Backpack input validation",
+                "badge": "actual slots",
+                "detail": "The program reads owner-validated Backpack slots and matches them against the recipe before removing resources.",
+                "evidence": "BackpackAccountView::validate_recipe_inputs"
+              },
+              {
+                "id": "civilization-sign-tally",
+                "kind": "program",
+                "label": "Signature and tally checks",
+                "badge": "power bounded",
+                "detail": "Signatures bind side, snapshot hash, citizen power, expiry, and signer PDA; finalization rejects duplicates and impossible counted power.",
+                "evidence": "sign_rule / finalize_rule_tally"
+              }
+            ]
+          },
+          {
+            "label": "Derived outputs",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "smelting-output",
+                "kind": "proof",
+                "label": "Normalized smelting output",
+                "badge": "recipe-derived",
+                "detail": "Output volume is calculated from input volume, recipe input volume, multiplier, recipe yield, and skill output bps before SmeltingAuthority appends Backpack slots.",
+                "evidence": "append_smelting_output_to_backpack"
+              },
+              {
+                "id": "civilization-receipt",
+                "kind": "proof",
+                "label": "ExecutionReceipt",
+                "badge": "adapter gated",
+                "detail": "Execution requires a finalized threshold-met tally and, for governable targets, the target-bound adapter authority PDA.",
+                "evidence": "execute_rule_receipt"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "smelting-selector",
+            "to": "smelting-recipe-table",
+            "label": "selects recipe",
+            "kind": "read"
+          },
+          {
+            "from": "smelting-recipe-table",
+            "to": "smelting-backpack-validate",
+            "label": "defines expected IO",
+            "kind": "guard"
+          },
+          {
+            "from": "smelting-backpack-validate",
+            "to": "smelting-output",
+            "label": "derives output",
+            "kind": "write"
+          },
+          {
+            "from": "civilization-publish",
+            "to": "civilization-rule-book",
+            "label": "commits hashes",
+            "kind": "write"
+          },
+          {
+            "from": "civilization-rule-book",
+            "to": "civilization-sign-tally",
+            "label": "binds signatures",
+            "kind": "guard"
+          },
+          {
+            "from": "civilization-sign-tally",
+            "to": "civilization-receipt",
+            "label": "threshold met",
+            "kind": "write"
+          }
+        ],
+        "evidence": [
+          "nicechunk_smelting/src/lib.rs",
+          "RecipeTable::find_recipe",
+          "nicechunk_civilization/src/state.rs",
+          "RuleTallyAccount::validate_threshold_met"
+        ]
+      },
+      {
+        "id": "identity-service-payload-truth",
+        "kicker": "Identity And Service Payload Truth",
+        "title": "Player and Guardian metadata is accepted only after canonicalization, length checks, PDA ownership, and role authority checks.",
+        "body": "Names, character codes, equipment models, Guardian endpoints, and blueprint summaries are human-facing data, but each field is bounded and tied back to a signer, PDA, hash, or program-derived authority.",
+        "lanes": [
+          {
+            "label": "Human input",
+            "kind": "offchain",
+            "nodes": [
+              {
+                "id": "player-name-appearance",
+                "kind": "offchain",
+                "label": "Name and appearance payloads",
+                "badge": "bounded text/code",
+                "detail": "Player names are bounded and canonicalized for username PDA hashing; appearance titles and NCM model code lengths are checked.",
+                "evidence": "PLAYER_NAME_MAX_CHARS / APPEARANCE_MODEL_CODE_MAX_BYTES"
+              },
+              {
+                "id": "guardian-endpoint-input",
+                "kind": "offchain",
+                "label": "Guardian endpoint payload",
+                "badge": "host + port + TLS",
+                "detail": "Endpoint updates parse host length, port, and TLS flag, then reject empty hosts, oversized hosts, invalid characters, and port zero.",
+                "evidence": "MAX_HOST_LEN = 64"
+              }
+            ]
+          },
+          {
+            "label": "Authority gate",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "player-canonical-gate",
+                "kind": "program",
+                "label": "Player canonical gate",
+                "badge": "owner + PDA",
+                "detail": "Profile writes require the player authority and the expected PlayerProfile, UsernameIndex, Appearance, or Equipment PDA.",
+                "evidence": "canonical_player_name_hash"
+              },
+              {
+                "id": "guardian-role-gate",
+                "kind": "program",
+                "label": "Guardian role gate",
+                "badge": "operator or PDA",
+                "detail": "Endpoint changes require the region operator signer; blueprint changes require the Building-derived guardian-blueprint PDA authority.",
+                "evidence": "validate_blueprint_authority"
+              }
+            ]
+          },
+          {
+            "label": "Derived public state",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "player-public-state",
+                "kind": "pda",
+                "label": "Player public records",
+                "badge": "hash + model + slot",
+                "detail": "UsernameIndex stores the canonical name hash, Appearance stores display metadata, and PlayerEquipment embeds verified Backpack records plus model hashes.",
+                "evidence": "UsernameIndex / PlayerAppearance / PlayerEquipment"
+              },
+              {
+                "id": "guardian-region-state",
+                "kind": "pda",
+                "label": "GuardianRegion",
+                "badge": "endpoint + blueprint",
+                "detail": "GuardianRegion stores region coordinates, operator, endpoint, blueprint hash, revision, record count, and update slots.",
+                "evidence": "GuardianRegion::LEN = 288"
+              }
+            ]
+          },
+          {
+            "label": "Reviewer proof",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "identity-service-review",
+                "kind": "proof",
+                "label": "Metadata truth check",
+                "badge": "RPC decodable",
+                "detail": "Reviewers can compare payload limits, authority signer, PDA seed, stored hash, and decoded record owner without trusting cached client state.",
+                "evidence": "contracts RPC decoders"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "player-name-appearance",
+            "to": "player-canonical-gate",
+            "label": "canonicalize",
+            "kind": "guard"
+          },
+          {
+            "from": "player-canonical-gate",
+            "to": "player-public-state",
+            "label": "packs state",
+            "kind": "write"
+          },
+          {
+            "from": "player-public-state",
+            "to": "identity-service-review",
+            "label": "decodes",
+            "kind": "read"
+          },
+          {
+            "from": "guardian-endpoint-input",
+            "to": "guardian-role-gate",
+            "label": "role check",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-role-gate",
+            "to": "guardian-region-state",
+            "label": "updates",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-region-state",
+            "to": "identity-service-review",
+            "label": "decodes",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "nicechunk_player/src/lib.rs",
+          "PlayerEquipment::validate_model_code",
+          "nicechunk_guardian/src/lib.rs",
+          "GuardianRegion::update_endpoint"
         ]
       }
     ]

@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ja",
     "label": "Japanese",
-    "version": "contracts-locale-ja-9cef512fb1d3a459",
-    "contentHash": "9cef512fb1d3a459"
+    "version": "contracts-locale-ja-337744f78fe321d1",
+    "contentHash": "337744f78fe321d1"
   },
   "meta": {
     "title": "NiceChunk コントラクト"
@@ -198,6 +198,10 @@
     {
       "id": "account-lifecycle",
       "label": "Account Lifecycle"
+    },
+    {
+      "id": "payload-truth",
+      "label": "Payload Truth"
     },
     {
       "id": "audit-matrix",

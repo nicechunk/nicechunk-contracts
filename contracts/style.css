@@ -562,6 +562,26 @@ a.directory-row:hover {
   overflow-wrap: anywhere;
 }
 
+.payload-truth-grid .logic-diagram-head h3 {
+  font-size: clamp(20px, 2.1vw, 26px);
+}
+
+.payload-truth-grid .logic-canvas {
+  padding: 16px;
+}
+
+.payload-truth-grid .logic-node {
+  padding: 11px;
+}
+
+.payload-truth-grid .logic-node p {
+  font-size: 11px;
+}
+
+.payload-truth-grid .logic-node em {
+  overflow-wrap: anywhere;
+}
+
 .seed-evidence-grid .logic-diagram-head h3 {
   font-size: clamp(20px, 2.1vw, 26px);
 }
