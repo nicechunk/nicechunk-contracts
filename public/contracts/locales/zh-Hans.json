@@ -2,8 +2,8 @@
   "_meta": {
     "language": "zh-Hans",
     "label": "Simplified Chinese",
-    "version": "contracts-locale-zh-Hans-bf7cb6d9a75232b0",
-    "contentHash": "bf7cb6d9a75232b0"
+    "version": "contracts-locale-zh-Hans-7231fc4f8da08ebd",
+    "contentHash": "7231fc4f8da08ebd"
   },
   "meta": {
     "title": "NiceChunk 合约"
@@ -136,7 +136,7 @@
     "pdaTitle": "PDA seed 示例",
     "boundaryTitle": "当前边界",
     "boundaryBody": "本页记录当前面向 devnet 的合约表面，以及从 mainnet.json 加载的游戏运行配置。它不声称已经完成最终主网治理、文明真实执行、土地所有权、完整实时去中心化或完整玩法去中心化。",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drop-table\", globalConfig, tableId:u64_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nBlueprintItem: [\"blueprint-item\", itemId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v1\", globalConfig]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
   },
   "labels": {
     "programId": "Program ID",
@@ -182,6 +182,10 @@
     {
       "id": "logic-atlas",
       "label": "逻辑图谱"
+    },
+    {
+      "id": "seed-evidence",
+      "label": "Seed 证据"
     },
     {
       "id": "audit-matrix",
@@ -1287,7 +1291,7 @@
         "intent": "把生成地形证明和实际已挖方块的稀疏记录分开。",
         "authority": "Chunk 逻辑从 GlobalConfig 重新计算目标方块，并拒绝无效、受保护或已破坏方块。",
         "evidence": "ChunkBrokenState 压缩记录、ResourceDropTable、SurfaceDecorationTable、minY、count 和 capacity。",
-        "live": "按目标世界和 chunk 坐标扫描 chunk-broken 与 resource-drop-table 账户。",
+        "live": "扫描 ChunkBrokenState 与 ResourceDropTable 账户，核对目标世界和 chunk 坐标。",
         "boundary": "程序保存稀疏变化，不保存完整地形；库存结算由 Backpack 处理。"
       },
       {
@@ -2159,6 +2163,475 @@
           "power 不能超过 snapshot",
           "执行收据独立记录",
           "live runtime 仍需配置后才开放"
+        ]
+      }
+    ]
+  },
+  "seedEvidence": {
+    "eyebrow": "PDA Seed 证据",
+    "title": "把每个公开账户追溯到创建它的精确 seed 家族。",
+    "body": "这些图把 Rust 和 SDK 里的 seed 常量整理成审计视角的证据地图，让 PDA 名称、签名边界和运行时假设是否漂移一眼能看出来。",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "所有者或签名者"
+      },
+      {
+        "kind": "program",
+        "label": "程序或 PDA 签名者"
+      },
+      {
+        "kind": "pda",
+        "label": "存储型 PDA 账户"
+      },
+      {
+        "kind": "proof",
+        "label": "规则或证明记录"
+      },
+      {
+        "kind": "offchain",
+        "label": "客户端或载荷输入"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "world-seed-evidence",
+        "kicker": "世界状态 Seed",
+        "title": "地形写入锚定在 GlobalConfig，而不是私有地图服务器。",
+        "body": "世界层从 GlobalConfig 派生生成地形，然后只记录已破坏方块、地基占用、资源掉落、表面装饰规则和玩家进度这些稀疏公开证据。",
+        "lanes": [
+          {
+            "label": "创世锚点",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-global-config",
+                "kind": "program",
+                "label": "GlobalConfig",
+                "badge": "core",
+                "detail": "不可变账户，保存世界 seed、chunk 尺寸、高度、mint 数据和配置哈希。",
+                "evidence": "[\"global-config\"]"
+              },
+              {
+                "id": "seed-client-config",
+                "kind": "offchain",
+                "label": "mainnet.json",
+                "badge": "runtime",
+                "detail": "浏览器运行时先从这个公开文件选择集群和 program ID，再读取 PDA。",
+                "evidence": "/mainnet.json"
+              }
+            ]
+          },
+          {
+            "label": "世界增量",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-chunk-broken",
+                "kind": "pda",
+                "label": "ChunkBrokenState",
+                "badge": "NCBK",
+                "detail": "在单个 chunk 内保存已挖方块的紧凑 3 字节记录。",
+                "evidence": "[\"chunk-broken\", globalConfig, chunkX, chunkZ]"
+              },
+              {
+                "id": "seed-foundation-chunk",
+                "kind": "pda",
+                "label": "FoundationChunk",
+                "badge": "index",
+                "detail": "索引某个 chunk 被哪些地基占用，让建筑和挖矿检查共用公开冲突证据。",
+                "evidence": "[\"foundation-chunk\", globalConfig, chunkX, chunkZ]"
+              }
+            ]
+          },
+          {
+            "label": "规则表",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "seed-resource-drops",
+                "kind": "proof",
+                "label": "ResourceDropTable",
+                "badge": "drops",
+                "detail": "按 GlobalConfig 作用域保存额外掉落规则。当前 seed 是 resource-drops-v2，不包含 table ID。",
+                "evidence": "[\"resource-drops-v2\", globalConfig]"
+              },
+              {
+                "id": "seed-surface-decor",
+                "kind": "proof",
+                "label": "SurfaceDecorationTable",
+                "badge": "decor",
+                "detail": "发布有边界的表面装饰规则，Chunk 程序可用它校验生成地形表面。",
+                "evidence": "[\"surface-decor-v1\", globalConfig]"
+              }
+            ]
+          },
+          {
+            "label": "玩家进度",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-progress",
+                "kind": "pda",
+                "label": "PlayerProgress",
+                "badge": "skill",
+                "detail": "在授予动作奖励的程序下记录 owner 维度进度，并由 GlobalConfig 限定世界。",
+                "evidence": "[\"player-progress\", globalConfig, owner]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-client-config",
+            "to": "seed-global-config",
+            "label": "加载 ID",
+            "kind": "read"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-chunk-broken",
+            "label": "限定",
+            "kind": "write"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-foundation-chunk",
+            "label": "限定",
+            "kind": "write"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-resource-drops",
+            "label": "限定",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-surface-decor",
+            "label": "限定",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-progress",
+            "label": "限定",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "resource-drops-v2 已在 Rust 和 SDK 核对",
+          "不需要完整地形账户",
+          "Chunk 冲突由 PDA 索引",
+          "进度按 owner 作用域记录"
+        ]
+      },
+      {
+        "id": "identity-inventory-seed-evidence",
+        "kicker": "身份与托管 Seed",
+        "title": "钱包身份、session、装备和背包是彼此独立的证据家族。",
+        "body": "Player 层证明谁控制角色和 session，Backpack 程序则通过固定 slot 记录和受限签名 PDA 管理物品托管。",
+        "lanes": [
+          {
+            "label": "所有者身份",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "seed-owner-wallet",
+                "kind": "wallet",
+                "label": "Owner wallet",
+                "badge": "signer",
+                "detail": "为 profile、backpack、market、equipment 和授权动作创建提供资金并签名。",
+                "evidence": "owner key"
+              },
+              {
+                "id": "seed-session-authority",
+                "kind": "wallet",
+                "label": "Session authority",
+                "badge": "ephemeral",
+                "detail": "提交重复但受限的游戏动作，不替代 owner 对资产的托管权。",
+                "evidence": "session signer"
+              }
+            ]
+          },
+          {
+            "label": "Player PDA",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-player-profile",
+                "kind": "pda",
+                "label": "PlayerProfile",
+                "badge": "NCKPLY01",
+                "detail": "保存 owner、位置、装备指针、已装备背包和更新 slot。",
+                "evidence": "[\"player-v7\", owner]"
+              },
+              {
+                "id": "seed-player-session",
+                "kind": "pda",
+                "label": "PlayerSession",
+                "badge": "NCKSES01",
+                "detail": "把 owner 与 session authority 绑定到动作掩码、过期时间和最大动作次数。",
+                "evidence": "[\"session\", owner, sessionAuthority]"
+              },
+              {
+                "id": "seed-appearance-equipment",
+                "kind": "pda",
+                "label": "Appearance / Equipment",
+                "badge": "avatar",
+                "detail": "把外观代码和装备 slot 状态从 profile 账户中拆开。",
+                "evidence": "[\"appearance-v1\"], [\"player-equipment-v1\"]"
+              }
+            ]
+          },
+          {
+            "label": "Inventory PDA",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-backpack",
+                "kind": "pda",
+                "label": "Backpack",
+                "badge": "NCKBPK01",
+                "detail": "保存 80 字节固定 slot，用于方块资源、材料、锻造物品和托管返还路径。",
+                "evidence": "[\"backpack\", creator, backpackId]"
+              },
+              {
+                "id": "seed-blueprint-item",
+                "kind": "proof",
+                "label": "BlueprintItem",
+                "badge": "unique",
+                "detail": "在蓝图进入 Backpack item slot 前记录唯一蓝图物品身份。",
+                "evidence": "[\"blueprint-item\", itemId]"
+              }
+            ]
+          },
+          {
+            "label": "签名边界",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-equipment-transfer",
+                "kind": "program",
+                "label": "Equipment transfer authority",
+                "badge": "PDA signer",
+                "detail": "允许 Player 与 Backpack 移动托管装备 slot，但不授予任意写权限。",
+                "evidence": "[\"equipment-transfer-v1\"]"
+              },
+              {
+                "id": "seed-name-indexes",
+                "kind": "proof",
+                "label": "Name / invite indexes",
+                "badge": "index",
+                "detail": "保留规范玩家名和邀请页，不把索引职责塞进 profile PDA。",
+                "evidence": "[\"player-name-v1\"], [\"invite-index-v1\"]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-owner-wallet",
+            "to": "seed-player-profile",
+            "label": "拥有",
+            "kind": "write"
+          },
+          {
+            "from": "seed-owner-wallet",
+            "to": "seed-backpack",
+            "label": "创建",
+            "kind": "write"
+          },
+          {
+            "from": "seed-session-authority",
+            "to": "seed-player-session",
+            "label": "受限于",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-player-profile",
+            "to": "seed-appearance-equipment",
+            "label": "指向",
+            "kind": "read"
+          },
+          {
+            "from": "seed-equipment-transfer",
+            "to": "seed-backpack",
+            "label": "移动 slot",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-blueprint-item",
+            "to": "seed-backpack",
+            "label": "item slot",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-name-indexes",
+            "to": "seed-player-profile",
+            "label": "索引",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Profile 不是库存存储",
+          "Session 不替代 owner 托管权",
+          "装备转移由 PDA gating",
+          "蓝图物品身份唯一"
+        ]
+      },
+      {
+        "id": "settlement-governance-seed-evidence",
+        "kicker": "发布与结算 Seed",
+        "title": "跨程序变更使用显式签名 PDA 和公开 receipt 记录。",
+        "body": "建筑、冶炼、市场、Guardian 和 Civilization 路径，都能通过“哪个 PDA 签 CPI、哪个账户留下持久证据”来审计。",
+        "lanes": [
+          {
+            "label": "建筑产物",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-build-site",
+                "kind": "pda",
+                "label": "BuildSite",
+                "badge": "NCKSITE1",
+                "detail": "保存地基所有权、占地、待调整尺寸，以及 active/pending revision。",
+                "evidence": "[\"build-site-v1\", globalConfig, foundationId]"
+              },
+              {
+                "id": "seed-building-manifest",
+                "kind": "pda",
+                "label": "BuildingManifest / Shard",
+                "badge": "NCM3",
+                "detail": "提交预期 payload hash、shard bitmap、尺寸、偏移和有边界的上传载荷。",
+                "evidence": "[\"building-v2\"], [\"building-data-v1\"]"
+              }
+            ]
+          },
+          {
+            "label": "程序签名者",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-chunk-authority",
+                "kind": "program",
+                "label": "Chunk authority",
+                "badge": "PDA signer",
+                "detail": "Building 签名登记 chunk 占用，但不成为 Chunk 程序所有者。",
+                "evidence": "[\"chunk-authority-v1\", globalConfig]"
+              },
+              {
+                "id": "seed-guardian-blueprint",
+                "kind": "program",
+                "label": "Guardian blueprint authority",
+                "badge": "PDA signer",
+                "detail": "Building 通过受限 signer 把验证后的蓝图摘要发布到 Guardian region。",
+                "evidence": "[\"guardian-blueprint\", globalConfig]"
+              },
+              {
+                "id": "seed-smelt-market-authorities",
+                "kind": "program",
+                "label": "Smelting / Market authorities",
+                "badge": "PDA signers",
+                "detail": "制造和结算只能通过各自 signer PDA 追加或恢复 Backpack slot。",
+                "evidence": "[\"smelting-authority\"], [\"market-authority\"]"
+              }
+            ]
+          },
+          {
+            "label": "结算记录",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-recipe-table",
+                "kind": "proof",
+                "label": "RecipeTable",
+                "badge": "NCKSMR01",
+                "detail": "保存有边界的 recipe、禁用标志、热量等级、输入、输出和 authority。",
+                "evidence": "[\"smelting-recipes\", tableId]"
+              },
+              {
+                "id": "seed-listing",
+                "kind": "pda",
+                "label": "MarketplaceListing",
+                "badge": "NCKMKT01",
+                "detail": "托管完整 Backpack slot 快照，并记录 seller、buyer、currency、fee 和最终状态。",
+                "evidence": "[\"listing\", seller, listingId]"
+              }
+            ]
+          },
+          {
+            "label": "治理证明",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "seed-guardian-region",
+                "kind": "pda",
+                "label": "GuardianRegistry / Region",
+                "badge": "live",
+                "detail": "发布 registry、treasury signer、region owner/operator、endpoint、proof、stake 和 blueprint 元数据。",
+                "evidence": "[\"guardian-registry\"], [\"guardian-region\"]"
+              },
+              {
+                "id": "seed-civilization",
+                "kind": "proof",
+                "label": "Civilization rule records",
+                "badge": "gated",
+                "detail": "把提案、签名、tally、执行 receipt、power snapshot 和 citizen power 拆成独立 PDA。",
+                "evidence": "rule-book / rule-signature / rule-tally"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-build-site",
+            "to": "seed-building-manifest",
+            "label": "revision",
+            "kind": "write"
+          },
+          {
+            "from": "seed-chunk-authority",
+            "to": "seed-build-site",
+            "label": "索引",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-guardian-blueprint",
+            "to": "seed-guardian-region",
+            "label": "发布",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-smelt-market-authorities",
+            "to": "seed-recipe-table",
+            "label": "recipes",
+            "kind": "read"
+          },
+          {
+            "from": "seed-smelt-market-authorities",
+            "to": "seed-listing",
+            "label": "结算",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-civilization",
+            "to": "seed-recipe-table",
+            "label": "adapter patch",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-civilization",
+            "to": "seed-guardian-region",
+            "label": "receipt path",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "CPI authority 始终显式",
+          "Listing 保存完整 slot 快照",
+          "蓝图发布按 region 作用域",
+          "Civilization adapter 绑定目标"
         ]
       }
     ]

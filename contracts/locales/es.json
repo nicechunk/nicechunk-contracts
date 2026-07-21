@@ -130,7 +130,7 @@
     "pdaTitle": "Ejemplos de PDA seeds",
     "boundaryTitle": "Limite actual",
     "boundaryBody": "This page documents the current devnet-facing contract surface and the game runtime configuration loaded from mainnet.json. It does not claim final mainnet governance, live civilization execution, land ownership, complete realtime decentralization, or complete gameplay decentralization.",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drop-table\", globalConfig, tableId:u64_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nBlueprintItem: [\"blueprint-item\", itemId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v1\", globalConfig]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
   },
   "labels": {
     "programId": "Program ID",
@@ -176,6 +176,10 @@
     {
       "id": "logic-atlas",
       "label": "Logic Atlas"
+    },
+    {
+      "id": "seed-evidence",
+      "label": "Seed Evidence"
     },
     {
       "id": "audit-matrix",

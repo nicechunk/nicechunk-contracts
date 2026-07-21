@@ -187,6 +187,8 @@ const contractsNav = document.querySelector("#contractsNav");
 const runtimeGrid = document.querySelector("#runtimeGrid");
 const logicLegend = document.querySelector("#logicLegend");
 const logicAtlas = document.querySelector("#logicAtlas");
+const seedEvidenceLegend = document.querySelector("#seedEvidenceLegend");
+const seedEvidenceAtlas = document.querySelector("#seedEvidenceAtlas");
 const auditMatrix = document.querySelector("#auditMatrix");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
@@ -233,6 +235,7 @@ async function initContractsPage() {
   renderNavigation();
   renderRuntimeState();
   renderLogicAtlas();
+  renderSeedEvidence();
   renderAuditMatrix();
   renderDirectory();
   renderFlow();
@@ -391,14 +394,22 @@ function createRuntimeCard(card) {
 function renderLogicAtlas() {
   const logic = dictionary.logic ?? fallbackDictionary.logic;
   if (!logicAtlas || !logic) return;
-  renderLogicLegend(logic.legend ?? []);
+  renderLogicLegend(logicLegend, logic.legend ?? []);
   logicAtlas.replaceChildren(...(logic.diagrams ?? []).map(createLogicDiagram));
   window.requestAnimationFrame(updateLogicLinks);
 }
 
-function renderLogicLegend(legend) {
-  if (!logicLegend) return;
-  logicLegend.replaceChildren(
+function renderSeedEvidence() {
+  const evidence = dictionary.seedEvidence ?? fallbackDictionary.seedEvidence;
+  if (!seedEvidenceAtlas || !evidence) return;
+  renderLogicLegend(seedEvidenceLegend, evidence.legend ?? []);
+  seedEvidenceAtlas.replaceChildren(...(evidence.diagrams ?? []).map(createLogicDiagram));
+  window.requestAnimationFrame(updateLogicLinks);
+}
+
+function renderLogicLegend(target, legend) {
+  if (!target) return;
+  target.replaceChildren(
     ...legend.map((item) => {
       const badge = document.createElement("span");
       badge.className = `logic-legend-item ${item.kind || "pda"}`;
@@ -474,8 +485,7 @@ function createLogicNode(node) {
 }
 
 function updateLogicLinks() {
-  if (!logicAtlas) return;
-  logicAtlas.querySelectorAll(".logic-diagram").forEach(drawLogicDiagramLinks);
+  document.querySelectorAll(".logic-diagram").forEach(drawLogicDiagramLinks);
 }
 
 function drawLogicDiagramLinks(diagram) {
@@ -1513,6 +1523,7 @@ function renderLanguageMenu() {
         renderNavigation();
         renderRuntimeState();
         renderLogicAtlas();
+        renderSeedEvidence();
         renderDirectory();
         renderFlow();
         renderTransparencyLedger();

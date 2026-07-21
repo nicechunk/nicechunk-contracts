@@ -95,6 +95,20 @@ External review should tie each contract claim to an authority gate, a public ev
 | Marketplace | Seller signatures and market authority gate escrow, cancel, settlement, and delivery. | `MarketplaceListing`, seller, buyer, currency, price, escrowed slot bytes, settlement state. | The listing PDA is the custody record; it does not prove a private orderbook. |
 | Civilization Rules | Rule targets, citizen signatures, power snapshots, tallies, and receipts are separate records. | `RuleBook`, `RuleSignature`, `RuleTally`, `ExecutionReceipt`, `PowerSnapshot`, `CitizenPower`. | Governance is documented and decodable, but live submission remains gated until runtime config enables it. |
 
+## PDA Seed Evidence
+
+The contract directory now includes a `PDA Seed Evidence` graph built from the Rust and SDK seed constants. The most review-sensitive seeds are:
+
+| Evidence family | Seeds | Why it matters |
+| --- | --- | --- |
+| World anchor | `GlobalConfig`: `["global-config"]` | Every world proof, chunk write, rule table, and client runtime check should point back to the same public configuration anchor. |
+| Chunk deltas | `ChunkBrokenState`: `["chunk-broken", globalConfig, chunkX:i32_le, chunkZ:i32_le]`; `FoundationChunk`: `["foundation-chunk", globalConfig, chunkX:i32_le, chunkZ:i32_le]` | Mining records and foundation occupancy remain sparse, chunk-scoped evidence rather than a private terrain database. |
+| Rule tables | `ResourceDropTable`: `["resource-drops-v2", globalConfig]`; `SurfaceDecorationTable`: `["surface-decor-v1", globalConfig]` | The active resource-drop seed is `resource-drops-v2`; it is scoped by `GlobalConfig` and does not include a table ID. |
+| Identity and inventory | `PlayerProfile`: `["player-v7", owner]`; `PlayerSession`: `["session", owner, sessionAuthority]`; `Backpack`: `["backpack", creator, backpackId:u64_le]` | Ownership, short-lived action authority, and item custody are separate PDA families. |
+| Program signer boundaries | `ChunkAuthority`: `["chunk-authority-v1", globalConfig]`; `GuardianBlueprintAuthority`: `["guardian-blueprint", globalConfig]`; `SmeltingAuthority`: `["smelting-authority"]`; `MarketplaceAuthority`: `["market-authority"]` | Cross-program writes must use explicit PDA signers instead of implicit server trust. |
+| Building publication | `BuildSite`: `["build-site-v1", globalConfig, foundationId:u64_le]`; `BuildingManifest`: `["building-v2", globalConfig, foundationId:u64_le, revision:u32_le]`; `BuildingShard`: `["building-data-v1", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]` | A visible building is tied to a validated footprint, manifest hash, shard bitmap, and revision. |
+| Governance proof | `RuleBook`, `RuleSignature`, `RuleTally`, `ExecutionReceipt`, `PowerSnapshot`, and `CitizenPower` seeds | Civilization proposals, signatures, power, tallies, and receipts stay independently decodable before live submission is enabled. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.

@@ -501,6 +501,22 @@ a.directory-row:hover {
   gap: 18px;
 }
 
+.seed-evidence-grid .logic-diagram-head h3 {
+  font-size: clamp(20px, 2.1vw, 26px);
+}
+
+.seed-evidence-grid .logic-canvas {
+  padding: 16px;
+}
+
+.seed-evidence-grid .logic-node {
+  padding: 12px;
+}
+
+.seed-evidence-grid .logic-node em {
+  overflow-wrap: anywhere;
+}
+
 .logic-diagram {
   min-width: 0;
   overflow: hidden;

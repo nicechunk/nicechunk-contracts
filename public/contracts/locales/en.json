@@ -2,8 +2,8 @@
   "_meta": {
     "language": "en",
     "label": "English",
-    "version": "contracts-locale-en-63954249ad08a8f5",
-    "contentHash": "63954249ad08a8f5"
+    "version": "contracts-locale-en-2123bd7303de2e3f",
+    "contentHash": "2123bd7303de2e3f"
   },
   "meta": {
     "title": "NiceChunk Contracts"
@@ -136,7 +136,7 @@
     "pdaTitle": "PDA seed examples",
     "boundaryTitle": "Current boundary",
     "boundaryBody": "This page documents the current devnet-facing contract surface and the game runtime configuration loaded from mainnet.json. It does not claim final mainnet governance, live civilization execution, land ownership, complete realtime decentralization, or complete gameplay decentralization.",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drop-table\", globalConfig, tableId:u64_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nBlueprintItem: [\"blueprint-item\", itemId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v1\", globalConfig]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
   },
   "labels": {
     "programId": "Program ID",
@@ -182,6 +182,10 @@
     {
       "id": "logic-atlas",
       "label": "Logic Atlas"
+    },
+    {
+      "id": "seed-evidence",
+      "label": "Seed Evidence"
     },
     {
       "id": "audit-matrix",
@@ -1287,7 +1291,7 @@
         "intent": "Separates generated terrain proof from the sparse record of blocks that have actually been mined.",
         "authority": "Chunk logic recomputes the target block from GlobalConfig and rejects invalid, protected, or already broken blocks.",
         "evidence": "ChunkBrokenState packed records, ResourceDropTable, SurfaceDecorationTable, minY, count, and capacity.",
-        "live": "Scan chunk-broken and resource-drop-table accounts for the target world and chunk coordinates.",
+        "live": "Scan ChunkBrokenState and ResourceDropTable accounts for the target world and chunk coordinates.",
         "boundary": "The program stores sparse mutations, not the full terrain; inventory settlement is handled by Backpack."
       },
       {
@@ -2159,6 +2163,475 @@
           "Power cannot exceed snapshot",
           "Execution receipt is separate",
           "Live runtime remains gated until configured"
+        ]
+      }
+    ]
+  },
+  "seedEvidence": {
+    "eyebrow": "PDA Seed Evidence",
+    "title": "Follow each public account back to the exact seed family that creates it.",
+    "body": "These graphs turn the Rust and SDK seed constants into a reviewer-facing evidence map, so drift in PDA names, signer boundaries, or runtime assumptions is easy to spot.",
+    "legend": [
+      {
+        "kind": "wallet",
+        "label": "Owner or signer"
+      },
+      {
+        "kind": "program",
+        "label": "Program or PDA signer"
+      },
+      {
+        "kind": "pda",
+        "label": "Stored PDA account"
+      },
+      {
+        "kind": "proof",
+        "label": "Rule or proof record"
+      },
+      {
+        "kind": "offchain",
+        "label": "Client or payload input"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "world-seed-evidence",
+        "kicker": "World State Seeds",
+        "title": "Terrain writes stay anchored to GlobalConfig, not to a private map server.",
+        "body": "The world layer derives generated terrain from GlobalConfig, then records only sparse public evidence for broken blocks, foundation occupancy, resource drops, decoration rules, and player progress.",
+        "lanes": [
+          {
+            "label": "Genesis anchor",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-global-config",
+                "kind": "program",
+                "label": "GlobalConfig",
+                "badge": "core",
+                "detail": "The immutable account that stores world seed, chunk dimensions, heights, mint data, and config hashes.",
+                "evidence": "[\"global-config\"]"
+              },
+              {
+                "id": "seed-client-config",
+                "kind": "offchain",
+                "label": "mainnet.json",
+                "badge": "runtime",
+                "detail": "The browser runtime chooses cluster and program IDs from this public file before reading PDAs.",
+                "evidence": "/mainnet.json"
+              }
+            ]
+          },
+          {
+            "label": "World deltas",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-chunk-broken",
+                "kind": "pda",
+                "label": "ChunkBrokenState",
+                "badge": "NCBK",
+                "detail": "Stores compact 3-byte records for mined blocks inside one chunk.",
+                "evidence": "[\"chunk-broken\", globalConfig, chunkX, chunkZ]"
+              },
+              {
+                "id": "seed-foundation-chunk",
+                "kind": "pda",
+                "label": "FoundationChunk",
+                "badge": "index",
+                "detail": "Indexes which foundations occupy a chunk so build and mining checks share a public conflict witness.",
+                "evidence": "[\"foundation-chunk\", globalConfig, chunkX, chunkZ]"
+              }
+            ]
+          },
+          {
+            "label": "Rule tables",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "seed-resource-drops",
+                "kind": "proof",
+                "label": "ResourceDropTable",
+                "badge": "drops",
+                "detail": "A global-config-scoped extra-drop rule table. The current seed is resource-drops-v2 and does not include a table ID.",
+                "evidence": "[\"resource-drops-v2\", globalConfig]"
+              },
+              {
+                "id": "seed-surface-decor",
+                "kind": "proof",
+                "label": "SurfaceDecorationTable",
+                "badge": "decor",
+                "detail": "Publishes bounded surface decoration rules that the Chunk program can audit against generated terrain.",
+                "evidence": "[\"surface-decor-v1\", globalConfig]"
+              }
+            ]
+          },
+          {
+            "label": "Player progress",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-progress",
+                "kind": "pda",
+                "label": "PlayerProgress",
+                "badge": "skill",
+                "detail": "Tracks per-owner progress under the program that awards the action, scoped by GlobalConfig.",
+                "evidence": "[\"player-progress\", globalConfig, owner]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-client-config",
+            "to": "seed-global-config",
+            "label": "loads ID",
+            "kind": "read"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-chunk-broken",
+            "label": "scopes",
+            "kind": "write"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-foundation-chunk",
+            "label": "scopes",
+            "kind": "write"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-resource-drops",
+            "label": "scopes",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-surface-decor",
+            "label": "scopes",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-global-config",
+            "to": "seed-progress",
+            "label": "scopes",
+            "kind": "read"
+          }
+        ],
+        "evidence": [
+          "resource-drops-v2 verified in Rust and SDK",
+          "No full terrain account required",
+          "Chunk conflicts are PDA-indexed",
+          "Progress is owner scoped"
+        ]
+      },
+      {
+        "id": "identity-inventory-seed-evidence",
+        "kicker": "Identity And Custody Seeds",
+        "title": "Wallet identity, sessions, equipment, and backpacks are separate evidence families.",
+        "body": "The player layer proves who controls an avatar and session, while the Backpack program owns item custody through fixed slot records and restricted signer PDAs.",
+        "lanes": [
+          {
+            "label": "Owner identity",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "seed-owner-wallet",
+                "kind": "wallet",
+                "label": "Owner wallet",
+                "badge": "signer",
+                "detail": "Funds and signs profile, backpack, market, equipment, and allowed action setup.",
+                "evidence": "owner key"
+              },
+              {
+                "id": "seed-session-authority",
+                "kind": "wallet",
+                "label": "Session authority",
+                "badge": "ephemeral",
+                "detail": "Submits repeated bounded gameplay actions without replacing owner custody.",
+                "evidence": "session signer"
+              }
+            ]
+          },
+          {
+            "label": "Player PDAs",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-player-profile",
+                "kind": "pda",
+                "label": "PlayerProfile",
+                "badge": "NCKPLY01",
+                "detail": "Stores owner, position, equipment pointers, equipped backpack, and update slots.",
+                "evidence": "[\"player-v7\", owner]"
+              },
+              {
+                "id": "seed-player-session",
+                "kind": "pda",
+                "label": "PlayerSession",
+                "badge": "NCKSES01",
+                "detail": "Binds owner and session authority with action mask, expiry, and max action count.",
+                "evidence": "[\"session\", owner, sessionAuthority]"
+              },
+              {
+                "id": "seed-appearance-equipment",
+                "kind": "pda",
+                "label": "Appearance / Equipment",
+                "badge": "avatar",
+                "detail": "Keeps appearance code and equipment slot state separate from the profile account.",
+                "evidence": "[\"appearance-v1\"], [\"player-equipment-v1\"]"
+              }
+            ]
+          },
+          {
+            "label": "Inventory PDAs",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-backpack",
+                "kind": "pda",
+                "label": "Backpack",
+                "badge": "NCKBPK01",
+                "detail": "Stores fixed 80-byte slots for block resources, materials, forged items, and escrow return paths.",
+                "evidence": "[\"backpack\", creator, backpackId]"
+              },
+              {
+                "id": "seed-blueprint-item",
+                "kind": "proof",
+                "label": "BlueprintItem",
+                "badge": "unique",
+                "detail": "Records issued blueprint item identity before it appears as a Backpack item slot.",
+                "evidence": "[\"blueprint-item\", itemId]"
+              }
+            ]
+          },
+          {
+            "label": "Signer boundaries",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-equipment-transfer",
+                "kind": "program",
+                "label": "Equipment transfer authority",
+                "badge": "PDA signer",
+                "detail": "Lets the Player and Backpack programs move a custodied equipment slot without giving arbitrary write access.",
+                "evidence": "[\"equipment-transfer-v1\"]"
+              },
+              {
+                "id": "seed-name-indexes",
+                "kind": "proof",
+                "label": "Name / invite indexes",
+                "badge": "index",
+                "detail": "Reserve canonical player names and invite pages without overloading the profile PDA.",
+                "evidence": "[\"player-name-v1\"], [\"invite-index-v1\"]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-owner-wallet",
+            "to": "seed-player-profile",
+            "label": "owns",
+            "kind": "write"
+          },
+          {
+            "from": "seed-owner-wallet",
+            "to": "seed-backpack",
+            "label": "creates",
+            "kind": "write"
+          },
+          {
+            "from": "seed-session-authority",
+            "to": "seed-player-session",
+            "label": "bounded by",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-player-profile",
+            "to": "seed-appearance-equipment",
+            "label": "points to",
+            "kind": "read"
+          },
+          {
+            "from": "seed-equipment-transfer",
+            "to": "seed-backpack",
+            "label": "moves slots",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-blueprint-item",
+            "to": "seed-backpack",
+            "label": "item slot",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-name-indexes",
+            "to": "seed-player-profile",
+            "label": "indexes",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "Profile is not the inventory store",
+          "Session does not replace owner custody",
+          "Equipment transfer is PDA-gated",
+          "Blueprint item identity is unique"
+        ]
+      },
+      {
+        "id": "settlement-governance-seed-evidence",
+        "kicker": "Publication And Settlement Seeds",
+        "title": "Cross-program mutations use explicit signer PDAs and public receipt records.",
+        "body": "Building, smelting, market, Guardian, and Civilization paths can be reviewed by tracing which PDA signs the CPI and which account becomes the durable evidence record.",
+        "lanes": [
+          {
+            "label": "Building artifacts",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-build-site",
+                "kind": "pda",
+                "label": "BuildSite",
+                "badge": "NCKSITE1",
+                "detail": "Stores foundation ownership, footprint, staged resize state, and active/pending revisions.",
+                "evidence": "[\"build-site-v1\", globalConfig, foundationId]"
+              },
+              {
+                "id": "seed-building-manifest",
+                "kind": "pda",
+                "label": "BuildingManifest / Shard",
+                "badge": "NCM3",
+                "detail": "Commits expected payload hash, shard bitmap, dimensions, offsets, and bounded upload payload.",
+                "evidence": "[\"building-v2\"], [\"building-data-v1\"]"
+              }
+            ]
+          },
+          {
+            "label": "Program signers",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "seed-chunk-authority",
+                "kind": "program",
+                "label": "Chunk authority",
+                "badge": "PDA signer",
+                "detail": "Building signs chunk occupancy registration without becoming the Chunk program owner.",
+                "evidence": "[\"chunk-authority-v1\", globalConfig]"
+              },
+              {
+                "id": "seed-guardian-blueprint",
+                "kind": "program",
+                "label": "Guardian blueprint authority",
+                "badge": "PDA signer",
+                "detail": "Building publishes verified blueprint summaries into Guardian regions through a scoped signer.",
+                "evidence": "[\"guardian-blueprint\", globalConfig]"
+              },
+              {
+                "id": "seed-smelt-market-authorities",
+                "kind": "program",
+                "label": "Smelting / Market authorities",
+                "badge": "PDA signers",
+                "detail": "Manufacturing and settlement append or restore Backpack slots only through their own signer PDA.",
+                "evidence": "[\"smelting-authority\"], [\"market-authority\"]"
+              }
+            ]
+          },
+          {
+            "label": "Settlement records",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "seed-recipe-table",
+                "kind": "proof",
+                "label": "RecipeTable",
+                "badge": "NCKSMR01",
+                "detail": "Stores bounded recipe records, disabled recipe flags, heat tiers, inputs, outputs, and authority.",
+                "evidence": "[\"smelting-recipes\", tableId]"
+              },
+              {
+                "id": "seed-listing",
+                "kind": "pda",
+                "label": "MarketplaceListing",
+                "badge": "NCKMKT01",
+                "detail": "Escrows the full Backpack slot snapshot and records seller, buyer, currency, fee, and final state.",
+                "evidence": "[\"listing\", seller, listingId]"
+              }
+            ]
+          },
+          {
+            "label": "Governance proof",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "seed-guardian-region",
+                "kind": "pda",
+                "label": "GuardianRegistry / Region",
+                "badge": "live",
+                "detail": "Publishes registry, treasury signer, region owner/operator, endpoint, proof, stake, and blueprint metadata.",
+                "evidence": "[\"guardian-registry\"], [\"guardian-region\"]"
+              },
+              {
+                "id": "seed-civilization",
+                "kind": "proof",
+                "label": "Civilization rule records",
+                "badge": "gated",
+                "detail": "Splits proposals, signatures, tallies, execution receipts, power snapshots, and citizen power into separate PDAs.",
+                "evidence": "rule-book / rule-signature / rule-tally"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "seed-build-site",
+            "to": "seed-building-manifest",
+            "label": "revision",
+            "kind": "write"
+          },
+          {
+            "from": "seed-chunk-authority",
+            "to": "seed-build-site",
+            "label": "indexes",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-guardian-blueprint",
+            "to": "seed-guardian-region",
+            "label": "publishes",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-smelt-market-authorities",
+            "to": "seed-recipe-table",
+            "label": "recipes",
+            "kind": "read"
+          },
+          {
+            "from": "seed-smelt-market-authorities",
+            "to": "seed-listing",
+            "label": "settles",
+            "kind": "guard"
+          },
+          {
+            "from": "seed-civilization",
+            "to": "seed-recipe-table",
+            "label": "adapter patch",
+            "kind": "proof"
+          },
+          {
+            "from": "seed-civilization",
+            "to": "seed-guardian-region",
+            "label": "receipt path",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "CPI authority is always explicit",
+          "Listings store full slot snapshots",
+          "Blueprint publication is region-scoped",
+          "Civilization adapters are target-bound"
         ]
       }
     ]
