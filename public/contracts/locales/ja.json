@@ -2,8 +2,8 @@
   "_meta": {
     "language": "ja",
     "label": "Japanese",
-    "version": "contracts-locale-ja-782aac52a62c5f1b",
-    "contentHash": "782aac52a62c5f1b"
+    "version": "contracts-locale-ja-9be69e11d20f696f",
+    "contentHash": "9be69e11d20f696f"
   },
   "meta": {
     "title": "NiceChunk コントラクト"
@@ -188,6 +188,10 @@
       "label": "Seed Evidence"
     },
     {
+      "id": "instruction-surface",
+      "label": "Instruction Surface"
+    },
+    {
       "id": "audit-matrix",
       "label": "Audit Matrix"
     },
@@ -264,6 +268,7 @@
       "summary": "The core program initializes the GlobalConfig PDA once. It writes compiled genesis parameters such as world seed, world ID, config hashes, NCK mint, NCK decimals, genesis supply, fees, chunk limits, and guardian parameters. It does not mint items, manage inventory, update admin settings, or run gameplay logic.",
       "instructions": [
         "0 initialize_global_config",
+        "Only the exact one-byte payload [0] is accepted; every other discriminator is invalid.",
         "Validates SPL Token mint layout, decimals, initialized flag, genesis supply, disabled mint authority, and disabled freeze authority.",
         "Creates or allocates the GlobalConfig PDA safely even if the PDA was pre-funded with dust lamports."
       ],
@@ -316,8 +321,19 @@
         "1 update_position",
         "2 set_equipment_slot",
         "3 set_backpack_style",
+        "4 create_or_refresh_player_session",
         "5 set_equipped_backpack",
-        "4 create_or_refresh_player_session"
+        "6 add_forging_xp",
+        "7 set_player_name",
+        "8 upsert_player_appearance",
+        "9 close_player_appearance",
+        "10 initialize_invite_index_page",
+        "11 append_invite_registration",
+        "12 set_equipment_slot_v2",
+        "13 transfer_equipment_slot",
+        "14 swap_equipment_slots",
+        "15 consume_equipment_durability",
+        "All other player tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "PlayerProfile: [\"player-v7\", owner]",
@@ -378,12 +394,19 @@
       "accountSize": "ChunkState: 8,280 bytes; ChunkBrokenState: 16-byte header + 3 bytes per record",
       "summary": "The chunk program uses the current optimized mining path. For mining, the player submits one world block coordinate. The program derives the chunk, verifies the generated block, rejects air/water/bedrock or already-mined positions, and appends a compressed broken-block record.",
       "instructions": [
-        "0 initialize_chunk",
-        "1 record_block_change",
-        "2 delegate_chunk",
-        "3 record_block_change_with_session",
-        "4 verify_generated_block",
-        "5 mine_block"
+        "5 mine_block",
+        "6 initialize_chunk_broken",
+        "7 initialize_resource_drop_table",
+        "8 mine_block_with_rewards",
+        "9 fell_tree_with_rewards",
+        "10 apply_civilization_resource_drop_receipt",
+        "11 initialize_surface_decoration_table",
+        "12 verify_surface_decoration",
+        "13 apply_civilization_surface_decoration_receipt",
+        "15 register_build_site_chunk",
+        "20 batch_mine_with_rewards",
+        "21 range_mine_with_rewards",
+        "Legacy chunk tags 0-4 are not accepted by the current dispatcher."
       ],
       "pdaSeeds": [
         "ChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
@@ -449,7 +472,8 @@
         "5 cancel_building_upload",
         "6 migrate_legacy_build_site",
         "7 begin_build_site_resize",
-        "8 publish_guardian_blueprint"
+        "8 publish_guardian_blueprint",
+        "All other building tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "BuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]",
@@ -538,11 +562,10 @@
         "0 initialize_registry",
         "1 register_genesis_guardian",
         "2 register_guardian",
-        "3 submit_guardian_proof",
-        "4 settle_guardian",
         "5 update_guardian_endpoint",
         "6 update_guardian_blueprint",
-        "8 update_guardian_operator"
+        "8 update_guardian_operator",
+        "Tags 3 and 4 are retired/unassigned and are rejected by the current process_instruction tests."
       ],
       "pdaSeeds": [
         "GuardianRegistry: [\"guardian-registry\", globalConfig]",
@@ -605,12 +628,18 @@
       "summary": "The backpack program is the inventory storage layer for mined block resources, smelted materials, forged items, and marketplace escrow. Version 3 stores fixed 80-byte slots that represent block resources, material items, and forged items with durability, grade, item level, quality, and metadata. Mining appends block-resource slots through validated player sessions, marketplace flows can remove and restore resources, and smelting can append item slots only through the smelting authority PDA.",
       "instructions": [
         "0 initialize_backpack",
-        "requires a PlayerProfile with no equipped backpack",
         "1 append_mined_resource",
         "2 remove_resource",
         "3 append_market_resource",
         "4 remove_resources",
-        "5 append_smelting_item"
+        "5 append_smelting_item",
+        "6 append_mined_resources_batch",
+        "7 disabled: UnverifiedForgeInstructionDisabled",
+        "8 forge_equipment_with_material_verification",
+        "9 issue_blueprint",
+        "10 transfer_backpack_item_to_equipment",
+        "11 transfer_equipment_item_to_backpack",
+        "All other backpack tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "Backpack: [\"backpack\", creator, backpackId:u64_le]"
@@ -662,6 +691,7 @@
         "1 upsert_recipe",
         "2 execute_smelting",
         "3 set_recipe_table_authority",
+        "4 apply_civilization_recipe_receipt",
         "execute_smelting supports input indexes, fuel indexes, and a batch multiplier."
       ],
       "pdaSeeds": [
@@ -723,7 +753,7 @@
         "0 create_listing",
         "1 cancel_listing",
         "2 buy_listing",
-        "3 initialize_asset (disabled)",
+        "3 disabled / invalid legacy initialize_asset",
         "Create listing only accepts listingId, currency, sourceIndex, and price; item parameters are read from the Backpack PDA.",
         "Cancellation and purchase write the Listing-owned 80-byte slot back into the target Backpack through the market-authority PDA.",
         "Payment supports NCK and SOL with a 1% market fee."
@@ -789,7 +819,8 @@
         "2 finalize_rule_tally",
         "3 execute_rule_receipt",
         "4 publish_power_snapshot",
-        "5 settle_citizen_power"
+        "5 settle_citizen_power",
+        "All other civilization tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "RuleBook: [\"rule-book\", ruleIdHash]",

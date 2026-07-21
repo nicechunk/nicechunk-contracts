@@ -189,6 +189,8 @@ const logicLegend = document.querySelector("#logicLegend");
 const logicAtlas = document.querySelector("#logicAtlas");
 const seedEvidenceLegend = document.querySelector("#seedEvidenceLegend");
 const seedEvidenceAtlas = document.querySelector("#seedEvidenceAtlas");
+const instructionSurfaceLegend = document.querySelector("#instructionSurfaceLegend");
+const instructionSurfaceAtlas = document.querySelector("#instructionSurfaceAtlas");
 const auditMatrix = document.querySelector("#auditMatrix");
 const programDirectory = document.querySelector("#programDirectory");
 const flowGrid = document.querySelector("#flowGrid");
@@ -236,6 +238,7 @@ async function initContractsPage() {
   renderRuntimeState();
   renderLogicAtlas();
   renderSeedEvidence();
+  renderInstructionSurface();
   renderAuditMatrix();
   renderDirectory();
   renderFlow();
@@ -404,6 +407,14 @@ function renderSeedEvidence() {
   if (!seedEvidenceAtlas || !evidence) return;
   renderLogicLegend(seedEvidenceLegend, evidence.legend ?? []);
   seedEvidenceAtlas.replaceChildren(...(evidence.diagrams ?? []).map(createLogicDiagram));
+  window.requestAnimationFrame(updateLogicLinks);
+}
+
+function renderInstructionSurface() {
+  const surface = dictionary.instructionSurface ?? fallbackDictionary.instructionSurface;
+  if (!instructionSurfaceAtlas || !surface) return;
+  renderLogicLegend(instructionSurfaceLegend, surface.legend ?? []);
+  instructionSurfaceAtlas.replaceChildren(...(surface.diagrams ?? []).map(createLogicDiagram));
   window.requestAnimationFrame(updateLogicLinks);
 }
 
@@ -1524,6 +1535,8 @@ function renderLanguageMenu() {
         renderRuntimeState();
         renderLogicAtlas();
         renderSeedEvidence();
+        renderInstructionSurface();
+        renderAuditMatrix();
         renderDirectory();
         renderFlow();
         renderTransparencyLedger();

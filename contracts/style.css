@@ -467,7 +467,7 @@ a.directory-row:hover {
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: var(--blue);
+  background: var(--node-color, var(--blue));
   box-shadow: 0 0 18px rgba(152, 203, 255, 0.4);
 }
 
@@ -496,9 +496,30 @@ a.directory-row:hover {
   --node-color: #d0a4ff;
 }
 
+.logic-legend-item.disabled i,
+.logic-node.disabled {
+  --node-color: #ff8c7a;
+}
+
 .logic-atlas-grid {
   display: grid;
   gap: 18px;
+}
+
+.instruction-surface-grid .logic-diagram-head h3 {
+  font-size: clamp(20px, 2.1vw, 26px);
+}
+
+.instruction-surface-grid .logic-canvas {
+  padding: 16px;
+}
+
+.instruction-surface-grid .logic-node {
+  padding: 11px;
+}
+
+.instruction-surface-grid .logic-node p {
+  font-size: 11px;
 }
 
 .seed-evidence-grid .logic-diagram-head h3 {
@@ -601,6 +622,11 @@ a.directory-row:hover {
 .logic-link-path.proof {
   stroke: rgba(208, 164, 255, 0.55);
   stroke-dasharray: 2 5;
+}
+
+.logic-link-path.disabled {
+  stroke: rgba(255, 140, 122, 0.58);
+  stroke-dasharray: 6 5;
 }
 
 .logic-link-label {

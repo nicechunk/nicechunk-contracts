@@ -182,6 +182,10 @@
       "label": "Seed 证据"
     },
     {
+      "id": "instruction-surface",
+      "label": "指令面"
+    },
+    {
       "id": "audit-matrix",
       "label": "审计矩阵"
     },
@@ -258,8 +262,9 @@
       "summary": "Core 程序只负责一次性初始化 GlobalConfig PDA。它写入编译期创世参数，包括世界种子、世界 ID、配置哈希、NCK mint、NCK decimals、创世供应量、费用、Chunk 限制和 Guardian 参数。它不负责铸造物品、不管理背包、不提供管理员更新配置，也不承载复杂玩法逻辑。",
       "instructions": [
         "0 initialize_global_config",
-        "校验 SPL Token mint 布局、decimals、初始化状态、创世供应量、mint authority 已关闭、freeze authority 已关闭。",
-        "即使 PDA 被提前转入 dust lamports，也可以安全 create 或 allocate GlobalConfig PDA。"
+        "只接受精确的一字节载荷 [0]；其他 discriminator 都会被判为无效指令。",
+        "校验 SPL Token mint 布局、精度、初始化状态、创世供应量、已关闭的 mint authority 和 freeze authority。",
+        "即使 GlobalConfig PDA 被预先打入少量 lamports，也会安全创建或分配该 PDA。"
       ],
       "pdaSeeds": [
         "GlobalConfig: [\"global-config\"]"
@@ -310,8 +315,19 @@
         "1 update_position",
         "2 set_equipment_slot",
         "3 set_backpack_style",
+        "4 create_or_refresh_player_session",
         "5 set_equipped_backpack",
-        "4 create_or_refresh_player_session"
+        "6 add_forging_xp",
+        "7 set_player_name",
+        "8 upsert_player_appearance",
+        "9 close_player_appearance",
+        "10 initialize_invite_index_page",
+        "11 append_invite_registration",
+        "12 set_equipment_slot_v2",
+        "13 transfer_equipment_slot",
+        "14 swap_equipment_slots",
+        "15 consume_equipment_durability",
+        "其他 Player tag 都返回 InvalidInstruction。"
       ],
       "pdaSeeds": [
         "PlayerProfile: [\"player-v7\", owner]",
@@ -372,12 +388,19 @@
       "accountSize": "ChunkState: 8,280 bytes; ChunkBrokenState: 16-byte header + 3 bytes per record",
       "summary": "Chunk 程序支持旧版 Chunk delta 账户，也支持当前优化后的挖矿路径。挖矿时，玩家提交一个世界方块坐标。程序推导所在 Chunk，校验生成方块，拒绝空气、水、基岩或已经被挖过的位置，然后追加一条压缩的已破坏方块记录。",
       "instructions": [
-        "0 initialize_chunk",
-        "1 record_block_change",
-        "2 delegate_chunk",
-        "3 record_block_change_with_session",
-        "4 verify_generated_block",
-        "5 mine_block"
+        "5 mine_block",
+        "6 initialize_chunk_broken",
+        "7 initialize_resource_drop_table",
+        "8 mine_block_with_rewards",
+        "9 fell_tree_with_rewards",
+        "10 apply_civilization_resource_drop_receipt",
+        "11 initialize_surface_decoration_table",
+        "12 verify_surface_decoration",
+        "13 apply_civilization_surface_decoration_receipt",
+        "15 register_build_site_chunk",
+        "20 batch_mine_with_rewards",
+        "21 range_mine_with_rewards",
+        "旧 Chunk tag 0-4 已不被当前 dispatcher 接受。"
       ],
       "pdaSeeds": [
         "ChunkState: [\"chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
@@ -443,7 +466,8 @@
         "5 cancel_building_upload",
         "6 migrate_legacy_build_site",
         "7 begin_build_site_resize",
-        "8 publish_guardian_blueprint"
+        "8 publish_guardian_blueprint",
+        "其他 Building tag 都返回 InvalidInstruction。"
       ],
       "pdaSeeds": [
         "BuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]",
@@ -532,11 +556,10 @@
         "0 initialize_registry",
         "1 register_genesis_guardian",
         "2 register_guardian",
-        "3 submit_guardian_proof",
-        "4 settle_guardian",
         "5 update_guardian_endpoint",
         "6 update_guardian_blueprint",
-        "8 update_guardian_operator"
+        "8 update_guardian_operator",
+        "tag 3 和 4 是已退役/未分配入口，并且当前 process_instruction 测试明确要求拒绝。"
       ],
       "pdaSeeds": [
         "GuardianRegistry: [\"guardian-registry\", globalConfig]",
@@ -599,12 +622,18 @@
       "summary": "The backpack program is the inventory storage layer for mined block resources, smelted materials, forged items, and marketplace escrow. Version 3 stores fixed 80-byte slots that represent block resources, material items, and forged items with durability, grade, item level, quality, and metadata. Mining appends block-resource slots through validated player sessions, marketplace flows can remove and restore resources, and smelting can append item slots only through the smelting authority PDA.",
       "instructions": [
         "0 initialize_backpack",
-        "requires a PlayerProfile with no equipped backpack",
         "1 append_mined_resource",
         "2 remove_resource",
         "3 append_market_resource",
         "4 remove_resources",
-        "5 append_smelting_item"
+        "5 append_smelting_item",
+        "6 append_mined_resources_batch",
+        "7 已禁用：UnverifiedForgeInstructionDisabled",
+        "8 forge_equipment_with_material_verification",
+        "9 issue_blueprint",
+        "10 transfer_backpack_item_to_equipment",
+        "11 transfer_equipment_item_to_backpack",
+        "其他 Backpack tag 都返回 InvalidInstruction。"
       ],
       "pdaSeeds": [
         "Backpack: [\"backpack\", creator, backpackId:u64_le]"
@@ -656,7 +685,8 @@
         "1 upsert_recipe",
         "2 execute_smelting",
         "3 set_recipe_table_authority",
-        "execute_smelting supports input indexes, fuel indexes, and a batch multiplier."
+        "4 apply_civilization_recipe_receipt",
+        "execute_smelting 支持输入索引、燃料索引和批量倍数。"
       ],
       "pdaSeeds": [
         "RecipeTable: [\"smelting-recipes\", tableId:u64_le]",
@@ -717,10 +747,10 @@
         "0 create_listing",
         "1 cancel_listing",
         "2 buy_listing",
-        "3 initialize_asset（已禁用）",
-        "创建挂单只接受 listingId、currency、sourceIndex 和 price；物品参数从 Backpack PDA 读取。",
-        "取消和购买通过 market-authority PDA 把 Listing 内保存的 80 字节 slot 写回目标 Backpack。",
-        "支付支持 NCK 和 SOL，并收取 1% 市场手续费。"
+        "3 已禁用 / 无效的旧 initialize_asset",
+        "Create listing 只接受 listingId、currency、sourceIndex 和 price；物品参数从 Backpack PDA 读取。",
+        "取消和购买都会通过 market-authority PDA，把 Listing 托管的 80 字节 slot 写回目标 Backpack。",
+        "支付支持 NCK 和 SOL，市场费为 1%。"
       ],
       "pdaSeeds": [
         "Listing: [\"listing\", seller, listingId:u64_le]",
@@ -783,7 +813,8 @@
         "2 finalize_rule_tally",
         "3 execute_rule_receipt",
         "4 publish_power_snapshot",
-        "5 settle_citizen_power"
+        "5 settle_citizen_power",
+        "其他 Civilization tag 都返回 InvalidInstruction。"
       ],
       "pdaSeeds": [
         "RuleBook: [\"rule-book\", ruleIdHash]",
@@ -2626,6 +2657,539 @@
           "Listing 保存完整 slot 快照",
           "蓝图发布按 region 作用域",
           "Civilization adapter 绑定目标"
+        ]
+      }
+    ]
+  },
+  "instructionSurface": {
+    "eyebrow": "指令面图谱",
+    "title": "把每一个可接受的 instruction tag 追到实际处理它的合约分支。",
+    "body": "这些图直接对应当前 Rust process_instruction 的 match 分发，包括退役和无效 tag，帮助 SDK 接入方和审计者在发链上交易前发现过期假设。",
+    "legend": [
+      {
+        "kind": "program",
+        "label": "可接受分支"
+      },
+      {
+        "kind": "wallet",
+        "label": "签名门槛"
+      },
+      {
+        "kind": "pda",
+        "label": "链上 PDA 证据"
+      },
+      {
+        "kind": "proof",
+        "label": "回执或规则证明"
+      },
+      {
+        "kind": "disabled",
+        "label": "禁用或无效 tag"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": "identity-session-dispatch",
+        "kicker": "Core / Player",
+        "title": "身份和行动权限先分离，再进入游戏写入。",
+        "body": "Core 只接受创世初始化；Player tag 再把永久钱包身份、短期 session、资料索引、装备托管和耐久消耗拆到不同分支。",
+        "lanes": [
+          {
+            "label": "创世分支",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "core-tag0",
+                "kind": "program",
+                "label": "Core [0]",
+                "badge": "精确",
+                "detail": "initialize_global_config 是 Core 唯一接受的载荷，锚定世界种子、mint、配置哈希和运行时限制。",
+                "evidence": "instruction_data == [0]"
+              }
+            ]
+          },
+          {
+            "label": "身份 tag",
+            "kind": "wallet",
+            "nodes": [
+              {
+                "id": "player-identity-tags",
+                "kind": "wallet",
+                "label": "Player [0,7,8,9,10,11]",
+                "badge": "资料",
+                "detail": "创建玩家资料、保留名称、写入外观，并在 owner 控制的索引下追加邀请码登记页。",
+                "evidence": "owner 签名 + 索引 PDA"
+              },
+              {
+                "id": "player-session-tags",
+                "kind": "wallet",
+                "label": "Player [1,4,5,6]",
+                "badge": "session",
+                "detail": "位置、session 刷新、已装备背包和锻造 XP 都由 owner 或有边界的 session authority 保护。",
+                "evidence": "PlayerSession 校验"
+              }
+            ]
+          },
+          {
+            "label": "装备 tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "player-equipment-tags",
+                "kind": "program",
+                "label": "Player [2,12,13,14,15]",
+                "badge": "slots",
+                "detail": "旧版和 v2 装备写入、跨程序 slot 转移、交换和耐久消耗都留在 Player 装备分支。",
+                "evidence": "PlayerEquipment PDA"
+              }
+            ]
+          },
+          {
+            "label": "证据账户",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "profile-session-evidence",
+                "kind": "pda",
+                "label": "Profile / Session",
+                "badge": "NCKPLY01",
+                "detail": "Profile 证明 owner 身份，Session 证明有限行动委托；两者都不存储背包物品托管。",
+                "evidence": "[\"player-v7\"], [\"session\"]"
+              },
+              {
+                "id": "equipment-index-evidence",
+                "kind": "pda",
+                "label": "Equipment / Name / Invite",
+                "badge": "indexes",
+                "detail": "显示名、邀请页和装备 slot 使用独立 PDA 家族，避免把所有索引都塞进 Profile。",
+                "evidence": "appearance + equipment + index seeds"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "core-tag0",
+            "to": "profile-session-evidence",
+            "label": "锚定",
+            "kind": "read"
+          },
+          {
+            "from": "player-identity-tags",
+            "to": "profile-session-evidence",
+            "label": "写入",
+            "kind": "write"
+          },
+          {
+            "from": "player-session-tags",
+            "to": "profile-session-evidence",
+            "label": "校验",
+            "kind": "guard"
+          },
+          {
+            "from": "player-equipment-tags",
+            "to": "equipment-index-evidence",
+            "label": "变更",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "覆盖 Player tag 0-15",
+          "Core 只接受 [0]",
+          "Session 不替代 owner 托管",
+          "名称和邀请索引是显式 PDA"
+        ]
+      },
+      {
+        "id": "world-building-dispatch",
+        "kicker": "Chunk / Building",
+        "title": "世界变更必须经过生成地形校验和建筑 manifest 门槛。",
+        "body": "Chunk 的当前 tag 从挖矿和规则表面开始；Building 负责地基、NCM3 shard 上传、占用 chunk 登记和 Guardian 蓝图发布。",
+        "lanes": [
+          {
+            "label": "挖矿 tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "chunk-mining-tags",
+                "kind": "program",
+                "label": "Chunk [5,8,9,20,21]",
+                "badge": "挖矿",
+                "detail": "单块、奖励、砍树、批量和范围挖矿都会重新计算生成方块，并写入稀疏 broken-block 证据。",
+                "evidence": "ChunkBrokenState 记录"
+              },
+              {
+                "id": "chunk-init-tags",
+                "kind": "program",
+                "label": "Chunk [6,15]",
+                "badge": "索引",
+                "detail": "初始化 chunk-broken 存储，并允许 Building 通过受限 authority 登记被建筑占用的 chunk。",
+                "evidence": "chunk-broken + foundation 索引"
+              }
+            ]
+          },
+          {
+            "label": "规则 tag",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "chunk-rule-tags",
+                "kind": "proof",
+                "label": "Chunk [7,10,11,12,13]",
+                "badge": "规则",
+                "detail": "资源掉落、表面装饰、验证器检查和 Civilization receipt 都是独立的规则或 adapter 分支。",
+                "evidence": "drop / decor / receipt PDA"
+              },
+              {
+                "id": "chunk-retired-tags",
+                "kind": "disabled",
+                "label": "Chunk [0-4]",
+                "badge": "无效",
+                "detail": "旧版 chunk 初始化、delegation 和 generated-block verifier tag 已不被当前 dispatcher 接受。",
+                "evidence": "落入 InvalidInstruction"
+              }
+            ]
+          },
+          {
+            "label": "建筑 tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "building-site-tags",
+                "kind": "program",
+                "label": "Building [0,1,6,7]",
+                "badge": "地基",
+                "detail": "在 PlayerSession 和 footprint 校验后创建、索引、迁移和调整 BuildSite。",
+                "evidence": "BuildSite v2 + legacy decode"
+              },
+              {
+                "id": "building-upload-tags",
+                "kind": "program",
+                "label": "Building [2,3,4,5,8]",
+                "badge": "NCM3",
+                "detail": "暂存上传 shard，完成 hash 校验的 manifest，取消上传，并发布 Guardian 蓝图摘要。",
+                "evidence": "Manifest、Shard、BlueprintAuthority"
+              }
+            ]
+          },
+          {
+            "label": "世界证据",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "world-evidence-pdas",
+                "kind": "pda",
+                "label": "Chunk / Build PDAs",
+                "badge": "公开",
+                "detail": "broken block、占用 chunk、BuildSite、Manifest 和 Shard 都是公开 PDA 证据，不是私有世界状态。",
+                "evidence": "GlobalConfig-scoped seeds"
+              },
+              {
+                "id": "guardian-blueprint-evidence",
+                "kind": "proof",
+                "label": "Guardian Blueprint",
+                "badge": "CPI",
+                "detail": "Building PDA signer 只能通过 Guardian 程序门槛更新 GuardianRegion 的蓝图元数据。",
+                "evidence": "[\"guardian-blueprint\", globalConfig]"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "chunk-mining-tags",
+            "to": "world-evidence-pdas",
+            "label": "记录",
+            "kind": "write"
+          },
+          {
+            "from": "chunk-init-tags",
+            "to": "world-evidence-pdas",
+            "label": "索引",
+            "kind": "guard"
+          },
+          {
+            "from": "chunk-rule-tags",
+            "to": "world-evidence-pdas",
+            "label": "证明",
+            "kind": "proof"
+          },
+          {
+            "from": "chunk-retired-tags",
+            "to": "world-evidence-pdas",
+            "label": "拒绝",
+            "kind": "disabled"
+          },
+          {
+            "from": "building-site-tags",
+            "to": "world-evidence-pdas",
+            "label": "拥有",
+            "kind": "write"
+          },
+          {
+            "from": "building-upload-tags",
+            "to": "guardian-blueprint-evidence",
+            "label": "发布",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "覆盖 Chunk tag 5,6,7,8,9,10,11,12,13,15,20,21",
+          "覆盖 Building tag 0-8",
+          "旧 Chunk 0-4 被拒绝",
+          "Blueprint CPI authority 是显式 PDA"
+        ]
+      },
+      {
+        "id": "custody-settlement-dispatch",
+        "kicker": "Backpack / Smelting / Market",
+        "title": "库存托管只通过 owner 或程序 PDA signer 分支移动。",
+        "body": "Backpack 拥有物品 slot；Smelting 和 Market 只有在配方、托管和支付校验后，才能通过各自 authority PDA 改写这些 slot。",
+        "lanes": [
+          {
+            "label": "Backpack tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "backpack-basic-tags",
+                "kind": "program",
+                "label": "Backpack [0-6]",
+                "badge": "slots",
+                "detail": "初始化背包、追加挖矿或市场资源、移除选中 slot、追加熔炼产物，并接受批量挖矿资源。",
+                "evidence": "BackpackAccount v3"
+              },
+              {
+                "id": "backpack-forge-tags",
+                "kind": "program",
+                "label": "Backpack [8-11]",
+                "badge": "items",
+                "detail": "已验证锻造、蓝图发放和双向装备转移路径会保留物品身份和 slot 托管边界。",
+                "evidence": "材料校验 + equipment transfer PDA"
+              },
+              {
+                "id": "backpack-disabled-tag",
+                "kind": "disabled",
+                "label": "Backpack [7]",
+                "badge": "禁用",
+                "detail": "未验证的旧锻造指令被故意禁用，会返回 UnverifiedForgeInstructionDisabled。",
+                "evidence": "显式错误分支"
+              }
+            ]
+          },
+          {
+            "label": "Smelting tag",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "smelting-tags",
+                "kind": "proof",
+                "label": "Smelting [0-4]",
+                "badge": "recipes",
+                "detail": "配方表初始化、更新、执行、authority 转移和 Civilization receipt 应用都是可接受分支。",
+                "evidence": "RecipeTable + smelting-authority"
+              }
+            ]
+          },
+          {
+            "label": "Market tag",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "market-tags",
+                "kind": "proof",
+                "label": "Market [0,1,2]",
+                "badge": "escrow",
+                "detail": "创建、取消和购买 listing 会通过 market authority 读取或恢复完整 80 字节 Backpack slot 快照。",
+                "evidence": "MarketplaceListing"
+              },
+              {
+                "id": "market-disabled-tag",
+                "kind": "disabled",
+                "label": "Market [3]",
+                "badge": "无效",
+                "detail": "旧 initialize_asset discriminator 已禁用，并返回 InvalidInstruction。",
+                "evidence": "显式无效分支"
+              }
+            ]
+          },
+          {
+            "label": "托管证据",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "custody-pdas",
+                "kind": "pda",
+                "label": "Backpack / Recipe / Listing",
+                "badge": "公开",
+                "detail": "库存内容、配方规则、托管 slot 字节、买家、费用和最终结算状态都保留在公开 PDA 数据中。",
+                "evidence": "backpack, recipe, listing seeds"
+              },
+              {
+                "id": "custody-authorities",
+                "kind": "program",
+                "label": "Program authorities",
+                "badge": "PDA signers",
+                "detail": "Smelting、Market 和 equipment transfer authority 只能通过各自 CPI 边界改写 slot。",
+                "evidence": "smelting-authority / market-authority / equipment-transfer-v1"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "backpack-basic-tags",
+            "to": "custody-pdas",
+            "label": "写入",
+            "kind": "write"
+          },
+          {
+            "from": "backpack-forge-tags",
+            "to": "custody-authorities",
+            "label": "保护",
+            "kind": "guard"
+          },
+          {
+            "from": "backpack-disabled-tag",
+            "to": "custody-authorities",
+            "label": "拒绝",
+            "kind": "disabled"
+          },
+          {
+            "from": "smelting-tags",
+            "to": "custody-authorities",
+            "label": "CPI",
+            "kind": "proof"
+          },
+          {
+            "from": "market-tags",
+            "to": "custody-pdas",
+            "label": "托管",
+            "kind": "proof"
+          },
+          {
+            "from": "market-disabled-tag",
+            "to": "custody-pdas",
+            "label": "拒绝",
+            "kind": "disabled"
+          }
+        ],
+        "evidence": [
+          "覆盖 Backpack tag 0-11",
+          "已包含 Smelting tag 4",
+          "Market tag 3 无效",
+          "程序 signer PDA 是显式边界"
+        ]
+      },
+      {
+        "id": "guardian-civilization-dispatch",
+        "kicker": "Guardian / Civilization",
+        "title": "服务登记和治理记录保持可解码，即使当前提交入口仍被运行时门控。",
+        "body": "Guardian 当前只接受登记、注册、端点、蓝图和 operator 分支；3/4 不是 live 指令。Civilization 规则记录已就绪，但运行时提交仍未打开。",
+        "lanes": [
+          {
+            "label": "Guardian 可接受 tag",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "guardian-registration-tags",
+                "kind": "program",
+                "label": "Guardian [0,1,2]",
+                "badge": "注册",
+                "detail": "初始化 registry，并在 treasury 和 GlobalConfig 校验下注册 genesis 或标准 Guardian region。",
+                "evidence": "GuardianRegistry + treasury authority"
+              },
+              {
+                "id": "guardian-maintenance-tags",
+                "kind": "program",
+                "label": "Guardian [5,6,8]",
+                "badge": "维护",
+                "detail": "通过已存储的角色边界更新 endpoint、blueprint 元数据和 operator 分配。",
+                "evidence": "GuardianRegion 角色校验"
+              }
+            ]
+          },
+          {
+            "label": "退役 tag",
+            "kind": "disabled",
+            "nodes": [
+              {
+                "id": "guardian-retired-tags",
+                "kind": "disabled",
+                "label": "Guardian [3,4]",
+                "badge": "拒绝",
+                "detail": "submit_guardian_proof 和 settle_guardian 已从 dispatcher 退役，并由拒绝测试覆盖。",
+                "evidence": "InvalidInstruction 测试"
+              }
+            ]
+          },
+          {
+            "label": "Civilization tag",
+            "kind": "proof",
+            "nodes": [
+              {
+                "id": "civilization-tags",
+                "kind": "proof",
+                "label": "Civilization [0-5]",
+                "badge": "门控",
+                "detail": "发布 rule book、signature、tally、execution receipt、power snapshot 和 citizen power settlement。",
+                "evidence": "运行时尚未开启"
+              }
+            ]
+          },
+          {
+            "label": "证明记录",
+            "kind": "pda",
+            "nodes": [
+              {
+                "id": "guardian-proof-pdas",
+                "kind": "pda",
+                "label": "GuardianRegistry / Region",
+                "badge": "公开",
+                "detail": "把 endpoint、owner、operator、stake、proof 计数、penalty 和 blueprint 元数据作为公开状态存储。",
+                "evidence": "guardian-registry / guardian-region seeds"
+              },
+              {
+                "id": "civilization-proof-pdas",
+                "kind": "pda",
+                "label": "Rule / Power PDAs",
+                "badge": "回执",
+                "detail": "RuleBook、signature、tally、execution receipt、power snapshot 和 citizen power 都可以独立解码。",
+                "evidence": "rule-book + power seeds"
+              }
+            ]
+          }
+        ],
+        "links": [
+          {
+            "from": "guardian-registration-tags",
+            "to": "guardian-proof-pdas",
+            "label": "创建",
+            "kind": "write"
+          },
+          {
+            "from": "guardian-maintenance-tags",
+            "to": "guardian-proof-pdas",
+            "label": "更新",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-retired-tags",
+            "to": "guardian-proof-pdas",
+            "label": "拒绝",
+            "kind": "disabled"
+          },
+          {
+            "from": "civilization-tags",
+            "to": "civilization-proof-pdas",
+            "label": "记录",
+            "kind": "proof"
+          }
+        ],
+        "evidence": [
+          "覆盖 Guardian tag 0,1,2,5,6,8",
+          "Guardian 3/4 被拒绝",
+          "覆盖 Civilization 0-5",
+          "Live governance 仍由运行时门控"
         ]
       }
     ]

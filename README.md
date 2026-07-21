@@ -109,6 +109,22 @@ The contract directory now includes a `PDA Seed Evidence` graph built from the R
 | Building publication | `BuildSite`: `["build-site-v1", globalConfig, foundationId:u64_le]`; `BuildingManifest`: `["building-v2", globalConfig, foundationId:u64_le, revision:u32_le]`; `BuildingShard`: `["building-data-v1", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]` | A visible building is tied to a validated footprint, manifest hash, shard bitmap, and revision. |
 | Governance proof | `RuleBook`, `RuleSignature`, `RuleTally`, `ExecutionReceipt`, `PowerSnapshot`, and `CitizenPower` seeds | Civilization proposals, signatures, power, tallies, and receipts stay independently decodable before live submission is enabled. |
 
+## Instruction Surface Map
+
+The contract directory now includes an `Instruction Surface Map` generated from the current Rust `process_instruction` dispatchers. It is meant to catch stale SDK assumptions, especially retired or intentionally disabled discriminators.
+
+| Program | Accepted tags | Disabled or unassigned tags | Audit note |
+| --- | --- | --- | --- |
+| `nicechunk_core` | Exact payload `[0]` for `initialize_global_config` | Any other payload | Core is a one-time genesis anchor, not a general admin router. |
+| `nicechunk_player` | `0-15` | Any tag above `15` | Identity, session authority, appearance, invite indexes, equipment, transfer, swap, and durability paths are all explicit branches. |
+| `nicechunk_chunk` | `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`, `13`, `15`, `20`, `21` | Legacy `0-4` are not accepted | Current world writes center on generated mining checks, rule tables, Civilization receipts, and Building chunk registration. |
+| `nicechunk_building` | `0-8` | Any tag above `8` | BuildSite lifecycle, NCM3 shard upload/finalization, legacy migration, resize, and Guardian blueprint publishing are covered. |
+| `nicechunk_guardian` | `0`, `1`, `2`, `5`, `6`, `8` | Retired `3` and `4` are rejected | `submit_guardian_proof` and `settle_guardian` are not live dispatcher entries in the current program. |
+| `nicechunk_backpack` | `0-6`, `8-11` | `7` returns `UnverifiedForgeInstructionDisabled` | Inventory custody is owner or program-signer gated; the unverified legacy forge path stays visibly disabled. |
+| `nicechunk_smelting` | `0-4` | Any tag above `4` | Recipe authority, execution, authority transfer, and Civilization recipe receipt application are all present. |
+| `nicechunk_market` | `0`, `1`, `2` | `3` is an invalid legacy `initialize_asset` path | Listings escrow the full Backpack slot snapshot; user payload does not mint arbitrary item fields. |
+| `nicechunk_civilization` | `0-5` | Any tag above `5` | Rule books, signatures, tallies, receipts, power snapshots, and citizen power remain decodable while runtime submission is gated. |
+
 ## Building Program
 
 `nicechunk_building` is part of the active devnet contract surface. It validates player sessions, creates and resizes foundation build sites, registers occupied chunks through the chunk authority PDA, stages NCM3 payload shards, finalizes building manifests after hash and fit checks, and publishes Guardian blueprint summaries through a program-derived authority.

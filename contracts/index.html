@@ -111,6 +111,18 @@
           <div class="logic-atlas-grid seed-evidence-grid" id="seedEvidenceAtlas"></div>
         </section>
 
+        <section class="contracts-section instruction-surface-section" id="instruction-surface" data-contract-section>
+          <div class="section-heading">
+            <p class="eyebrow blue" data-contracts-i18n="instructionSurface.eyebrow">Instruction Surface Map</p>
+            <h2 data-contracts-i18n="instructionSurface.title">Trace every accepted instruction tag to the gate that handles it.</h2>
+            <p data-contracts-i18n="instructionSurface.body">
+              These maps mirror the current Rust process_instruction match arms, including retired and invalid tags, so SDK builders and reviewers can spot stale integration assumptions before they reach chain calls.
+            </p>
+          </div>
+          <div class="logic-legend" id="instructionSurfaceLegend"></div>
+          <div class="logic-atlas-grid instruction-surface-grid" id="instructionSurfaceAtlas"></div>
+        </section>
+
         <section class="contracts-section audit-matrix-section" id="audit-matrix" data-contract-section>
           <div class="section-heading">
             <p class="eyebrow blue" data-contracts-i18n="auditMatrix.eyebrow">Verifier Matrix</p>
