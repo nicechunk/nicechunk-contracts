@@ -36,6 +36,12 @@ pub enum NicechunkSmeltingError {
     CivilizationTargetMismatch = 6830,
     CivilizationPatchHashMismatch = 6831,
     CivilizationThresholdNotMet = 6832,
+    InvalidGlobalConfig = 6833,
+    InvalidRecipeOutput = 6834,
+    InvalidPlayerSkillsPda = 6835,
+    InvalidPlayerSkillsOwner = 6836,
+    InvalidPlayerSkillsData = 6837,
+    OutputOverflow = 6838,
 }
 
 impl From<NicechunkSmeltingError> for ProgramError {

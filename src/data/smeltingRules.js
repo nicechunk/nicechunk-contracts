@@ -58,7 +58,7 @@ export const smeltingRules = {
       "id": "charcoal",
       "sourceType": "material",
       "materialId": "charcoal",
-      "heatTier": 2,
+      "heatTier": 3,
       "burnSeconds": 64,
       "consumable": true
     },
@@ -68,20 +68,9 @@ export const smeltingRules = {
       "sourceKeys": [
         "coal"
       ],
-      "heatTier": 3,
+      "heatTier": 4,
       "burnSeconds": 96,
       "consumable": true
-    },
-    {
-      "id": "lava_heat",
-      "sourceType": "raw",
-      "sourceKeys": [
-        "lava",
-        "basalt"
-      ],
-      "heatTier": 4,
-      "burnSeconds": 160,
-      "consumable": false
     }
   ],
   "materials": [
@@ -1660,6 +1649,8 @@ export const SMELTING_MERGE_RECIPE_ID_OFFSET = 1000;
 export const SMELTING_RESERVED_MATERIAL_ITEM_CODES = Object.freeze([1003]);
 export const SMELTING_MATERIAL_INPUT_PREFIX = "material:";
 export const SMELTING_RECIPE_YIELD_BPS_DENOMINATOR = 10_000;
+export const SMELTING_SKILL_MAX_OUTPUT_BPS = 15_000;
+export const SMELTING_RECIPE_OUTPUT_SCALE_DIVISOR = 10;
 export const SMELTING_DEFAULT_INPUT_VOLUME_MM3 = 1_000_000;
 
 for (const material of smeltingRules.materials) {
@@ -1671,8 +1662,13 @@ for (const material of smeltingRules.materials) {
   material.recipeTableId = smeltingRecipeTableIdForMaterialId(material.id);
   material.mergeRecipeTableId = smeltingMergeRecipeTableIdForMaterialId(material.id);
   material.attributes = smeltingMaterialBaseAttributes(material);
-  material.yieldBps = smeltingRecipeYieldBps(material);
-  material.mergeYieldBps = SMELTING_RECIPE_YIELD_BPS_DENOMINATOR;
+  material.yieldBps = Math.max(
+    1,
+    Math.floor(smeltingRecipeYieldBps(material) / SMELTING_RECIPE_OUTPUT_SCALE_DIVISOR),
+  );
+  material.mergeYieldBps = Math.floor(
+    SMELTING_RECIPE_YIELD_BPS_DENOMINATOR,
+  );
 }
 
 export function smeltingMaterialPhysicalProfile(materialOrId, rules = smeltingRules) {
@@ -1884,6 +1880,7 @@ export function validateSmeltingRules(rules = smeltingRules) {
     if (fuelIds.has(fuel.id)) throw new Error(`Duplicate fuel id: ${fuel.id}`);
     fuelIds.add(fuel.id);
     if (!heatTierIds.has(fuel.heatTier)) throw new Error(`Fuel ${fuel.id} uses unknown heat tier ${fuel.heatTier}`);
+    if (fuel.consumable !== true) throw new Error(`Fuel ${fuel.id} must be consumable`);
     if (fuel.sourceType === "raw" && !Array.isArray(fuel.sourceKeys)) throw new Error(`Raw fuel ${fuel.id} requires sourceKeys`);
     if (fuel.sourceType === "material" && !fuel.materialId) throw new Error(`Material fuel ${fuel.id} requires materialId`);
   }
@@ -2080,7 +2077,11 @@ export function smeltingRecipeYieldBps(recipe) {
 }
 
 export function smeltingSkillOutputBpsForLevel(level) {
-  return Math.min(6000, 1000 + Math.max(0, Math.min(10, Math.floor(Number(level) || 0))) * 500);
+  return Math.min(
+    SMELTING_SKILL_MAX_OUTPUT_BPS,
+    SMELTING_RECIPE_YIELD_BPS_DENOMINATOR
+      + Math.max(0, Math.min(10, Math.floor(Number(level) || 0))) * 500,
+  );
 }
 
 export function smeltingRecipeRequiresFuel(recipe) {
@@ -2107,13 +2108,13 @@ export function smeltingRecipeInputVolumeMm3(recipe, rules = smeltingRules) {
 }
 
 export function smeltingRecipePdaOutputVolumeMm3(recipe, rules = smeltingRules) {
-  if (recipe?.recipeKind === "merge" || recipe?.unitVolumeMm3 !== undefined) {
+  if (recipe?.recipeKind === "merge") {
     return smeltingMaterialUnitVolumeMm3(recipe, rules);
   }
   return smeltingRecipeInputVolumeMm3(recipe, rules);
 }
 
-export function calculateSmeltingOutputVolumeMm3({
+export function calculateSmeltingOutputVolumeResult({
   recipe,
   inputVolumeMm3,
   servings = 1,
@@ -2122,26 +2123,67 @@ export function calculateSmeltingOutputVolumeMm3({
   recipeInputVolumeMm3,
   rules = smeltingRules,
 } = {}) {
-  if (!recipe) return 0;
+  if (!recipe) return { value: 0, overflow: false };
   const batchCount = BigInt(Math.max(1, Math.floor(Number(servings) || 1)));
   const expectedPerBatch = BigInt(clampSmeltingVolumeMm3(
     recipeInputVolumeMm3 ?? smeltingRecipeInputVolumeMm3(recipe, rules),
   ));
   const expectedBatch = expectedPerBatch * batchCount;
   const actualInput = BigInt(clampSmeltingSafeVolume(inputVolumeMm3 ?? Number(expectedBatch)));
+  if (recipe.recipeKind === "merge") {
+    return smeltingU32Result(actualInput);
+  }
   const outputPerBatch = BigInt(clampSmeltingVolumeMm3(
     pdaOutputVolumeMm3 ?? smeltingRecipePdaOutputVolumeMm3(recipe, rules),
   ));
   const recipeYield = BigInt(smeltingRecipeYieldBps(recipe));
-  const skillYield = BigInt(Math.max(1, Math.min(
-    SMELTING_RECIPE_YIELD_BPS_DENOMINATOR,
+  const skillYield = BigInt(Math.max(SMELTING_RECIPE_YIELD_BPS_DENOMINATOR, Math.min(
+    SMELTING_SKILL_MAX_OUTPUT_BPS,
     Math.floor(Number(skillOutputBps) || smeltingSkillOutputBpsForLevel(0)),
   )));
   const denominator = BigInt(SMELTING_RECIPE_YIELD_BPS_DENOMINATOR);
   const scaledOutput = outputPerBatch * batchCount * actualInput / expectedBatch;
   const recipeOutput = scaledOutput * recipeYield / denominator;
   const finalOutput = recipeOutput * skillYield / denominator;
-  return Number(finalOutput > 0xffffffffn ? 0xffffffffn : finalOutput > 0n ? finalOutput : 1n);
+  return smeltingU32Result(finalOutput);
+}
+
+export function calculateSmeltingOutputVolumeMm3(options = {}) {
+  return calculateSmeltingOutputVolumeResult(options).value;
+}
+
+export function calculateSmeltingOutputQuantityResult({
+  recipe,
+  servings = 1,
+  skillOutputBps,
+  consumedInputUnits = 0,
+} = {}) {
+  if (!recipe) return { value: 0, overflow: false };
+  if (recipe.recipeKind === "merge") {
+    const consumed = BigInt(Math.max(1, Math.floor(Number(consumedInputUnits) || 1)));
+    return smeltingU32Result(consumed);
+  }
+  const batchCount = BigInt(Math.max(1, Math.floor(Number(servings) || 1)));
+  const baseQuantity = BigInt(Math.max(1, Math.floor(Number(recipe.yieldCount) || 1)));
+  const skillYield = BigInt(Math.max(SMELTING_RECIPE_YIELD_BPS_DENOMINATOR, Math.min(
+    SMELTING_SKILL_MAX_OUTPUT_BPS,
+    Math.floor(Number(skillOutputBps) || smeltingSkillOutputBpsForLevel(0)),
+  )));
+  const quantity = baseQuantity * batchCount * skillYield
+    / BigInt(SMELTING_RECIPE_YIELD_BPS_DENOMINATOR);
+  return smeltingU32Result(quantity);
+}
+
+export function calculateSmeltingOutputQuantity(options = {}) {
+  return calculateSmeltingOutputQuantityResult(options).value;
+}
+
+function smeltingU32Result(value) {
+  const normalized = value > 0n ? value : 1n;
+  return {
+    value: Number(normalized > 0xffffffffn ? 0xffffffffn : normalized),
+    overflow: normalized > 0xffffffffn,
+  };
 }
 
 function clampSmeltingVolumeMm3(value) {

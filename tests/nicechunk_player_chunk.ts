@@ -38,9 +38,11 @@ import {
 } from "../sdk/nicechunk-player.ts";
 import {
   BACKPACK_ITEM_CATEGORY_MATERIAL,
+  BACKPACK_FLAG_MASS_STATE_VALID,
   BACKPACK_LEN,
   BACKPACK_SLOT_KIND_ITEM,
   BACKPACK_SLOT_RECORD_LEN,
+  BACKPACK_VERSION,
   createForgeEquipmentInstruction,
   createInitializeBackpackInstruction,
   decodeBackpack,
@@ -48,6 +50,8 @@ import {
   encodeBackpackSlotRecord,
   encodeBackpackDecorationMetadata,
   deriveBackpackPda,
+  deriveForgedItemPda,
+  deriveMaterialPhysicsPda,
   NICECHUNK_BACKPACK_PROGRAM_ID,
 } from "../sdk/nicechunk-backpack.ts";
 import {
@@ -59,6 +63,7 @@ import {
   deriveSmeltingAuthorityPda,
   encodeCivilizationSmeltingRecipePatch,
   NICECHUNK_SMELTING_PROGRAM_ID,
+  NICECHUNK_SMELTING_RECIPE_AUTHORITY,
   UPSERT_RECIPE_ARGS_LEN,
 } from "../sdk/nicechunk-smelting.ts";
 import {
@@ -116,6 +121,7 @@ import {
   deriveGlobalConfigPda,
   NICECHUNK_CORE_PROGRAM_ID,
 } from "../sdk/nicechunk-core.ts";
+import { derivePlayerSkillsPda } from "../sdk/nicechunk-skills.ts";
 import { resourceDropRules } from "../src/data/resourceDropRules.js";
 // @ts-ignore Runtime rules are shared with chunk.js.
 import { DEFAULT_SURFACE_DECORATION_RULES } from "../chunk.js/world/surface-decoration-rules.js";
@@ -233,7 +239,7 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(ix.keys[3].pubkey.toBase58(), SystemProgram.programId.toBase58());
   });
 
-  it("decodes v3 backpack item reference slots", () => {
+  it("decodes v4 backpack item reference slots with authoritative mass", () => {
     const [backpack, bump] = deriveBackpackPda({ creator: owner, backpackId: 9n });
     assert.ok(backpack);
     const itemPda = new PublicKey("CEzcpJe9UTq5FmVzpTfgPffMbqdG97YJeFMJYwUSFhNF");
@@ -252,10 +258,11 @@ describe("nicechunk player and mining SDK", () => {
       itemLevel: 17,
       qualityBps: 7200,
       metadata: 42,
+      massGrams: 500,
     };
     const data = Buffer.alloc(BACKPACK_LEN);
     data.write("NCKBPK01", 0, "utf8");
-    data.writeUInt16LE(3, 8);
+    data.writeUInt16LE(BACKPACK_VERSION, 8);
     data.writeUInt8(bump, 10);
     data.writeUInt8(1, 11);
     data.writeBigUInt64LE(9n, 12);
@@ -263,13 +270,16 @@ describe("nicechunk player and mining SDK", () => {
     data.writeUInt8(50, 52);
     data.writeUInt8(1, 53);
     data.writeUInt8(1, 54);
+    data.writeUInt8(BACKPACK_FLAG_MASS_STATE_VALID, 55);
     data.writeBigUInt64LE(10n, 66);
     data.writeBigUInt64LE(11n, 74);
     data.writeBigInt64LE(12n, 82);
+    data.writeBigUInt64LE(500n, 90);
     encodeBackpackSlotRecord(slot).copy(data, 128);
 
     const decoded = decodeBackpack(data);
-    assert.equal(decoded.version, 3);
+    assert.equal(decoded.version, BACKPACK_VERSION);
+    assert.equal(decoded.totalMassGrams, 500n);
     assert.equal(decoded.records.length, 0);
     assert.equal(decoded.slots.length, 1);
     assert.equal(decoded.slots[0].kind, BACKPACK_SLOT_KIND_ITEM);
@@ -281,6 +291,7 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(decoded.slots[0].itemLevel, 17);
     assert.equal(decoded.slots[0].qualityBps, 7200);
     assert.equal(decoded.slots[0].metadata, 42);
+    assert.equal(decoded.slots[0].massGrams, 500);
   });
 
   it("round-trips generic surface decoration identity through block metadata", () => {
@@ -558,8 +569,10 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(forge.keys[1].pubkey.toBase58(), playerProfile.toBase58());
     assert.equal(forge.keys[1].isWritable, true);
     assert.equal(forge.keys[2].pubkey.toBase58(), backpack.toBase58());
-    assert.equal(forge.keys[3].pubkey.toBase58(), NICECHUNK_PLAYER_PROGRAM_ID.toBase58());
-    assert.equal(forge.keys[4].pubkey.toBase58(), SystemProgram.programId.toBase58());
+    assert.equal(forge.keys[3].pubkey.toBase58(), deriveForgedItemPda({ owner, itemId: 91n })[0].toBase58());
+    assert.equal(forge.keys[4].pubkey.toBase58(), NICECHUNK_PLAYER_PROGRAM_ID.toBase58());
+    assert.equal(forge.keys[5].pubkey.toBase58(), derivePlayerSkillsPda({ owner, globalConfig })[0].toBase58());
+    assert.equal(forge.keys[6].pubkey.toBase58(), SystemProgram.programId.toBase58());
   });
 
   it("builds player session and canonical mine instructions", () => {
@@ -905,7 +918,6 @@ describe("nicechunk player and mining SDK", () => {
     const recipeId = 1001n;
     const [recipeTable] = deriveRecipeTablePda({ tableId });
     const [smeltingAuthority] = deriveSmeltingAuthorityPda();
-    const materialPda = new PublicKey("CEzcpJe9UTq5FmVzpTfgPffMbqdG97YJeFMJYwUSFhNF");
     const inputSlot = {
       kind: 1,
       category: 0,
@@ -924,18 +936,22 @@ describe("nicechunk player and mining SDK", () => {
       resource: { worldX: 0, worldY: 0, worldZ: 0 },
       itemCode: 101,
       itemId: 501n,
-      itemPda: materialPda,
+      itemPda: recipeTable,
     };
 
-    const init = createInitializeRecipeTableInstruction({ payer: owner, tableId });
+    const init = createInitializeRecipeTableInstruction({ payer: NICECHUNK_SMELTING_RECIPE_AUTHORITY, tableId });
     assert.equal(init.programId.toBase58(), NICECHUNK_SMELTING_PROGRAM_ID.toBase58());
     assert.equal(init.data.readUInt8(0), 3);
     assert.equal(init.data.readUInt8(1), 0);
     assert.equal(init.data.readBigUInt64LE(2), tableId);
     assert.equal(init.keys[1].pubkey.toBase58(), recipeTable.toBase58());
+    assert.throws(
+      () => createInitializeRecipeTableInstruction({ payer: PublicKey.default, tableId }),
+      /Smelting recipe authority must be/u,
+    );
 
     const upsert = createUpsertSmeltingRecipeInstruction({
-      authority: owner,
+      authority: NICECHUNK_SMELTING_RECIPE_AUTHORITY,
       recipeTable,
       recipe: { recipeId, inputs: [inputSlot], outputs: [outputSlot], minHeatTier: 2, yieldBps: 6200 },
     });
@@ -945,6 +961,22 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(upsert.data.readBigUInt64LE(2), recipeId);
     assert.equal(upsert.data.readUInt8(11), 2);
     assert.equal(upsert.data.readUInt16LE(14), 6200);
+    assert.throws(
+      () => createUpsertSmeltingRecipeInstruction({
+        authority: PublicKey.default,
+        recipeTable,
+        recipe: { recipeId, inputs: [inputSlot], outputs: [outputSlot] },
+      }),
+      /Smelting recipe authority must be/u,
+    );
+    assert.throws(
+      () => createUpsertSmeltingRecipeInstruction({
+        authority: NICECHUNK_SMELTING_RECIPE_AUTHORITY,
+        recipeTable,
+        recipe: { recipeId, inputs: [inputSlot], outputs: [{ ...outputSlot, itemPda: PublicKey.default }] },
+      }),
+      /backed by its RecipeTable PDA/u,
+    );
 
     const ruleBook = new PublicKey("8FiAnDzZ6zHPNDMW7pd77FjTzWnCPH8S6pB1LsayZegF");
     const tally = new PublicKey("GWqbDeSLQeTUzc5UpVaRT1KpAx7URoL3Q3f2Vm1XqgCd");
@@ -985,6 +1017,10 @@ describe("nicechunk player and mining SDK", () => {
       owner,
       programId: NICECHUNK_SMELTING_PROGRAM_ID,
     });
+    const [materialPhysics] = deriveMaterialPhysicsPda({
+      globalConfig,
+      backpackProgramId: NICECHUNK_BACKPACK_PROGRAM_ID,
+    });
     const execute = createExecuteSmeltingInstruction({
       owner,
       recipeTable,
@@ -1001,9 +1037,45 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(execute.keys[2].pubkey.toBase58(), backpack.toBase58());
     assert.equal(execute.keys[3].pubkey.toBase58(), playerProgress.toBase58());
     assert.equal(execute.keys[4].pubkey.toBase58(), globalConfig.toBase58());
-    assert.equal(execute.keys[5].pubkey.toBase58(), smeltingAuthority.toBase58());
-    assert.equal(execute.keys[6].pubkey.toBase58(), NICECHUNK_BACKPACK_PROGRAM_ID.toBase58());
-    assert.equal(execute.keys[7].pubkey.toBase58(), SystemProgram.programId.toBase58());
+    assert.equal(execute.keys[5].pubkey.toBase58(), materialPhysics.toBase58());
+    assert.equal(execute.keys[6].pubkey.toBase58(), smeltingAuthority.toBase58());
+    assert.equal(execute.keys[7].pubkey.toBase58(), NICECHUNK_BACKPACK_PROGRAM_ID.toBase58());
+    assert.equal(execute.keys[8].pubkey.toBase58(), derivePlayerSkillsPda({ owner, globalConfig })[0].toBase58());
+    assert.equal(execute.keys[9].pubkey.toBase58(), SystemProgram.programId.toBase58());
+
+    assert.throws(() => createExecuteSmeltingInstruction({
+      owner,
+      recipeTable,
+      backpack,
+      recipeId,
+      inputIndexes: [0, 0],
+      fuelIndexes: [],
+    }), /must be unique/u);
+    assert.throws(() => createExecuteSmeltingInstruction({
+      owner,
+      recipeTable,
+      backpack,
+      recipeId,
+      inputIndexes: [99],
+      fuelIndexes: [],
+    }), /integers from 0 to 98/u);
+    assert.throws(() => createExecuteSmeltingInstruction({
+      owner,
+      recipeTable,
+      backpack,
+      recipeId,
+      inputIndexes: [0],
+      fuelIndexes: [],
+      batchMultiplier: 0,
+    }), /integer from 1 to 65535/u);
+    assert.throws(() => createExecuteSmeltingInstruction({
+      owner,
+      recipeTable,
+      backpack,
+      recipeId: 0n,
+      inputIndexes: [0],
+      fuelIndexes: [],
+    }), /must be between 1/u);
   });
 
   it("decodes compact chunk-broken state", () => {

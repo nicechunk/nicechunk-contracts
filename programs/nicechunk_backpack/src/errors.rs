@@ -1,6 +1,6 @@
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u32)]
 pub enum NicechunkBackpackError {
     InvalidInstruction = 6400,
@@ -41,6 +41,20 @@ pub enum NicechunkBackpackError {
     InvalidEquipmentTransferAuthority = 6435,
     InvalidEquipmentSlot = 6436,
     EquipmentSlotEmpty = 6437,
+    InvalidMaterialPhysicsPda = 6438,
+    InvalidMaterialPhysicsData = 6439,
+    InvalidMaterialPhysicsRule = 6440,
+    InvalidMaterialPhysicsAuthority = 6441,
+    InvalidBackpackMassState = 6442,
+    BackpackMassOverflow = 6443,
+    InvalidMiningAction = 6444,
+    InvalidForgedItemPda = 6445,
+    ForgedItemAlreadyInitialized = 6446,
+    InvalidForgedItemData = 6447,
+    InvalidPlayerSkillsPda = 6448,
+    InvalidPlayerSkillsOwner = 6449,
+    InvalidPlayerSkillsData = 6450,
+    InvalidSmeltingConsumption = 6451,
 }
 
 impl From<NicechunkBackpackError> for ProgramError {

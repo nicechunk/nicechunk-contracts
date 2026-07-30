@@ -10,6 +10,7 @@ const {
   BUILDING_MATERIAL_DIMENSIONS_VU,
   buildingMaterialIdForSmeltingMaterialId,
   calculateSmeltingOutputVolumeMm3,
+  createSmeltingMergeRecipe,
   recipeRequirements,
   smeltingMaterialAttributeProfiles,
   smeltingMaterialIdForBuildingMaterialId,
@@ -17,6 +18,8 @@ const {
   smeltingMaterialIdForRecipeId,
   smeltingMaterialItemCode,
   smeltingMaterialPhysicalProfile,
+  smeltingFuelForMaterialId,
+  smeltingFuelForRawKey,
   smeltingMergeRecipeIdForMaterialId,
   smeltingMergeRecipeTableIdForMaterialId,
   smeltingRecipeIdForMaterialId,
@@ -25,6 +28,7 @@ const {
   smeltingRecipeRequiresFuel,
   smeltingRecipeTableIdForRecipeId,
   smeltingRecipeTableIdForMaterialId,
+  smeltingRecipeYieldBps,
   smeltingRules,
   validateSmeltingRules,
 } = smeltingRuleModule;
@@ -42,6 +46,7 @@ import {
   decodeBackpackSlotRecord,
 } from "../sdk/nicechunk-backpack.ts";
 import {
+  NICECHUNK_SMELTING_RECIPE_AUTHORITY,
   RECIPE_MAX_INPUTS,
   encodeSmeltingRecipeArgs,
 } from "../sdk/nicechunk-smelting.ts";
@@ -51,9 +56,11 @@ import {
   materialUnitVolumeMm3,
   outputSlot,
   primaryOutputVolumeMm3,
+  resolveSmeltingSyncAuthority,
+  selectedSmeltingMaterials,
 } from "../scripts/sync-smelting-recipes.ts";
 
-const legacyMaterialIds = [
+const coreMaterialIds = [
   "charcoal",
   "biochar_compost",
   "resin_binder",
@@ -101,6 +108,70 @@ const buildingMaterialIds = [
 
 const utilityMaterialIds = ["blasting_charge"];
 
+const expectedYieldBpsByMaterialId: Readonly<Record<string, number>> = Object.freeze({
+  charcoal: 550,
+  biochar_compost: 550,
+  resin_binder: 600,
+  ceramic_brick: 720,
+  lime_ceramic: 720,
+  quicklime: 720,
+  salt_flux: 600,
+  ash_cement: 580,
+  glass_ingot: 800,
+  obsidian_glass: 800,
+  silicon_wafer: 600,
+  ice_crystal: 600,
+  iron_bloom: 620,
+  copper_bloom: 620,
+  alumina_plate: 720,
+  nickel_iron: 600,
+  carbon_plate: 550,
+  carbon_steel: 600,
+  basalt_fiber: 650,
+  basalt_composite: 580,
+  geopolymer_block: 580,
+  coral_lime: 720,
+  toxic_glass: 800,
+  cotton_cloth: 650,
+  white_dye: 600,
+  yellow_dye: 600,
+  red_dye: 600,
+  blue_dye: 600,
+  pink_dye: 600,
+  wooden_plank: 950,
+  wooden_stick: 980,
+  squared_timber: 880,
+  clear_glass_panel: 920,
+  ice_blue_glass_panel: 940,
+  amber_glass_panel: 930,
+  basalt_reinforced_glass: 900,
+  fired_clay_brick: 900,
+  adobe_brick: 860,
+  stone_brick: 960,
+  deep_stone_brick: 940,
+  basalt_brick: 920,
+  sandstone_block: 900,
+  cobblestone: 980,
+  polished_stone_slab: 940,
+  lime_plaster: 900,
+  clay_plaster: 920,
+  rammed_earth: 960,
+  shell_terrazzo: 900,
+  white_ceramic_tile: 940,
+  blue_ceramic_tile: 920,
+  volcanic_ash_concrete: 930,
+  salt_crystal_block: 850,
+  roof_tile_terracotta: 780,
+  roof_tile_ice_blue: 940,
+  roof_tile_shell_white: 930,
+  roof_tile_charcoal: 920,
+  roof_tile_ash_gray: 930,
+  roof_tile_mycelium: 880,
+  blasting_charge: 900,
+});
+
+const expectedMergeYieldBps = 10_000;
+
 const ncmBuildingMaterialIds = [
   55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77,
   96, 97, 98, 99, 100, 101,
@@ -139,10 +210,10 @@ describe("smelting material rules", () => {
       assert.ok(physical.waterAbsorptionPct >= 0, `Missing water absorption for ${entry.id}`);
     }
   });
-  it("retires plant fiber without shifting any existing material identity", () => {
-    assert.deepEqual(smeltingRules.materials.slice(0, legacyMaterialIds.length).map((entry: { id: string }) => entry.id), legacyMaterialIds);
+  it("defines the final material identities without plant fiber", () => {
+    assert.deepEqual(smeltingRules.materials.slice(0, coreMaterialIds.length).map((entry: { id: string }) => entry.id), coreMaterialIds);
     assert.deepEqual(
-      smeltingRules.materials.slice(legacyMaterialIds.length).map((entry: { id: string }) => entry.id),
+      smeltingRules.materials.slice(coreMaterialIds.length).map((entry: { id: string }) => entry.id),
       [...clothAndDyeMaterialIds, ...buildingMaterialIds, ...utilityMaterialIds],
     );
     assert.equal(smeltingRules.materials.length, 59);
@@ -175,12 +246,73 @@ describe("smelting material rules", () => {
     }
   });
 
+  it("verifies recipes without loading a payer key or accepting removed material ids", () => {
+    let payerReads = 0;
+    const authority = resolveSmeltingSyncAuthority(true, () => {
+      payerReads += 1;
+      throw new Error("payer key must not be read");
+    });
+    assert.equal(authority.toBase58(), NICECHUNK_SMELTING_RECIPE_AUTHORITY.toBase58());
+    assert.equal(payerReads, 0);
+
+    assert.throws(
+      () => resolveSmeltingSyncAuthority(false, () => {
+        payerReads += 1;
+        throw new Error("payer key required");
+      }),
+      /payer key required/u,
+    );
+    assert.equal(payerReads, 1);
+    assert.throws(
+      () => selectedSmeltingMaterials("plant_fiber", smeltingRules.materials),
+      /Unknown smelting material ids: plant_fiber/u,
+    );
+  });
+
   it("publishes the same rule data consumed by the forging page", () => {
     const publicRules = JSON.parse(readFileSync(
       new URL("../public/rules/smelting-rules.json", import.meta.url),
       "utf8",
     ));
     assert.deepEqual(publicRules, smeltingRules);
+  });
+
+  it("keeps every browser fuel consumable and aligned with the chain heat tiers", () => {
+    assert.equal(smeltingFuelForRawKey("dryGrass")?.heatTier, 1);
+    assert.equal(smeltingFuelForRawKey("trunk")?.heatTier, 2);
+    assert.equal(smeltingFuelForMaterialId("charcoal")?.heatTier, 3);
+    assert.equal(smeltingFuelForRawKey("coal")?.heatTier, 4);
+    assert.equal(smeltingFuelForRawKey("basalt"), null);
+    assert.equal(smeltingFuelForRawKey("lava"), null);
+    assert.ok(smeltingRules.fuels.every((fuel: { consumable?: boolean }) => fuel.consumable === true));
+  });
+
+  it("rejects reusable entries because the contract consumes one fuel unit", () => {
+    const invalidRules = structuredClone(smeltingRules);
+    invalidRules.fuels[0].consumable = false;
+    assert.throws(
+      () => validateSmeltingRules(invalidRules),
+      /Fuel dry_grass must be consumable/u,
+    );
+  });
+
+  it("keeps primary process yields and lossless material merges explicit", () => {
+    assert.deepEqual(
+      Object.keys(expectedYieldBpsByMaterialId),
+      smeltingRules.materials.map((entry: { id: string }) => entry.id),
+    );
+
+    for (const material of smeltingRules.materials) {
+      const expectedYieldBps = expectedYieldBpsByMaterialId[material.id];
+      assert.equal(material.yieldBps, expectedYieldBps, `${material.id} primary material yield`);
+      assert.equal(smeltingRecipeYieldBps(material), expectedYieldBps, `${material.id} primary recipe yield`);
+      assert.equal(material.mergeYieldBps, expectedMergeYieldBps, `${material.id} merge material yield`);
+
+      const mergeRecipe = createSmeltingMergeRecipe(material);
+      assert.ok(mergeRecipe, `${material.id} merge recipe`);
+      assert.equal(mergeRecipe.yieldBps, expectedMergeYieldBps, `${material.id} merge recipe yield`);
+      assert.equal(smeltingRecipeYieldBps(mergeRecipe), expectedMergeYieldBps, `${material.id} normalized merge yield`);
+    }
   });
 
   it("defines the cloth inputs, dye colors, volumes, and explicit attributes", () => {
@@ -217,7 +349,7 @@ describe("smelting material rules", () => {
     }
   });
 
-  it("rejects references to the retired plant-fiber material", () => {
+  it("rejects references to the removed plant-fiber material", () => {
     assert.equal(validateSmeltingRules(smeltingRules), true);
     const invalidRules = structuredClone(smeltingRules);
     const cloth = invalidRules.materials.find((entry: { id: string }) => entry.id === "cotton_cloth");
@@ -267,7 +399,7 @@ describe("smelting material rules", () => {
       assert.ok(Number.isInteger(rule.yieldBps) && rule.yieldBps > 0 && rule.yieldBps <= 10_000);
       assert.ok(recipeRequirements(rule).length > 0);
       assert.ok(
-        recipeRequirements(rule).reduce((sum: number, input: { amount: number }) => sum + input.amount, 0) <= RECIPE_MAX_INPUTS,
+        recipeRequirements(rule).length <= RECIPE_MAX_INPUTS,
         `${materialId} exceeds the on-chain recipe input limit`,
       );
       const profile = smeltingMaterialAttributeProfiles[materialId];
@@ -278,21 +410,21 @@ describe("smelting material rules", () => {
     assert.equal(buildingMaterialIdForSmeltingMaterialId("cotton_cloth"), 0);
   });
 
-  it("encodes every build_ncm recipe input and output exactly as the PDA validator expects", () => {
-    for (const materialId of buildingMaterialIds) {
-      const rule = material(materialId);
+  it("encodes one quantity-aware template per requirement and the exact primary output quantity", () => {
+    for (const rule of smeltingRules.materials) {
+      const materialId = rule.id;
       const encoded = encodeMaterialRule(materialId).data;
-      const expectedKeys = recipeRequirements(rule).flatMap((requirement: { key: string; amount: number }) => (
-        Array.from({ length: requirement.amount }, () => requirement.key)
-      ));
-      const inputs = decodeInputs(encoded, expectedKeys.length);
+      const requirements = recipeRequirements(rule);
+      const inputs = decodeInputs(encoded, requirements.length);
 
       assert.equal(encoded.readBigUInt64LE(0), BigInt(smeltingRecipeIdForMaterialId(materialId)), materialId);
       assert.equal(encoded.readUInt8(9), rule.requiredHeatTier, materialId);
-      assert.equal(encoded.readUInt8(10), expectedKeys.length, materialId);
+      assert.equal(encoded.readUInt8(10), requirements.length, materialId);
       assert.equal(encoded.readUInt16LE(12), rule.yieldBps, materialId);
-      expectedKeys.forEach((key: string, index: number) => {
+      requirements.forEach((requirement: { key: string; amount: number }, index: number) => {
+        const key = requirement.key;
         const input = inputs[index];
+        assert.equal(input.quantity, requirement.amount, `${materialId}:${key}:quantity`);
         if (key.startsWith("material:")) {
           const inputMaterialId = key.slice("material:".length);
           assert.equal(input.kind, BACKPACK_SLOT_KIND_ITEM, `${materialId}:${key}`);
@@ -311,6 +443,30 @@ describe("smelting material rules", () => {
       assert.equal(output.itemCode, smeltingMaterialItemCode(materialId), materialId);
       assert.equal(output.itemId, BigInt(smeltingRecipeIdForMaterialId(materialId)), materialId);
       assert.equal(output.volumeMm3, primaryOutputVolumeMm3(rule), materialId);
+      assert.equal(output.quantity, rule.yieldCount, `${materialId}:yieldCount`);
+    }
+  });
+
+  it("encodes all merge recipes with one input and one output unit", () => {
+    assert.equal(smeltingRules.materials.length, 59);
+    for (const rule of smeltingRules.materials) {
+      const materialId = rule.id;
+      const encoded = encodeSmeltingRecipeArgs({
+        recipeId: smeltingMergeRecipeIdForMaterialId(materialId),
+        enabled: true,
+        minHeatTier: 0,
+        yieldBps: rule.mergeYieldBps,
+        inputs: [inputSlot(`material:${materialId}`)],
+        outputs: [outputSlot(rule, PublicKey.default, materialUnitVolumeMm3(rule), 1)],
+      });
+      const input = decodeInputs(encoded, 1)[0];
+      const output = decodeOutput(encoded);
+
+      assert.equal(input.quantity, 1, `${materialId}:merge input quantity`);
+      assert.equal(input.itemCode, smeltingMaterialItemCode(materialId), materialId);
+      assert.equal(output.quantity, 1, `${materialId}:merge output quantity`);
+      assert.equal(output.itemCode, smeltingMaterialItemCode(materialId), materialId);
+      assert.equal(output.volumeMm3, materialUnitVolumeMm3(rule), materialId);
     }
   });
 
@@ -343,7 +499,7 @@ describe("smelting material rules", () => {
     assert.equal(charge.forgeUse, "explosive");
     assert.equal(charge.renderMode, "blasting_charge");
     assert.equal(charge.unitVolumeMm3, 750_000);
-    assert.equal(charge.yieldBps, 9_000);
+    assert.equal(charge.yieldBps, 900);
     assert.equal(smeltingRecipeRequiresFuel(charge), false);
     assert.equal(smeltingMaterialItemCode(charge.id), 1060);
     assert.equal(smeltingRecipeIdForMaterialId(charge.id), 1060);
@@ -352,99 +508,114 @@ describe("smelting material rules", () => {
     assert.equal(smeltingMergeRecipeTableIdForMaterialId(charge.id), 325);
 
     const encoded = encodeMaterialRule(charge.id).data;
-    const inputs = decodeInputs(encoded, 7);
+    assert.equal(encoded.readUInt8(10), 5);
+    const inputs = decodeInputs(encoded, 5);
     assert.deepEqual(inputs.slice(0, 2).map((slot) => slot.resource.worldY >>> 9), [BLOCK_IDS.ash, BLOCK_IDS.toxicWater]);
     assert.ok(inputs.slice(0, 2).every((slot) => slot.kind === BACKPACK_SLOT_KIND_BLOCK));
-    assert.deepEqual(inputs.slice(2).map((slot) => slot.itemCode), [1001, 1001, 1002, 1002, 1004]);
+    assert.deepEqual(inputs.slice(2).map((slot) => slot.itemCode), [1001, 1002, 1004]);
+    assert.deepEqual(inputs.slice(2).map((slot) => slot.quantity), [2, 2, 1]);
     assert.ok(inputs.slice(2).every((slot) => slot.kind === BACKPACK_SLOT_KIND_ITEM));
     assert.equal(decodeOutput(encoded).itemCode, 1060);
-    assert.equal(decodeOutput(encoded).volumeMm3, 750_000);
+    assert.equal(decodeOutput(encoded).quantity, 1);
+    assert.equal(decodeOutput(encoded).volumeMm3, 5_750_000);
   });
 });
 
 describe("cloth and dye recipe codec", () => {
-  it("encodes four cotton blocks plus one dry-grass block", () => {
+  it("encodes cotton and dry grass as two quantity-aware templates", () => {
     assert.deepEqual(
       pickBlockIds(["cotton", "flowerWhite", "flowerYellow", "flowerRed", "flowerBlue", "flowerPink"]),
       [48, 49, 50, 51, 52, 53],
     );
     const encoded = encodeMaterialRule("cotton_cloth");
-    assert.equal(encoded.data.readUInt8(10), 5);
+    assert.equal(encoded.data.readUInt8(10), 2);
     assert.equal(encoded.data.readUInt8(11), 1);
     assert.equal(encoded.data.readBigUInt64LE(0), 1025n);
 
-    const inputs = decodeInputs(encoded.data, 5);
+    const inputs = decodeInputs(encoded.data, 2);
     assert.ok(inputs.every((slot) => slot.kind === BACKPACK_SLOT_KIND_BLOCK));
-    assert.deepEqual(inputs.map((slot) => slot.resource.worldY >>> 9), [48, 48, 48, 48, 29]);
+    assert.deepEqual(inputs.map((slot) => slot.resource.worldY >>> 9), [48, 29]);
+    assert.deepEqual(inputs.map((slot) => slot.quantity), [4, 1]);
 
     const output = decodeOutput(encoded.data);
     assert.equal(output.itemCode, 1025);
-    assert.equal(output.volumeMm3, 1_000_000);
+    assert.equal(output.volumeMm3, 5_000_000);
   });
 
-  it("encodes each flower dye with water and a 20 cm3 output", () => {
+  it("encodes each flower dye recipe with its complete input-volume basis", () => {
     for (const [materialId, flowerKey] of dyeRules) {
       const encoded = encodeMaterialRule(materialId);
-      assert.equal(encoded.data.readUInt8(10), 3);
-      const inputs = decodeInputs(encoded.data, 3);
-      assert.deepEqual(inputs.map((slot) => slot.resource.worldY >>> 9), [BLOCK_IDS[flowerKey], BLOCK_IDS[flowerKey], 17]);
+      assert.equal(encoded.data.readUInt8(10), 2);
+      const inputs = decodeInputs(encoded.data, 2);
+      assert.deepEqual(inputs.map((slot) => slot.resource.worldY >>> 9), [BLOCK_IDS[flowerKey], 17]);
+      assert.deepEqual(inputs.map((slot) => slot.quantity), [2, 1]);
       assert.ok(inputs.every((slot) => slot.kind === BACKPACK_SLOT_KIND_BLOCK));
       const output = decodeOutput(encoded.data);
       assert.equal(output.itemCode, smeltingMaterialItemCode(materialId));
-      assert.equal(output.volumeMm3, 20_000);
+      assert.equal(output.volumeMm3, 3_000_000);
     }
   });
 
-  it("preserves unit volume in merge recipe outputs", () => {
+  it("preserves unit volume and quantity in lossless merge recipe outputs", () => {
     for (const materialId of clothAndDyeMaterialIds) {
       const rule = material(materialId);
       const input = inputSlot(`material:${materialId}`);
-      const output = outputSlot(rule, PublicKey.default);
+      const output = outputSlot(rule, PublicKey.default, materialUnitVolumeMm3(rule), 1);
       const data = encodeSmeltingRecipeArgs({
         recipeId: smeltingMergeRecipeIdForMaterialId(materialId),
         enabled: true,
         minHeatTier: rule.requiredHeatTier,
-        yieldBps: 10_000,
+        yieldBps: rule.mergeYieldBps,
         inputs: [input],
         outputs: [output],
       });
+      assert.equal(data.readUInt16LE(12), expectedMergeYieldBps);
       assert.equal(decodeOutput(data).volumeMm3, materialUnitVolumeMm3(rule));
+      assert.equal(decodeOutput(data).quantity, 1);
     }
     assert.equal(materialUnitVolumeMm3(material("iron_bloom")), 250_000);
     assert.equal(inputSlot("material:white_dye").volumeMm3, 20_000);
     assert.throws(() => inputSlot("material:missing_material"), /No smelting material for input key/u);
   });
 
-  it("encodes PDA output volume per recipe instead of one shared output size", () => {
-    assert.equal(primaryOutputVolumeMm3(material("cotton_cloth")), 1_000_000);
-    assert.equal(primaryOutputVolumeMm3(material("white_dye")), 20_000);
-
-    const charcoal = material("charcoal");
-    assert.equal(primaryOutputVolumeMm3(material("charcoal")), 750_000);
+  it("encodes primary PDA output from complete recipe input volume", () => {
+    assert.equal(primaryOutputVolumeMm3(material("cotton_cloth")), 5_000_000);
+    assert.equal(primaryOutputVolumeMm3(material("white_dye")), 3_000_000);
+    assert.equal(primaryOutputVolumeMm3(material("charcoal")), 5_000_000);
+    assert.equal(primaryOutputVolumeMm3(material("deep_stone_brick")), 4_000_000);
   });
 
-  it("uses the PDA output volume, actual input ratio, recipe yield, and skill loss", () => {
+  it("uses the PDA output volume, actual input ratio, recipe yield, and skill bonus", () => {
     const cloth = material("cotton_cloth");
     const dye = material("white_dye");
     assert.equal(smeltingRecipeInputVolumeMm3(cloth), 5_000_000);
-    assert.equal(smeltingRecipePdaOutputVolumeMm3(cloth), 1_000_000);
+    assert.equal(smeltingRecipePdaOutputVolumeMm3(cloth), 5_000_000);
     assert.equal(smeltingRecipeInputVolumeMm3(dye), 3_000_000);
-    assert.equal(smeltingRecipePdaOutputVolumeMm3(dye), 20_000);
+    assert.equal(smeltingRecipePdaOutputVolumeMm3(dye), 3_000_000);
     assert.equal(calculateSmeltingOutputVolumeMm3({
       recipe: cloth,
       inputVolumeMm3: 5_000_000,
-      skillOutputBps: 7_000,
-    }), 455_000);
+      skillOutputBps: 12_000,
+    }), 390_000);
     assert.equal(calculateSmeltingOutputVolumeMm3({
       recipe: dye,
       inputVolumeMm3: 3_000_000,
-      skillOutputBps: 7_000,
-    }), 8_400);
+      skillOutputBps: 12_000,
+    }), 216_000);
     assert.equal(calculateSmeltingOutputVolumeMm3({
       recipe: dye,
       inputVolumeMm3: 1_500_000,
+      skillOutputBps: 15_000,
+    }), 135_000);
+  });
+
+  it("produces 18.6 cm3 of copper bloom from 300 cm3 of inputs at level zero", () => {
+    const copper = material("copper_bloom");
+    assert.equal(calculateSmeltingOutputVolumeMm3({
+      recipe: copper,
+      inputVolumeMm3: 300_000,
       skillOutputBps: 10_000,
-    }), 6_000);
+    }), 18_600);
   });
 });
 
@@ -460,8 +631,8 @@ function pickBlockIds(keys: string[]): number[] {
 
 function encodeMaterialRule(materialId: string) {
   const rule = material(materialId);
-  const inputs = recipeRequirements(rule).flatMap((requirement: { key: string; amount: number }) => (
-    Array.from({ length: requirement.amount }, () => inputSlot(requirement.key))
+  const inputs = recipeRequirements(rule).map((requirement: { key: string; amount: number }) => (
+    inputSlot(requirement.key, requirement.amount)
   ));
   const output = outputSlot(rule, PublicKey.default, primaryOutputVolumeMm3(rule));
   return {
