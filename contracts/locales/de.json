@@ -1,4 +1,66 @@
 {
+  "_meta": {
+    "language": "de",
+    "label": "German",
+    "version": "contracts-locale-de-3b91bd9e83d5db62",
+    "contentHash": "3b91bd9e83d5db62"
+  },
+  "siteFooter": {
+    "tagline": "Ein Seed-Voxelwelt-Protokoll auf Solana.",
+    "navigationAria": "Footer-Navigation",
+    "socialAria": "NiceChunk Social Links",
+    "home": "Home",
+    "play": "Welt betreten",
+    "roadmap": "Roadbook",
+    "docs": "Docs",
+    "guardian": "Guardians",
+    "contracts": "Contracts",
+    "x": "X / Twitter",
+    "github": "GitHub",
+    "copyright": "2026 NiceChunk. Alle Rechte vorbehalten."
+  },
+  "common": {
+    "language": "Sprache",
+    "comingSoon": "Demnächst",
+    "languageNative": {
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "de": "Deutsch",
+      "ja": "日本語",
+      "ru": "Русский",
+      "ko": "한국어",
+      "zhHant": "繁體中文",
+      "zhHans": "简体中文"
+    }
+  },
+  "siteHeader": {
+    "brandName": "NICECHUNK",
+    "brandHomeAria": "NiceChunk-Startseite",
+    "primaryNavigationAria": "Hauptnavigation",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen",
+    "routes": {
+      "home": "Home",
+      "roadbook": "Roadbook",
+      "worldRules": "Weltregeln",
+      "resources": "Ressourcen",
+      "ncm": "NCM",
+      "ncfm": "NCFM",
+      "elements": "Elemente",
+      "fairness": "Fairness",
+      "proofOfFrontier": "Beweis",
+      "seed": "Seed",
+      "guardians": "Wächter",
+      "contracts": "Verträge",
+      "civilization": "Zivilisation",
+      "trust": "Vertrauen",
+      "whitepaper": "Whitepaper",
+      "docs": "Docs",
+      "miner": "Miner",
+      "enterWorld": "Welt betreten"
+    }
+  },
   "meta": {
     "title": "NiceChunk Vertrage"
   },
@@ -80,13 +142,6 @@
         "audit": "Packed broken-block records, minY, count/capacity, and block proof assumptions"
       },
       {
-        "title": "Publish Player Buildings",
-        "body": "The Building program checks PlayerSession signer binding and expiry, but every current player branch requests BREAK_BLOCK rather than a distinct build permission. It indexes chunks and finalizes NCM3 manifests; a separate restricted-wallet path forwards Guardian blueprint metadata without checking a manifest.",
-        "surface": "Building",
-        "writes": "BuildSite, BuildingManifest, and BuildingShard PDAs",
-        "audit": "Foundation footprint, revision state, shard bitmap, NCM3 hash, and Guardian blueprint hash"
-      },
-      {
         "title": "Append Resources",
         "body": "The backpack program is prepared to append mined resource records after session validation. It is the inventory-side bridge for the mining loop.",
         "surface": "Inventory",
@@ -95,7 +150,7 @@
       },
       {
         "title": "Smelt Resources Into Items",
-        "body": "The Smelting program reads a caller-selected program-owned RecipeTable, matches selected Backpack input and fuel slots to that table, removes them, and appends table-derived outputs through the smelting-authority PDA. It does not enforce a canonical table or authority.",
+        "body": "The Smelting program validates a treasury-governed RecipeTable, matches selected Backpack inputs and fuels, removes them, and appends table-backed Material outputs through the smelting-authority PDA. Execution revalidates the table PDA, fixed authority, canonical GlobalConfig, and output provenance.",
         "surface": "Manufacturing",
         "writes": "RecipeTable read plus Backpack remove/append through smelting authority",
         "audit": "Selected table ID and authority provenance, recipe IDs, heat tiers, input/output volumes, disabled recipes, and output slot evidence"
@@ -109,7 +164,7 @@
       },
       {
         "title": "Settle Market Orders",
-        "body": "A buyer pays in NCK or SOL, the program routes a 1% market fee to treasury, and the escrowed Backpack slot bytes are delivered through the market authority. If the slot references a BlueprintItem, its separate owner field is not updated.",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "surface": "Settlement",
         "writes": "Listing settlement and buyer Backpack delivery",
         "audit": "Treasury fee routing, payment mint/native flag, settled slot, and final listing state"
@@ -130,7 +185,7 @@
     "pdaTitle": "PDA seed Beispiele",
     "boundaryTitle": "Aktuelle Grenze",
     "boundaryBody": "This page documents the current devnet-facing contract surface and the game runtime configuration loaded from mainnet.json. It does not claim final mainnet governance, live civilization execution, land ownership, complete realtime decentralization, or complete gameplay decentralization.",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nBlueprintItem: [\"blueprint-item\", itemId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v1\", globalConfig]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nMarketUser: [\"market-user-v1\", owner]\nLandContractAuthority: [\"land-contract-authority-v1\", globalConfig] under the Building program\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v3\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v2\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
   },
   "labels": {
     "programId": "Program ID",
@@ -228,6 +283,10 @@
     {
       "id": "nicechunk-player",
       "label": "Player"
+    },
+    {
+      "id": "nicechunk-skills",
+      "label": "Skills / XP"
     },
     {
       "id": "nicechunk-chunk",
@@ -399,6 +458,74 @@
       ]
     },
     {
+      "id": "nicechunk-skills",
+      "codeKey": "skills",
+      "name": "NiceChunk Skills",
+      "kind": "Authoritative XP, level, and progression-rule layer",
+      "programId": "5gkdfmRJogdSdPrT8rvnEkPdn2N2fLBnQ6YDdegUcu3P",
+      "status": "Devnet",
+      "role": "Stores ten authoritative XP totals and levels per owner, consumes validated source counters, and applies mining-only Swiftness and Burden awards.",
+      "source": "programs/nicechunk_skills/src/lib.rs",
+      "sdk": "sdk/nicechunk-skills.ts",
+      "magic": "NCKSKL01 / NCKXPR01 / NCKBRD01",
+      "accountSize": "PlayerSkills: 480 bytes; SkillRuleTable: 5,264 bytes",
+      "summary": "The Skills program is the single level authority. PlayerSkills stores XP, cached levels, source cursors, mining travel state, and burden work. Treasury-governed SkillRuleTable thresholds and source rules determine every accepted delta; mining-only awards also require a matching Chunk instruction in the same transaction.",
+      "instructions": [
+        "0 initialize_rule_table",
+        "1 set_skill_thresholds",
+        "2 upsert_source_rule",
+        "3 sync_player_skills",
+        "4 set_rule_table_authority",
+        "5 set_mining_travel_rule",
+        "6 set_burden_mining_rule",
+        "All other skill tags return InvalidInstruction."
+      ],
+      "pdaSeeds": [
+        "SkillRuleTable: [\"skill-rules-v1\", globalConfig]",
+        "PlayerSkills: [\"player-skills-v1\", globalConfig, owner]"
+      ],
+      "storage": [
+        "PlayerSkills stores ten u64 XP totals, ten cached levels, 32 source cursors, the applied rule revision, and creation/update slots.",
+        "Mining state stores the last proven coordinate, qualifying travel count, accumulated burden work, and the last consumed Backpack mining sequence.",
+        "SkillRuleTable stores ten cumulative thresholds for each of ten skills, up to 30 generic source rules, one travel rule, and one burden rule.",
+        "Source rules bind a program owner, account magic, PDA seed layout, metric offset, bounded sync delta, divisor, and per-skill XP rates."
+      ],
+      "notes": [
+        "The browser does not merge local XP with chain XP; PlayerSkills is the authoritative ledger.",
+        "Generic source synchronization validates account owner, PDA, magic, owner/global-config fields, monotonic counters, and a bounded delta.",
+        "Swiftness distance and Burden mass awards require an Instructions sysvar proof of a matching Chunk mining instruction in the same transaction.",
+        "Changing thresholds increments the rule revision; the next sync recomputes cached levels from the same cumulative table."
+      ],
+      "pdaAccounts": [
+        {
+          "name": "PlayerSkills",
+          "seeds": "[\"player-skills-v1\", globalConfig, owner]",
+          "magic": "NCKSKL01",
+          "size": "480 bytes",
+          "purpose": "One owner-scoped authoritative ledger for all ten skills.",
+          "fields": [
+            "owner, globalConfig, XP totals, cached levels",
+            "source cursor mask, 32 cursors, ruleRevision",
+            "createdSlot, updatedSlot, createdAt",
+            "last mining coordinate, travel count, burden work and mine sequence"
+          ]
+        },
+        {
+          "name": "SkillRuleTable",
+          "seeds": "[\"skill-rules-v1\", globalConfig]",
+          "magic": "NCKXPR01",
+          "size": "5264 bytes",
+          "purpose": "Treasury-governed cumulative thresholds and validated XP-source conversion rules.",
+          "fields": [
+            "authority, globalConfig, ruleCount, revision",
+            "ten cumulative thresholds for each of ten skills",
+            "generic source rules with PDA and metric validation",
+            "mining travel and Backpack-mass burden rules"
+          ]
+        }
+      ]
+    },
+    {
       "id": "nicechunk-chunk",
       "codeKey": "chunk",
       "name": "NiceChunk Chunk",
@@ -408,7 +535,7 @@
       "role": "Verifies generated single blocks and records compact broken-block state per chunk.",
       "source": "programs/nicechunk_chunk/src/lib.rs",
       "sdk": "sdk/nicechunk-chunk.ts",
-      "magic": "NCBK / NCKDRP02 / NCKDEC01 / NCKFCI01|02",
+      "magic": "NCBK / NCKDRP02 / NCKDEC01 / NCKFCI03",
       "accountSize": "ChunkBrokenState: 16-byte header + 3 bytes per capacity record; rule and foundation indexes use separate layouts",
       "summary": "The chunk program uses the current optimized mining path. For mining, the player submits one world block coordinate. The program derives the chunk, verifies the generated block, rejects air/water/bedrock or already-mined positions, and appends a compressed broken-block record.",
       "instructions": [
@@ -423,24 +550,22 @@
         "13 apply_civilization_surface_decoration_receipt",
         "15 register_build_site_chunk",
         "20 batch_mine_with_rewards",
-        "21 range_mine_with_rewards",
-        "Legacy chunk tags 0-4 are not accepted by the current dispatcher."
+        "21 range_mine_with_rewards"
       ],
       "pdaSeeds": [
         "ChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
         "ResourceDropTable: [\"resource-drops-v2\", globalConfig]",
         "SurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]",
-        "FoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
+        "FoundationChunk: [\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
       ],
       "storage": [
-        "ChunkBrokenState stores a 16-byte header and 3-byte mined-block records; the current dispatcher has no legacy ChunkState branch.",
+        "ChunkBrokenState stores a 16-byte header and 3-byte mined-block records; the dispatcher exposes only the final mining instruction surface.",
         "ResourceDropTable, SurfaceDecorationTable, and FoundationChunk accounts keep rule and occupied-foundation evidence in separate PDA families.",
         "A record packs local x, local z, and y offset. Capacity starts at 64, grows by 64, and caps at 2,048 records.",
         "GlobalConfig world seed, chunk size, build height, max terrain height, and sea level are used for generated block verification."
       ],
       "notes": [
         "This is the current mining write path used by the browser client.",
-        "Legacy Chunk tags 0-4 are rejected by the current dispatcher; no MagicBlock delegation instruction is active in this crate.",
         "Backpack resource settlement is intentionally separate so mining state and inventory state can evolve independently."
       ],
       "pdaAccounts": [
@@ -466,6 +591,18 @@
             "sourceBlockId, dropBlockId, baseChanceBps",
             "altitude and depth bounds",
             "salt plus min/max drop volume in mm³"
+          ]
+        },
+        {
+          "name": "FoundationChunk",
+          "seeds": "[\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+          "magic": "NCKFCI03",
+          "size": "56-byte header + capacity * 58-byte records",
+          "purpose": "Chunk-local index of immutable BuildSite v3 land registrations.",
+          "fields": [
+            "globalConfig, chunkX, chunkZ, count, capacity",
+            "owner, foundationId, surfaceY, local bounds for each land record",
+            "records are inserted during registration and removed in reverse order during incomplete-site rollback"
           ]
         }
       ]
@@ -504,68 +641,64 @@
       ],
       "pdaAccounts": []
     },
-
     {
       "id": "nicechunk-building",
       "codeKey": "building",
       "name": "NiceChunk Building",
-      "kind": "Build sites, NCM3 building manifests, and Guardian blueprint publishing",
+      "kind": "Immutable chunk-aligned land and NCM3 building manifests",
       "programId": "39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx",
       "status": "Devnet",
-      "role": "Owns BuildSite v2 accounts, chunk indexing, building manifests, upload shards, resize flow, and Guardian blueprint publishing authority.",
+      "role": "Reserves treasury-issued land contracts, registers BuildSite v3 chunks, and finalizes NCM3 buildings for direct on-chain discovery.",
       "source": "programs/nicechunk_building/src/lib.rs",
       "sdk": "sdk/nicechunk-building.ts",
-      "magic": "NCKSITE1 / NCKBLD02 / NCKBDT01",
-      "accountSize": "BuildSite: 160 bytes; legacy BuildSite: 136 bytes; BuildingManifest: 160 bytes; BuildingShard: 64 + payload bytes",
-      "summary": "The Building program creates and resizes BuildSite accounts, registers occupied chunks, stages and finalizes NCM3 uploads, migrates legacy sites, and publishes Guardian blueprint metadata. Its session guard checks signer binding and expiry but currently requests BREAK_BLOCK for every player branch rather than a distinct build permission.",
+      "magic": "NCKSITE3 / NCKBLD03 / NCKBDT02",
+      "accountSize": "BuildSite: 160 bytes; BuildingManifest: 160 bytes; BuildingShard: 64 + payload bytes",
+      "summary": "The Building program reserves one treasury-issued land contract per complete 16x16 chunk, registers immutable BuildSite v3 land, consumes the reservation atomically on the final chunk, and reverses registered indexes before returning contracts when an incomplete site is canceled.",
       "instructions": [
-        "0 create_build_site",
-        "1 register_build_site_chunks",
+        "0 create_build_site and reserve the required land contracts",
+        "1 register_build_site_chunks and consume the reservation after the final chunk",
         "2 begin_building_upload",
         "3 write_building_shard",
         "4 finalize_building",
         "5 cancel_building_upload",
-        "6 migrate_legacy_build_site",
-        "7 begin_build_site_resize",
-        "8 publish_guardian_blueprint",
+        "6 cancel_build_site_indexing, remove registered chunks in reverse order, and release contracts",
         "All other building tags return InvalidInstruction."
       ],
       "pdaSeeds": [
-        "BuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]",
-        "BuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
-        "BuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
-        "ChunkAuthority: [\"chunk-authority-v1\", globalConfig]",
-        "GuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+        "BuildSite: [\"build-site-v3\", globalConfig, foundationId:u64_le]",
+        "BuildingManifest: [\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]",
+        "BuildingShard: [\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+        "ChunkAuthority: [\"chunk-authority-v2\", globalConfig]",
+        "LandContractAuthority: [\"land-contract-authority-v1\", globalConfig]"
       ],
       "storage": [
-        "BuildSite stores owner, global config, foundation ID, footprint, surface Y, active and pending revisions, indexed chunk counters, staged resize dimensions, and update slots.",
-        "BuildingManifest stores owner, global config, foundation ID, revision, payload length, expected NCM3 hash, dimensions, rotation, offsets, shard count, uploaded bitmap, and status.",
-        "BuildingShard stores one bounded payload segment for an NCM3 building upload, with uploaded length and payload bytes after the 64-byte header."
+        "BuildSite stores the owner, global config, foundation ID, chunk-aligned footprint, blank-contract type and count, revision state, and indexing counters.",
+        "BuildingManifest stores one finalized NCM3 building revision, dimensions, offsets, hash, shard bitmap, and activation state under the v3 building namespace.",
+        "BuildingShard stores one bounded payload segment under the v2 shard namespace, with payload bytes after its 64-byte header."
       ],
       "notes": [
-        "PlayerSession-gated Building branches require a matching PlayerProfile and live session, but request the BREAK_BLOCK bit instead of the defined PLACE_BLOCK bit; the restricted-publisher blueprint branch has no PlayerSession gate.",
-        "A BuildingManifest only becomes active after all shards are written, the payload hash matches, and the NCM3 dimensions fit the BuildSite footprint and world height limits.",
-        "Guardian blueprint publication is restricted to the treasury or configured publisher wallet and calls Guardian through a Building PDA, but tag 8 does not read a BuildingManifest or prove that the submitted summary matches a finalized building.",
-        "The 136-byte legacy BuildSite layout is still decoded so deployed foundations can be migrated safely."
+        "One blank land contract covers one complete 16x16 chunk; a parcel consumes chunksX multiplied by chunksZ contracts and is capped at 4,096 contracts.",
+        "Active land cannot be resized or canceled. Incomplete indexing can be canceled only by removing registered FoundationChunk entries in reverse order before releasing the full reservation.",
+        "Nearby clients derive FoundationChunk v3 PDAs, validate each referenced BuildSite, and compare the complete BuildingManifest SHA-256 before reusing cached NCM3 bytes."
       ],
       "pdaAccounts": [
         {
           "name": "BuildSite",
-          "seeds": "[\"build-site-v1\", globalConfig, foundationId:u64_le]",
-          "magic": "NCKSITE1",
-          "size": "160 bytes; legacy layout is 136 bytes",
-          "purpose": "Player-owned foundation footprint and revision state for a build site.",
+          "seeds": "[\"build-site-v3\", globalConfig, foundationId:u64_le]",
+          "magic": "NCKSITE3",
+          "size": "160 bytes",
+          "purpose": "Immutable player-owned land registration for one or more complete chunks.",
           "fields": [
             "owner, globalConfig, foundationId",
+            "contractType, landContractCount",
             "minX, minZ, surfaceY, width, depth",
-            "activeRevision and pendingRevision",
-            "registeredChunks, totalChunks, stagedWidth, stagedDepth"
+            "activeRevision, pendingRevision, registeredChunks, totalChunks"
           ]
         },
         {
           "name": "BuildingManifest",
-          "seeds": "[\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
-          "magic": "NCKBLD02",
+          "seeds": "[\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]",
+          "magic": "NCKBLD03",
           "size": "160 bytes",
           "purpose": "Upload and activation manifest for one NCM3 building revision.",
           "fields": [
@@ -577,25 +710,14 @@
         },
         {
           "name": "BuildingShard",
-          "seeds": "[\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
-          "magic": "NCKBDT01",
+          "seeds": "[\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+          "magic": "NCKBDT02",
           "size": "64-byte header plus payload, up to 8,256 bytes",
           "purpose": "Bounded shard payload used to upload an NCM3 building before finalization.",
           "fields": [
             "shardIndex, payloadLen, uploadedLen",
             "globalConfig, foundationId, revision",
             "payload bytes after the header"
-          ]
-        },
-        {
-          "name": "GuardianBlueprintAuthority",
-          "seeds": "[\"guardian-blueprint\", globalConfig]",
-          "magic": "PDA signer only",
-          "size": "No data account",
-          "purpose": "Program signer for publishing restricted-wallet-supplied blueprint metadata; the path does not verify it against a BuildingManifest.",
-          "fields": [
-            "Derived under the Building program",
-            "Calls Guardian update_blueprint with the expected region and global config"
           ]
         }
       ]
@@ -604,23 +726,23 @@
       "id": "nicechunk-guardian",
       "codeKey": "guardian",
       "name": "NiceChunk Guardian Registry",
-      "kind": "Guardian endpoint registry",
+      "kind": "Regional relay registration, liveness proofs, settlement, and endpoint discovery",
       "programId": "RQQZKA1fGELBxtxCQ6q7P26GJH4whWmPjH9XqmihVRK",
       "status": "Devnet",
-      "role": "Registers NCK-staked Guardian regions with operator endpoints and blueprint metadata; proof and settlement branches are not live in V2.",
+      "role": "Registers 100x100-Chunk relay regions, records operator proofs, settles stale regions, and lets the region owner update its endpoint.",
       "source": "programs/nicechunk_guardian/src/lib.rs",
       "sdk": "sdk/nicechunk-guardian.ts",
       "magic": "NCKGDR01 / NCKGRG01",
-      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion: 288 bytes",
-      "summary": "The Guardian program records regional service endpoints and accepts an NCK registration transfer into the treasury token account. Retired proof and settlement tags are rejected; V2 has no proof, slash, deregistration, stake exit/refund, or structured event-emission path.",
+      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion V1: 256 bytes",
+      "summary": "Guardian is a realtime relay registry. It does not index land, publish building summaries, validate BuildingManifest accounts, or participate in land-contract consumption.",
       "instructions": [
         "0 initialize_registry",
         "1 register_genesis_guardian",
         "2 register_guardian",
-        "5 update_guardian_endpoint",
-        "6 update_guardian_blueprint",
-        "8 update_guardian_operator",
-        "Tags 3 and 4 are retired/unassigned and are rejected by the current process_instruction tests."
+        "3 submit_guardian_proof",
+        "4 settle_guardian",
+        "5 update_guardian_endpoint with the region owner signature",
+        "All other Guardian tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "GuardianRegistry: [\"guardian-registry\", globalConfig]",
@@ -628,15 +750,13 @@
         "GuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]"
       ],
       "storage": [
-        "Registry stores GlobalConfig, NCK mint, treasury token account, active count, and genesis flag.",
-        "Region stores treasury ownership, the Guardian operator, endpoint, stake, legacy proof/penalty fields, and chain-committed blueprint hash, revision, and record count.",
-        "Region size is 100 by 100 chunks. Registration requires a 100,000 NCK treasury payment at 6 decimals.",
-        "The layout retains proof interval, penalty, and slash fields, but the current dispatcher has no proof, settlement, slash, deregistration, refund, or stake-reclaim instruction."
+        "GuardianRegistry stores GlobalConfig, NCK mint and treasury token identities, active and total registration counters, genesis state, region size, stake policy, and creation metadata.",
+        "GuardianRegion V1 stores owner, operator, GlobalConfig, endpoint, stake and proof lifecycle fields for one 100x100-Chunk region."
       ],
       "notes": [
-        "The current web Guardian page reads this registry and region PDA data from devnet.",
-        "Only the stored Guardian operator can update the endpoint. The fixed treasury wallet can replace the operator in one transaction without operator acceptance, a timelock, or an on-chain governance vote; the restricted Building publisher path updates blueprint metadata.",
-        "The registration transfer goes to the treasury token account. V2 has no deregistration, stake reclaim, refund, slash, or structured event instruction; reviewers must use transaction history and account diffs."
+        "Guardian realtime messages are availability hints, not authoritative land or building state.",
+        "Land and buildings are discovered from FoundationChunk, BuildSite, BuildingManifest, and BuildingShard PDAs without a Guardian dependency.",
+        "Endpoint mutation requires the stored region owner; proof submission requires the stored operator."
       ],
       "pdaAccounts": [
         {
@@ -656,14 +776,12 @@
           "name": "GuardianRegion",
           "seeds": "[\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
           "magic": "NCKGRG01",
-          "size": "288 bytes",
-          "purpose": "Registered realtime region endpoint, stake state, blueprint metadata, and legacy proof fields.",
+          "size": "256 bytes",
+          "purpose": "Owner-configured realtime relay endpoint and proof lifecycle for one 100x100-Chunk region.",
           "fields": [
-            "region coordinates and chunk bounds",
             "owner, operator, globalConfig",
-            "host, port, useTls",
-            "stakeAmount, penalties, proof counters, updatedSlot",
-            "blueprintHash, blueprintRevision, blueprintRecordCount"
+            "region coordinates and inclusive Chunk bounds",
+            "host, port, TLS, stake, proof, penalty, and update fields"
           ]
         }
       ]
@@ -675,12 +793,12 @@
       "kind": "Inventory slot layer for blocks, resources, and items",
       "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
       "status": "Devnet",
-      "role": "Creates player backpacks, stores block-resource and item slots, removes selected slots, and accepts marketplace or smelting-authorized delivery.",
+      "role": "Creates player backpacks, maintains authoritative volume and mass, stores resource and item slots, and creates immutable forged-model accounts.",
       "source": "programs/nicechunk_backpack/src/lib.rs",
       "sdk": "sdk/nicechunk-backpack.ts",
-      "magic": "NCKBPK01",
-      "accountSize": "BackpackAccount v3: 8,048 bytes; BackpackSlotRecord: 80 bytes",
-      "summary": "The Backpack program stores fixed 80-byte resource and item slots and supports mining, smelting, forging, equipment, and marketplace paths. A session carrying BREAK_BLOCK can call tag 2 to remove any selected slot index; tag 8 validates NCF1 bytes and material requirements but does not validate a BlueprintItem or issuer record.",
+      "magic": "NCKBPK01 / NCKPHY02 / NCKBPT01 / NCKFGI01",
+      "accountSize": "BackpackAccount v4: 8,048 bytes; MaterialPhysicsTable: 1,040 bytes; ForgedItem: 752 bytes",
+      "summary": "The Backpack program stores v4 fixed-size slots, enforces per-slot and total mass from MaterialPhysicsTable, records pre-mine mass and mining sequence for Burden XP, and creates immutable ForgedItem model PDAs. Marketplace, Smelting, Chunk, Player equipment, and Skills consume explicit PDA-gated paths.",
       "instructions": [
         "0 initialize_backpack",
         "1 append_mined_resource",
@@ -691,26 +809,33 @@
         "6 append_mined_resources_batch",
         "7 disabled: UnverifiedForgeInstructionDisabled",
         "8 forge_equipment_with_material_verification",
-        "9 issue_blueprint",
         "10 transfer_backpack_item_to_equipment",
         "11 transfer_equipment_item_to_backpack",
-        "All other backpack tags return InvalidInstruction."
+        "12 configure_material_physics",
+        "13 record_mining_action",
+        "All other backpack tags return InvalidInstruction.",
+        "9 retired construction-item issuance: always returns InvalidInstruction"
       ],
       "pdaSeeds": [
-        "Backpack: [\"backpack\", creator, backpackId:u64_le]"
+        "Backpack: [\"backpack\", creator, backpackId:u64_le]",
+        "MaterialPhysicsTable: [\"material-physics-v2\", globalConfig]",
+        "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
+        "ForgedItem: [\"forged-item-v1\", creator, itemId:u64_le]"
       ],
       "storage": [
-        "Backpack header stores backpack ID, owner, capacity, item count, state, placement fields, timestamps, and flags.",
-        "Default capacity is 50 slots. Max capacity is 99 slots.",
-        "Each v3 BackpackSlotRecord is 80 bytes: kind, category, flags, quantity, resource coordinate, item code, item ID, item PDA, volume, durability, grade, item level, quality, and metadata.",
-        "Slot kind 1 stores block resources. Slot kind 2 stores item/material records such as smelted outputs or forged outputs.",
-        "The decoder only accepts the current v3 account layout."
+        "Backpack v4 stores owner, capacity, item count, placement, timestamps, total mass, the pre-mine mass snapshot, action ID, and mining sequence.",
+        "Default capacity is 50 slots and maximum capacity is 99 slots; every slot is a fixed 80-byte record.",
+        "Each slot stores kind, category, flags, quantity, resource coordinate, item identity, volume, mass, durability, grade, level, quality, and metadata.",
+        "MaterialPhysicsTable maps block and item keys to density in kg/m³ and standard volume in mm³.",
+        "ForgedItem stores immutable canonical NCF1 bytes separately from the movable Backpack slot that references it."
       ],
       "notes": [
-        "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
-        "The marketplace program can escrow or deliver backpack resources through the market-authority PDA.",
-        "The smelting program can append material or item outputs through the smelting-authority PDA; output trust still depends on the selected RecipeTable provenance because execution does not enforce a canonical table.",
-        "Direct player appends remain restricted to validated mining sessions for block resources, but tag 2 also lets a BREAK_BLOCK session remove any selected Backpack slot, including an item slot."
+        "Backpack v4 requires an initialized mass state; old Backpack account layouts are intentionally unsupported on testnet.",
+        "Every material-bearing append validates or derives mass from the current MaterialPhysicsTable before updating totalMassGrams.",
+        "Tag 13 snapshots pre-mine mass and advances a monotonic mineSequence so Skills can award Burden XP once per proven mining action.",
+        "Marketplace and equipment move slot custody, while an immutable ForgedItem PDA remains the canonical model proof.",
+        "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
+        "Backpack v4 compacts and discards historical construction-item slots; they cannot be issued, equipped, listed, or used to register land."
       ],
       "pdaAccounts": [
         {
@@ -718,12 +843,36 @@
           "seeds": "[\"backpack\", creator, backpackId:u64_le]",
           "magic": "NCKBPK01",
           "size": "8048 bytes",
-          "purpose": "Wallet-owned inventory PDA for block resources and item references.",
+          "purpose": "Wallet-owned inventory PDA with authoritative per-slot and total mass.",
           "fields": [
-            "backpackId, owner, capacity, itemCount",
-            "state, flags, placed position",
-            "createdSlot, updatedSlot, createdAt",
-            "up to 99 slot records with block resource or item reference"
+            "backpackId, owner, capacity, itemCount, state and flags",
+            "createdSlot, updatedSlot, createdAt and placement",
+            "totalMassGrams, lastMinePreMassGrams, lastMineActionId and mineSequence",
+            "up to 99 fixed 80-byte block, material, or forged-item slots"
+          ]
+        },
+        {
+          "name": "MaterialPhysicsTable",
+          "seeds": "[\"material-physics-v2\", globalConfig]",
+          "magic": "NCKPHY02",
+          "size": "1040 bytes",
+          "purpose": "Treasury-governed density and standard-volume rules used to derive authoritative mass.",
+          "fields": [
+            "revision, ruleCount",
+            "block or item key",
+            "densityKgM3, standardVolumeMm3"
+          ]
+        },
+        {
+          "name": "ForgedItem",
+          "seeds": "[\"forged-item-v1\", creator, itemId:u64_le]",
+          "magic": "NCKFGI01",
+          "size": "752 bytes",
+          "purpose": "Immutable canonical NCF1 model bytes and design identity for one forged item.",
+          "fields": [
+            "itemId, creator, originBackpack",
+            "designHash, codeLength, canonical code",
+            "createdSlot, createdAt"
           ]
         }
       ]
@@ -740,12 +889,11 @@
       "sdk": "sdk/nicechunk-smelting.ts",
       "magic": "NCKSMR01",
       "accountSize": "RecipeTable: 9,936 bytes; RecipeRecord: 984 bytes",
-      "summary": "The smelting program separates recipe authority from backpack storage. A recipe table PDA stores up to 10 recipes, each with up to 8 input slots and 4 output slots. Execution validates selected Backpack inputs and fuel, but accepts any RecipeTable owned by this program; table ID and authority provenance must therefore be verified separately before trusting its outputs.",
+      "summary": "The smelting program separates fixed recipe governance from Backpack storage. A RecipeTable PDA stores up to 10 recipes, each with up to 8 input slots and 4 output slots. Only the compiled treasury may initialize or directly upsert a table; execution validates owner, stored ID, PDA, bump, fixed authority, canonical GlobalConfig, and table-backed Material outputs.",
       "instructions": [
         "0 initialize_recipe_table",
         "1 upsert_recipe",
         "2 execute_smelting",
-        "3 set_recipe_table_authority",
         "4 apply_civilization_recipe_receipt",
         "execute_smelting supports input indexes, fuel indexes, and a batch multiplier."
       ],
@@ -757,12 +905,12 @@
         "RecipeTable stores table ID, authority, recipe count, timestamps, and fixed-size recipe records.",
         "Each RecipeRecord stores recipe ID, enabled flag, minimum heat tier, input count, output count, up to 8 input BackpackSlot records, up to 4 output BackpackSlot records, and updated slot.",
         "BackpackSlot records support block resources and item/material outputs.",
-        "Recipe table authority can upsert recipes and can transfer authority in one step to any pubkey, including the default pubkey, with no acceptance or recovery step."
+        "Direct recipe upsert requires the compiled treasury signer. The Smelting instruction map exposes no recipe-authority transfer branch."
       ],
       "notes": [
-        "Any signer can initialize an unused table ID and becomes that RecipeTable authority; a Civilization receipt can also patch a target table.",
+        "Only the compiled treasury signer may initialize an unused table ID; a validated Civilization receipt can separately patch its exact target table.",
         "Execution validates backpack ownership, recipe matching, input slots, fuel slots, and batch multiplier before consuming inventory.",
-        "The smelting-authority PDA gates Backpack writes, but it does not make the selected RecipeTable canonical or trusted."
+        "The smelting-authority PDA gates Backpack writes, while execution separately validates the RecipeTable identity, fixed treasury authority, and table-backed Material output provenance."
       ],
       "pdaAccounts": [
         {
@@ -783,7 +931,7 @@
           "seeds": "[\"smelting-authority\"]",
           "magic": "PDA signer only",
           "size": "No data account",
-          "purpose": "Program signer used to append outputs that match the caller-selected RecipeTable; it does not establish table provenance or canonicality.",
+          "purpose": "Program signer used to append outputs only after the Smelting program validates RecipeTable identity and table-backed Material provenance.",
           "fields": [
             "Derived signer PDA",
             "No mutable player-owned storage"
@@ -795,39 +943,42 @@
       "id": "nicechunk-market",
       "codeKey": "market",
       "name": "NiceChunk Marketplace",
-      "kind": "Backpack-slot marketplace settlement layer",
-      "programId": "1PwPzFtdJ5gQqku5gBo4b6Wvo48Qe8NuXSogUP8TWpR",
+      "kind": "Escrow marketplace and treasury-issued land contracts",
+      "programId": "6CurnvneezBuHwPUnrCiFg1QMWeUF67ufQxYebyr2UP7",
       "status": "Devnet",
-      "role": "Creates listings from seller Backpack PDA slots, escrows the full 80-byte slot, settles NCK or SOL payment, and restores or delivers inventory on cancel or purchase.",
+      "role": "Escrows transferable inventory listings and sells blank land contracts directly from the treasury without creating Listing PDAs.",
       "source": "programs/nicechunk_market/src/lib.rs",
       "sdk": "src/chain/nicechunkChain.js",
       "magic": "NCKMKT01",
-      "accountSize": "ListingAccount: 216 bytes",
-      "summary": "The Marketplace program escrows an existing 80-byte Backpack slot snapshot and restores or delivers those slot bytes on cancel or purchase. For BlueprintItem slots, this moves the Backpack record only; it does not update the separate BlueprintItem owner field.",
+      "accountSize": "ListingAccount: 216 bytes; MarketUser: 64 bytes",
+      "summary": "The unified Game/Market program settles item listings and maintains MarketUser v1 membership. A treasury purchase transfers exactly 1 NCK per blank land contract and credits the buyer's available contract balance without creating a Listing PDA.",
       "instructions": [
         "0 create_listing",
         "1 cancel_listing",
         "2 buy_listing",
-        "3 disabled / invalid legacy initialize_asset",
-        "Create listing only accepts listingId, currency, sourceType, sourceIndex, and price; item parameters are read from the Backpack PDA.",
-        "Cancellation and purchase write the Listing-owned 80-byte slot back into the target Backpack through the market-authority PDA.",
-        "Payment supports NCK and SOL with a 1% market fee."
+        "3 join_market",
+        "4 buy_treasury_contract at exactly 1 NCK per blank land contract",
+        "5 reserve_blank_land_contracts for Building CPI",
+        "6 consume_reserved_blank_land_contracts for Building CPI",
+        "7 release_reserved_blank_land_contracts for Building CPI",
+        "Listing settlement supports NCK and SOL with a 1% market fee; treasury land-contract purchases do not create listings or charge that fee."
       ],
       "pdaSeeds": [
         "Listing: [\"listing\", seller, listingId:u64_le]",
-        "MarketAuthority: [\"market-authority\"]"
+        "MarketUser: [\"market-user-v1\", owner]",
+        "MarketAuthority: [\"market-authority\"]",
+        "LandContractAuthority is derived by Building: [\"land-contract-authority-v1\", globalConfig]"
       ],
       "storage": [
-        "Listing stores seller wallet, listing ID, currency, source type/index, price, the full source slot snapshot, timestamps, buyer, and final settlement fields.",
-        "The source slot is copied from Backpack v3 slot data during create_listing; category, quantity, itemCode, durability, grade, itemLevel, and quality are never accepted from user payload.",
-        "A purchased listing remains a sold settlement record. A canceled listing restores the escrowed slot, zeroes its data, and refunds listing lamports to the seller."
+        "Listing stores seller, listing ID, currency, source type/index, price, the full 80-byte escrowed source slot, buyer, and settlement fields.",
+        "MarketUser v1 stores owner, active listing count, updated slot, available blank land contracts at bytes 52-55, and reserved contracts at bytes 56-59.",
+        "Blank land contracts are balances inside MarketUser, not Backpack items; they use no Backpack slot and no Listing account when purchased from the treasury."
       ],
       "notes": [
-        "Only the listing seller can cancel an active listing.",
-        "Buyers cannot purchase their own listings.",
-        "Only the marketplace PDA can restore or deliver escrowed slots through the backpack program.",
-        "Treasury fee is 1% of the listing price in the chosen currency.",
-        "Marketplace settlement transfers Backpack slot bytes only and does not update a referenced BlueprintItem account owner."
+        "Each wallet may have at most 50 active listings.",
+        "Each treasury purchase may buy 1 to 4,096 blank land contracts at a fixed price of 1 NCK each.",
+        "Only the Building program's land-contract authority can reserve, consume, or release contract balances.",
+        "Historical construction-item records are discarded and cannot be transferred or used to register land."
       ],
       "pdaAccounts": [
         {
@@ -852,6 +1003,18 @@
           "fields": [
             "Derived signer PDA",
             "Does not custody player wallets outside explicit instructions"
+          ]
+        },
+        {
+          "name": "MarketUser",
+          "seeds": "[\"market-user-v1\", owner]",
+          "magic": "NCKMUS01",
+          "size": "64 bytes",
+          "purpose": "Membership, active listing limit, and available/reserved blank land-contract balances.",
+          "fields": [
+            "owner, activeListingCount, updatedSlot",
+            "blankLandContracts, reservedBlankLandContracts",
+            "maximum 50 active listings"
           ]
         }
       ]
@@ -1025,7 +1188,12 @@
       "civilization-citizen-power": "CitizenPower accounts",
       "build-site": "BuildSite",
       "building-manifest": "BuildingManifest",
-      "building-shard": "BuildingShard"
+      "building-shard": "BuildingShard",
+      "player-skills": "PlayerSkills",
+      "skill-rule-table": "SkillRuleTable",
+      "material-physics-table": "MaterialPhysicsTable",
+      "forged-item": "ForgedItem model",
+      "market-user": "MarketUser"
     },
     "summary": {
       "owner": "Owner",
@@ -1067,7 +1235,10 @@
       "executor": "Executor",
       "executed": "Executed",
       "totalPower": "Total power",
-      "citizen": "Citizen"
+      "citizen": "Citizen",
+      "revision": "Revision",
+      "issuer": "Aussteller",
+      "creator": "Ersteller"
     },
     "timeout": "RPC request timed out. Try again later or switch to a more stable RPC endpoint.",
     "searchLabel": "Search",
@@ -1076,8 +1247,13 @@
     "visibleLabel": "Visible data",
     "trustLabel": "Trust value",
     "quickTypes": [
+      "market-user",
       "player-profile",
+      "player-skills",
+      "skill-rule-table",
       "backpack",
+      "material-physics-table",
+      "forged-item",
       "forged-items",
       "recipe-table",
       "civilization-rule-book",
@@ -1129,9 +1305,9 @@
       },
       "guardian-region": {
         "title": "GuardianRegion",
-        "body": "Registered realtime region endpoint, stake, blueprint metadata, and legacy proof fields.",
-        "visible": "Region bounds, owner, operator, endpoint, TLS flag, stake, penalties, and proof counters.",
-        "trust": "Players can verify the operator, endpoint, stake, and blueprint revision; dormant counters do not prove current liveness because proof tags are retired."
+        "body": "A 256-byte V1 realtime Region record with endpoint, owner/operator roles, stake, proof, penalty, and settlement state.",
+        "visible": "Region bounds, owner, operator, endpoint, TLS flag, remaining stake, penalties, proof timestamps, proof count, and update slot.",
+        "trust": "The owner controls endpoint updates, the operator signs liveness proofs, and any caller can settle complete missed proof hours."
       },
       "backpack": {
         "title": "Backpack",
@@ -1143,7 +1319,7 @@
         "title": "RecipeTable",
         "body": "Authority-owned smelting recipe table used by the smelting program.",
         "visible": "Authority, recipe count, update slot, heat tiers, input counts, output counts, and recipe IDs.",
-        "trust": "Shows recipes in the selected table; existence and program ownership do not make the table ID or authority canonical."
+        "trust": "Shows recipes in the selected table; execution additionally validates the PDA from stored table ID and bump plus the compiled treasury authority."
       },
       "market-listing": {
         "title": "MarketplaceListing",
@@ -1155,7 +1331,7 @@
         "title": "Forged item records",
         "body": "A convenience scan that finds forged outputs inside live Backpack accounts.",
         "visible": "Source account type, owner, backpack identity, forged sample slots, item code, and item ID.",
-        "trust": "Shows slots produced by the forge branch, but does not prove a BlueprintItem, fixed issuer approval, or canonical design because tag 8 checks only NCF1 bytes and material requirements."
+        "trust": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them."
       },
       "civilization-rule-book": {
         "title": "Civilization RuleBook",
@@ -1213,7 +1389,7 @@
       {
         "kicker": "Inventory",
         "title": "Backpacks and market listings are readable storage objects.",
-        "body": "Backpack and MarketplaceListing accounts show item counts, Backpack owners, states, prices, and safe sample slots. This traces slot-byte movement, but Marketplace does not update a referenced BlueprintItem.owner field.",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "points": [
           "Backpack ownership is explicit.",
           "Listings expose escrow state.",
@@ -1280,7 +1456,7 @@
       {
         "surface": "Guardian service",
         "status": "Live PDA",
-        "audit": "Read GuardianRegion and GuardianRegistry accounts to audit operator, endpoint, stake, blueprint revision, and dormant proof/penalty fields.",
+        "audit": "Read GuardianRegistry and 256-byte GuardianRegion V1 accounts to audit endpoint, owner/operator roles, stake, proofs, penalties, and settlement state.",
         "typeId": "guardian-region",
         "action": "View guardians"
       },
@@ -1665,164 +1841,10 @@
         ]
       },
       {
-        "id": "building-publication-mesh",
-        "kicker": "Building Publication Mesh",
-        "title": "A player building is staged and hash-checked, while Guardian blueprint metadata follows a separate, non-manifest-verified path.",
-        "body": "The Building program separates footprint ownership, upload progress, final manifest hash, chunk registration, and Guardian blueprint publication so each risk has a specific PDA witness.",
-        "lanes": [
-          {
-            "label": "Builder Side",
-            "kind": "wallet",
-            "nodes": [
-              {
-                "id": "builder-session",
-                "kind": "wallet",
-                "label": "Player session",
-                "badge": "build",
-                "detail": "Building checks the profile, signer, and expiry, but every current branch requests BREAK_BLOCK rather than a distinct build permission.",
-                "evidence": "session guard uses action index 1"
-              },
-              {
-                "id": "ncm3-payload",
-                "kind": "offchain",
-                "label": "NCM3 payload",
-                "badge": "hash",
-                "detail": "The client shards a building payload, commits the expected hash, and uploads bounded segments.",
-                "evidence": "payloadLen"
-              }
-            ]
-          },
-          {
-            "label": "Building Program",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "building-program",
-                "kind": "program",
-                "label": "Building Program",
-                "badge": "39UM...",
-                "detail": "Owns BuildSite v2, upload shards, manifest finalization, resize state, and legacy migration.",
-                "evidence": "program ID"
-              },
-              {
-                "id": "blueprint-authority",
-                "kind": "program",
-                "label": "Blueprint authority",
-                "badge": "PDA signer",
-                "detail": "A restricted wallet invokes a program-derived signer to publish blueprint metadata; the path does not compare it with a finalized BuildingManifest.",
-                "evidence": "guardian-blueprint seed"
-              }
-            ]
-          },
-          {
-            "label": "Building PDAs",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "build-site",
-                "kind": "pda",
-                "label": "BuildSite",
-                "badge": "160 B",
-                "detail": "Stores owner, footprint, active/pending revisions, staged resize dimensions, and chunk counts.",
-                "evidence": "NCKSITE1"
-              },
-              {
-                "id": "building-manifest",
-                "kind": "pda",
-                "label": "BuildingManifest",
-                "badge": "160 B",
-                "detail": "Stores expected hash, NCM dimensions, rotation, offsets, shard bitmap, and active/uploading status.",
-                "evidence": "NCKBLD02"
-              },
-              {
-                "id": "building-shard",
-                "kind": "pda",
-                "label": "BuildingShard",
-                "badge": "64 + data",
-                "detail": "Stores one bounded piece of the upload so finalization can reconstruct and verify the payload hash.",
-                "evidence": "NCKBDT01"
-              }
-            ]
-          },
-          {
-            "label": "Cross-program Proof",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "chunk-index",
-                "kind": "proof",
-                "label": "Chunk occupancy index",
-                "badge": "guard",
-                "detail": "Building registration updates chunk occupancy through the chunk authority boundary.",
-                "evidence": "registeredChunks"
-              },
-              {
-                "id": "guardian-region",
-                "kind": "proof",
-                "label": "GuardianRegion blueprint",
-                "badge": "288 B",
-                "detail": "Guardian regions store blueprint hash, revision, and record count for realtime serving.",
-                "evidence": "blueprintHash"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "builder-session",
-            "to": "building-program",
-            "label": "authorizes",
-            "kind": "guard"
-          },
-          {
-            "from": "ncm3-payload",
-            "to": "building-shard",
-            "label": "shards",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "build-site",
-            "label": "owns",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "building-manifest",
-            "label": "finalizes",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "building-shard",
-            "label": "writes",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "chunk-index",
-            "label": "registers",
-            "kind": "guard"
-          },
-          {
-            "from": "blueprint-authority",
-            "to": "guardian-region",
-            "label": "publishes",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "Footprint and upload are separate",
-          "Hash before activation",
-          "Legacy 136-byte sites still decode",
-          "Guardian blueprint writes are restricted"
-        ]
-      },
-      {
         "id": "asset-custody-loop",
         "kicker": "Asset Custody Loop",
         "title": "Backpack slot bytes remain inspectable across smelting and marketplace paths.",
-        "body": "Backpack and Listing accounts expose slot-byte changes, but this is slot-level evidence: a BREAK_BLOCK session can remove any selected slot, and Marketplace does not transfer a referenced BlueprintItem owner field.",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "Owner Intent",
@@ -1863,7 +1885,7 @@
                 "kind": "program",
                 "label": "Smelting Program",
                 "badge": "NCKSMR01",
-                "detail": "Reads a caller-selected program-owned RecipeTable, consumes matching resources/fuels, and appends table-derived outputs without canonical-table enforcement.",
+                "detail": "Validates a treasury-governed RecipeTable, consumes matching resources and fuels, and appends Material outputs backed by that exact table.",
                 "evidence": "selected RecipeTable match"
               },
               {
@@ -1871,8 +1893,8 @@
                 "kind": "program",
                 "label": "Market Program",
                 "badge": "listing",
-                "detail": "Escrows a selected backpack slot and releases it on cancel or settlement.",
-                "evidence": "listing state"
+                "detail": "Escrows inventory listings and sells fixed-price treasury land contracts without Listing PDAs.",
+                "evidence": "NCKMKT01 / NCKMUS01"
               }
             ]
           },
@@ -1980,7 +2002,7 @@
           }
         ],
         "evidence": [
-          "Slot snapshots preserve bytes, not external BlueprintItem ownership",
+          "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
           "Recipe state is on-chain",
           "Forged outputs are inspectable",
           "Market escrow is explicit"

@@ -24,26 +24,28 @@ pub mod state;
 use building::{
     building_axis_fits, building_shard_payload_len, hash_payload_slices, validate_ncm3_payload,
     BeginBuildingArgs, BuildSiteState, BuildingManifestState, BuildingShardState,
-    CreateBuildSiteArgs, FoundationIndexOperation, ResizeBuildSiteArgs, WriteBuildingShardArgs,
-    BUILDING_MANIFEST_LEN, BUILDING_MANIFEST_SEED, BUILDING_SHARD_HEADER_LEN, BUILDING_SHARD_SEED,
-    BUILDING_STATUS_ACTIVE, BUILDING_STATUS_UPLOADING, BUILD_SITE_LEN, BUILD_SITE_SEED,
-    BUILD_SITE_STATUS_ACTIVE, CHUNK_AUTHORITY_SEED,
+    CreateBuildSiteArgs, FoundationIndexOperation, WriteBuildingShardArgs, BUILDING_MANIFEST_LEN,
+    BUILDING_MANIFEST_SEED, BUILDING_SHARD_HEADER_LEN, BUILDING_SHARD_SEED,
+    BUILDING_STATUS_UPLOADING, BUILD_SITE_LEN, BUILD_SITE_SEED, BUILD_SITE_STATUS_ACTIVE,
+    CHUNK_AUTHORITY_SEED, LAND_CONTRACT_TYPE_BLANK,
 };
 use cluster_config::{
-    GUARDIAN_BLUEPRINT_PUBLISHER_WALLET, GUARDIAN_TREASURY_WALLET, NICECHUNK_CHUNK_PROGRAM_ID,
-    NICECHUNK_CORE_PROGRAM_ID, NICECHUNK_GUARDIAN_PROGRAM_ID, NICECHUNK_PLAYER_PROGRAM_ID,
+    NICECHUNK_CHUNK_PROGRAM_ID, NICECHUNK_CORE_PROGRAM_ID, NICECHUNK_MARKET_PROGRAM_ID,
+    NICECHUNK_PLAYER_PROGRAM_ID,
 };
 use errors::{require_key_eq, NicechunkBuildingError};
 use state::{GlobalConfigView, PlayerProfileView, PlayerSessionView};
 
 declare_id!("39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx");
 
-const LEGACY_BUILD_SITE_LEN: usize = 136;
-const LEGACY_BUILD_SITE_VERSION: u8 = 1;
 const CHUNK_REGISTER_INSTRUCTION: u8 = 15;
 const MAX_INDEX_ACCOUNTS_PER_CALL: usize = 4;
-const GUARDIAN_BLUEPRINT_AUTHORITY_SEED: &[u8] = b"guardian-blueprint";
-const GUARDIAN_UPDATE_BLUEPRINT_INSTRUCTION: u8 = 6;
+const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
+const MARKET_NAMESPACE: u8 = 4;
+const MARKET_RESERVE_LAND_CONTRACT_INSTRUCTION: u8 = 5;
+const MARKET_CONSUME_RESERVED_LAND_CONTRACT_INSTRUCTION: u8 = 6;
+const MARKET_RELEASE_RESERVED_LAND_CONTRACT_INSTRUCTION: u8 = 7;
+const LAND_CONTRACT_AUTHORITY_SEED: &[u8] = b"land-contract-authority-v1";
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -63,92 +65,9 @@ pub fn process_instruction(
         3 => write_building_shard(program_id, accounts, payload),
         4 => finalize_building(program_id, accounts, payload),
         5 => cancel_building_upload(program_id, accounts, payload),
-        6 => migrate_legacy_build_site(program_id, accounts, payload),
-        7 => begin_build_site_resize(program_id, accounts, payload),
-        8 => publish_guardian_blueprint(program_id, accounts, payload),
+        6 => cancel_build_site_indexing(program_id, accounts, payload),
         _ => Err(NicechunkBuildingError::InvalidInstruction.into()),
     }
-}
-
-fn publish_guardian_blueprint(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    payload: &[u8],
-) -> ProgramResult {
-    if accounts.len() != 5 || payload.len() != 36 {
-        return Err(NicechunkBuildingError::InvalidInstruction.into());
-    }
-    let publisher = &accounts[0];
-    let blueprint_authority = &accounts[1];
-    let guardian_region = &accounts[2];
-    let global_config = &accounts[3];
-    let guardian_program = &accounts[4];
-
-    if !publisher.is_signer {
-        return Err(NicechunkBuildingError::InvalidGuardianBlueprintPublisher.into());
-    }
-    validate_guardian_blueprint_publisher(publisher.key)?;
-    if !guardian_region.is_writable {
-        return Err(NicechunkBuildingError::InvalidWritableAccount.into());
-    }
-    validate_global_config(global_config)?;
-    require_key_eq(
-        guardian_program.key,
-        &NICECHUNK_GUARDIAN_PROGRAM_ID,
-        NicechunkBuildingError::InvalidGuardianProgram,
-    )?;
-    if !guardian_program.executable {
-        return Err(NicechunkBuildingError::InvalidGuardianProgram.into());
-    }
-
-    let (expected_authority, authority_bump) = Pubkey::find_program_address(
-        &[
-            GUARDIAN_BLUEPRINT_AUTHORITY_SEED,
-            global_config.key.as_ref(),
-        ],
-        program_id,
-    );
-    require_key_eq(
-        blueprint_authority.key,
-        &expected_authority,
-        NicechunkBuildingError::InvalidGuardianBlueprintAuthority,
-    )?;
-
-    let mut data = Vec::with_capacity(1 + payload.len());
-    data.push(GUARDIAN_UPDATE_BLUEPRINT_INSTRUCTION);
-    data.extend_from_slice(payload);
-    let instruction = Instruction {
-        program_id: *guardian_program.key,
-        accounts: vec![
-            AccountMeta::new_readonly(*blueprint_authority.key, true),
-            AccountMeta::new(*guardian_region.key, false),
-            AccountMeta::new_readonly(*global_config.key, false),
-        ],
-        data,
-    };
-    let bump_seed = [authority_bump];
-    let authority_seeds = [
-        GUARDIAN_BLUEPRINT_AUTHORITY_SEED,
-        global_config.key.as_ref(),
-        bump_seed.as_ref(),
-    ];
-    invoke_signed(
-        &instruction,
-        &[
-            blueprint_authority.clone(),
-            guardian_region.clone(),
-            global_config.clone(),
-            guardian_program.clone(),
-        ],
-        &[&authority_seeds],
-    )
-}
-
-fn validate_guardian_blueprint_publisher(publisher: &Pubkey) -> ProgramResult {
-    if publisher != &GUARDIAN_TREASURY_WALLET && publisher != &GUARDIAN_BLUEPRINT_PUBLISHER_WALLET {
-        return Err(NicechunkBuildingError::InvalidGuardianBlueprintPublisher.into());
-    }
-    Ok(())
 }
 
 struct PlayerActionContext {
@@ -215,6 +134,13 @@ fn validate_global_config(
         &NICECHUNK_CORE_PROGRAM_ID,
         NicechunkBuildingError::InvalidGlobalConfigOwner,
     )?;
+    let (expected, _) =
+        Pubkey::find_program_address(&[GLOBAL_CONFIG_SEED], &NICECHUNK_CORE_PROGRAM_ID);
+    require_key_eq(
+        global_config.key,
+        &expected,
+        NicechunkBuildingError::InvalidGlobalConfigData,
+    )?;
     let data = global_config.try_borrow_data()?;
     GlobalConfigView::unpack(&data).map_err(Into::into)
 }
@@ -225,7 +151,7 @@ fn create_build_site(
     payload: &[u8],
 ) -> ProgramResult {
     let args = CreateBuildSiteArgs::unpack(payload)?;
-    if accounts.len() != 6 {
+    if accounts.len() != 10 {
         return Err(NicechunkBuildingError::InvalidAccountCount.into());
     }
     let session_authority = &accounts[0];
@@ -234,7 +160,11 @@ fn create_build_site(
     let build_site = &accounts[3];
     let global_config = &accounts[4];
     let system_program_account = &accounts[5];
-    if !build_site.is_writable {
+    let owner = &accounts[6];
+    let market_user = &accounts[7];
+    let contract_authority = &accounts[8];
+    let market_program = &accounts[9];
+    if !build_site.is_writable || !market_user.is_writable {
         return Err(NicechunkBuildingError::InvalidWritableAccount.into());
     }
     let context = validate_player_action(
@@ -243,6 +173,11 @@ fn create_build_site(
         player_session,
         global_config,
         system_program_account,
+    )?;
+    require_key_eq(
+        owner.key,
+        &context.owner,
+        NicechunkBuildingError::InvalidPlayerAuthority,
     )?;
     args.validate(&context.config)?;
     let site_bump = validate_build_site_pda(
@@ -263,6 +198,29 @@ fn create_build_site(
     if build_site.owner != &system_program::ID || build_site.data_len() != 0 {
         return Err(NicechunkBuildingError::InvalidSystemAccount.into());
     }
+    require_key_eq(
+        market_program.key,
+        &NICECHUNK_MARKET_PROGRAM_ID,
+        NicechunkBuildingError::InvalidMarketProgram,
+    )?;
+    if !market_program.executable {
+        return Err(NicechunkBuildingError::InvalidMarketProgram.into());
+    }
+    require_key_eq(
+        market_user.owner,
+        market_program.key,
+        NicechunkBuildingError::InvalidMarketUser,
+    )?;
+    update_land_contract_reservation(
+        program_id,
+        owner,
+        market_user,
+        contract_authority,
+        global_config,
+        market_program,
+        args.required_land_contracts()?,
+        MARKET_RESERVE_LAND_CONTRACT_INSTRUCTION,
+    )?;
     let foundation_id_bytes = args.foundation_id.to_le_bytes();
     let bump_seed = [site_bump];
     let seeds = [
@@ -290,186 +248,80 @@ fn create_build_site(
     )
 }
 
-fn migrate_legacy_build_site(
+#[allow(clippy::too_many_arguments)]
+fn update_land_contract_reservation<'a>(
     program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    payload: &[u8],
+    owner: &AccountInfo<'a>,
+    market_user: &AccountInfo<'a>,
+    contract_authority: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    market_program: &AccountInfo<'a>,
+    quantity: u32,
+    instruction_tag: u8,
 ) -> ProgramResult {
-    if payload.len() != 8 || accounts.len() != 7 {
-        return Err(NicechunkBuildingError::InvalidInstruction.into());
+    if quantity == 0
+        || !matches!(
+            instruction_tag,
+            MARKET_RESERVE_LAND_CONTRACT_INSTRUCTION
+                | MARKET_CONSUME_RESERVED_LAND_CONTRACT_INSTRUCTION
+                | MARKET_RELEASE_RESERVED_LAND_CONTRACT_INSTRUCTION
+        )
+    {
+        return Err(NicechunkBuildingError::InvalidLandContractCount.into());
     }
-    let foundation_id = u64::from_le_bytes(
-        payload
-            .try_into()
-            .map_err(|_| NicechunkBuildingError::InvalidInstruction)?,
-    );
-    let session_authority = &accounts[0];
-    let player_profile = &accounts[1];
-    let player_session = &accounts[2];
-    let build_site = &accounts[3];
-    let legacy_site = &accounts[4];
-    let global_config = &accounts[5];
-    let system_program_account = &accounts[6];
-    if !build_site.is_writable {
-        return Err(NicechunkBuildingError::InvalidWritableAccount.into());
-    }
-    let context = validate_player_action(
-        session_authority,
-        player_profile,
-        player_session,
-        global_config,
-        system_program_account,
-    )?;
     require_key_eq(
-        legacy_site.owner,
-        &NICECHUNK_CHUNK_PROGRAM_ID,
-        NicechunkBuildingError::InvalidLegacyBuildSite,
+        market_program.key,
+        &NICECHUNK_MARKET_PROGRAM_ID,
+        NicechunkBuildingError::InvalidMarketProgram,
     )?;
-    validate_legacy_build_site_pda(legacy_site.key, global_config.key, foundation_id)?;
-    let args = {
-        let data = legacy_site.try_borrow_data()?;
-        decode_legacy_build_site(&data, &context.owner, global_config.key, foundation_id)?
-    };
-    args.validate(&context.config)?;
-    let site_bump =
-        validate_build_site_pda(program_id, build_site.key, global_config.key, foundation_id)?;
-    if build_site.owner == program_id {
-        let data = build_site.try_borrow_data()?;
-        return if BuildSiteState::matches_creation(&data, &context.owner, global_config.key, &args)?
-        {
-            Ok(())
-        } else {
-            Err(NicechunkBuildingError::InvalidBuildSiteData.into())
-        };
+    if !market_program.executable {
+        return Err(NicechunkBuildingError::InvalidMarketProgram.into());
     }
-    let foundation_id_bytes = foundation_id.to_le_bytes();
-    let bump_seed = [site_bump];
-    let seeds = [
-        BUILD_SITE_SEED,
+    require_key_eq(
+        market_user.owner,
+        market_program.key,
+        NicechunkBuildingError::InvalidMarketUser,
+    )?;
+    let (expected_authority, authority_bump) = Pubkey::find_program_address(
+        &[LAND_CONTRACT_AUTHORITY_SEED, global_config.key.as_ref()],
+        program_id,
+    );
+    require_key_eq(
+        contract_authority.key,
+        &expected_authority,
+        NicechunkBuildingError::InvalidLandContractAuthority,
+    )?;
+    let mut data = Vec::with_capacity(7);
+    data.push(MARKET_NAMESPACE);
+    data.push(instruction_tag);
+    data.push(LAND_CONTRACT_TYPE_BLANK);
+    data.extend_from_slice(&quantity.to_le_bytes());
+    let instruction = Instruction {
+        program_id: *market_program.key,
+        accounts: vec![
+            AccountMeta::new_readonly(*contract_authority.key, true),
+            AccountMeta::new(*market_user.key, false),
+            AccountMeta::new_readonly(*owner.key, false),
+            AccountMeta::new_readonly(*global_config.key, false),
+        ],
+        data,
+    };
+    let bump_seed = [authority_bump];
+    let authority_seeds = [
+        LAND_CONTRACT_AUTHORITY_SEED,
         global_config.key.as_ref(),
-        foundation_id_bytes.as_ref(),
         bump_seed.as_ref(),
     ];
-    create_fixed_pda_account(
-        session_authority,
-        build_site,
-        system_program_account,
-        program_id,
-        BUILD_SITE_LEN,
-        &seeds,
-    )?;
-    let mut data = build_site.try_borrow_mut_data()?;
-    BuildSiteState::pack(
-        &mut data,
-        site_bump,
-        &context.owner,
-        global_config.key,
-        &args,
-        context.clock.slot,
-    )
-}
-
-fn begin_build_site_resize(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    payload: &[u8],
-) -> ProgramResult {
-    let args = ResizeBuildSiteArgs::unpack(payload)?;
-    if accounts.len() < 6 || accounts.len() > 7 {
-        return Err(NicechunkBuildingError::InvalidAccountCount.into());
-    }
-    let session_authority = &accounts[0];
-    let player_profile = &accounts[1];
-    let player_session = &accounts[2];
-    let build_site = &accounts[3];
-    let global_config = &accounts[4];
-    let system_program_account = &accounts[5];
-    if !build_site.is_writable {
-        return Err(NicechunkBuildingError::InvalidWritableAccount.into());
-    }
-    let context = validate_player_action(
-        session_authority,
-        player_profile,
-        player_session,
-        global_config,
-        system_program_account,
-    )?;
-    require_key_eq(
-        build_site.owner,
-        program_id,
-        NicechunkBuildingError::InvalidBuildSiteData,
-    )?;
-    validate_build_site_pda(
-        program_id,
-        build_site.key,
-        global_config.key,
-        args.foundation_id,
-    )?;
-    let site = {
-        let data = build_site.try_borrow_data()?;
-        BuildSiteState::validate(&data)?
-    };
-    if site.owner != context.owner
-        || site.global_config != *global_config.key
-        || site.foundation_id != args.foundation_id
-    {
-        return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
-    }
-    if BuildSiteState::matches_resize(&build_site.try_borrow_data()?, args.width, args.depth)? {
-        return Ok(());
-    }
-    if site.active_revision == 0 {
-        if accounts.len() != 6 {
-            return Err(NicechunkBuildingError::InvalidAccountCount.into());
-        }
-    } else {
-        if accounts.len() != 7 {
-            return Err(NicechunkBuildingError::InvalidAccountCount.into());
-        }
-        let manifest = &accounts[6];
-        require_key_eq(
-            manifest.owner,
-            program_id,
-            NicechunkBuildingError::InvalidBuildingManifestData,
-        )?;
-        validate_building_manifest_pda(
-            program_id,
-            manifest.key,
-            global_config.key,
-            args.foundation_id,
-            site.active_revision,
-        )?;
-        let manifest = {
-            let data = manifest.try_borrow_data()?;
-            BuildingManifestState::validate(&data)?
-        };
-        if manifest.owner != context.owner
-            || manifest.global_config != *global_config.key
-            || manifest.foundation_id != args.foundation_id
-            || manifest.revision != site.active_revision
-            || manifest.status != BUILDING_STATUS_ACTIVE
-        {
-            return Err(NicechunkBuildingError::InvalidBuildingManifestData.into());
-        }
-        let (building_width, building_depth) = if manifest.quarter_turns % 2 == 0 {
-            (u32::from(manifest.size_x), u32::from(manifest.size_z))
-        } else {
-            (u32::from(manifest.size_z), u32::from(manifest.size_x))
-        };
-        if !building_axis_fits(args.width, building_width, manifest.offset_x)
-            || !building_axis_fits(args.depth, building_depth, manifest.offset_z)
-        {
-            return Err(NicechunkBuildingError::BuildingDoesNotFit.into());
-        }
-    }
-    let mut data = build_site.try_borrow_mut_data()?;
-    BuildSiteState::begin_resize(
-        &mut data,
-        &context.owner,
-        global_config.key,
-        args.width,
-        args.depth,
-        context.clock.slot,
+    invoke_signed(
+        &instruction,
+        &[
+            contract_authority.clone(),
+            market_user.clone(),
+            owner.clone(),
+            global_config.clone(),
+            market_program.clone(),
+        ],
+        &[&authority_seeds],
     )
 }
 
@@ -478,7 +330,9 @@ fn register_build_site_chunks(
     accounts: &[AccountInfo],
     payload: &[u8],
 ) -> ProgramResult {
-    if payload.len() != 8 || accounts.len() < 9 || accounts.len() > 8 + MAX_INDEX_ACCOUNTS_PER_CALL
+    if payload.len() != 8
+        || accounts.len() < 13
+        || accounts.len() > 12 + MAX_INDEX_ACCOUNTS_PER_CALL
     {
         return Err(NicechunkBuildingError::InvalidAccountCount.into());
     }
@@ -495,8 +349,15 @@ fn register_build_site_chunks(
     let global_config = &accounts[5];
     let chunk_program = &accounts[6];
     let system_program_account = &accounts[7];
-    let foundation_chunks = &accounts[8..];
-    if !build_site.is_writable || foundation_chunks.iter().any(|account| !account.is_writable) {
+    let owner = &accounts[8];
+    let market_user = &accounts[9];
+    let contract_authority = &accounts[10];
+    let market_program = &accounts[11];
+    let foundation_chunks = &accounts[12..];
+    if !build_site.is_writable
+        || !market_user.is_writable
+        || foundation_chunks.iter().any(|account| !account.is_writable)
+    {
         return Err(NicechunkBuildingError::InvalidWritableAccount.into());
     }
     let context = validate_player_action(
@@ -505,6 +366,11 @@ fn register_build_site_chunks(
         player_session,
         global_config,
         system_program_account,
+    )?;
+    require_key_eq(
+        owner.key,
+        &context.owner,
+        NicechunkBuildingError::InvalidPlayerAuthority,
     )?;
     require_key_eq(
         chunk_program.key,
@@ -542,6 +408,13 @@ fn register_build_site_chunks(
     if site.status == BUILD_SITE_STATUS_ACTIVE {
         return Ok(());
     }
+    let next_registered = site
+        .registered_chunks
+        .checked_add(foundation_chunks.len() as u64)
+        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
+    if next_registered > site.total_chunks {
+        return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
+    }
     let authority_bump_seed = [authority_bump];
     let authority_seeds = [
         CHUNK_AUTHORITY_SEED,
@@ -578,6 +451,18 @@ fn register_build_site_chunks(
             &[&authority_seeds],
         )?;
     }
+    if next_registered == site.total_chunks {
+        update_land_contract_reservation(
+            program_id,
+            owner,
+            market_user,
+            contract_authority,
+            global_config,
+            market_program,
+            site.land_contract_count,
+            MARKET_CONSUME_RESERVED_LAND_CONTRACT_INSTRUCTION,
+        )?;
+    }
     let mut data = build_site.try_borrow_mut_data()?;
     BuildSiteState::advance_indexing(
         &mut data,
@@ -586,6 +471,175 @@ fn register_build_site_chunks(
         foundation_chunks.len() as u64,
         context.clock.slot,
     )
+}
+
+fn cancel_build_site_indexing(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    payload: &[u8],
+) -> ProgramResult {
+    if payload.len() != 8
+        || accounts.len() < 12
+        || accounts.len() > 12 + MAX_INDEX_ACCOUNTS_PER_CALL
+    {
+        return Err(NicechunkBuildingError::InvalidAccountCount.into());
+    }
+    let foundation_id = u64::from_le_bytes(
+        payload
+            .try_into()
+            .map_err(|_| NicechunkBuildingError::InvalidInstruction)?,
+    );
+    let session_authority = &accounts[0];
+    let player_profile = &accounts[1];
+    let player_session = &accounts[2];
+    let build_site = &accounts[3];
+    let chunk_authority = &accounts[4];
+    let global_config = &accounts[5];
+    let chunk_program = &accounts[6];
+    let system_program_account = &accounts[7];
+    let owner = &accounts[8];
+    let market_user = &accounts[9];
+    let contract_authority = &accounts[10];
+    let market_program = &accounts[11];
+    let foundation_chunks = &accounts[12..];
+    if !build_site.is_writable
+        || !market_user.is_writable
+        || foundation_chunks.iter().any(|account| !account.is_writable)
+    {
+        return Err(NicechunkBuildingError::InvalidWritableAccount.into());
+    }
+    let context = validate_player_action(
+        session_authority,
+        player_profile,
+        player_session,
+        global_config,
+        system_program_account,
+    )?;
+    require_key_eq(
+        owner.key,
+        &context.owner,
+        NicechunkBuildingError::InvalidPlayerAuthority,
+    )?;
+    require_key_eq(
+        chunk_program.key,
+        &NICECHUNK_CHUNK_PROGRAM_ID,
+        NicechunkBuildingError::InvalidChunkProgram,
+    )?;
+    if !chunk_program.executable {
+        return Err(NicechunkBuildingError::InvalidChunkProgram.into());
+    }
+    let (expected_chunk_authority, chunk_authority_bump) = Pubkey::find_program_address(
+        &[CHUNK_AUTHORITY_SEED, global_config.key.as_ref()],
+        program_id,
+    );
+    require_key_eq(
+        chunk_authority.key,
+        &expected_chunk_authority,
+        NicechunkBuildingError::InvalidChunkAuthority,
+    )?;
+    require_key_eq(
+        build_site.owner,
+        program_id,
+        NicechunkBuildingError::InvalidBuildSiteData,
+    )?;
+    validate_build_site_pda(program_id, build_site.key, global_config.key, foundation_id)?;
+    let site = {
+        let data = build_site.try_borrow_data()?;
+        BuildSiteState::validate(&data)?
+    };
+    if site.owner != context.owner
+        || site.global_config != *global_config.key
+        || site.foundation_id != foundation_id
+    {
+        return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
+    }
+    if site.status == BUILD_SITE_STATUS_ACTIVE {
+        return Err(NicechunkBuildingError::BuildSiteNotCancelable.into());
+    }
+    let expected_batch_len = usize::try_from(
+        site.registered_chunks.min(
+            u64::try_from(MAX_INDEX_ACCOUNTS_PER_CALL)
+                .map_err(|_| NicechunkBuildingError::InvalidBuildSiteData)?,
+        ),
+    )
+    .map_err(|_| NicechunkBuildingError::InvalidBuildSiteData)?;
+    if foundation_chunks.len() != expected_batch_len {
+        return Err(NicechunkBuildingError::InvalidAccountCount.into());
+    }
+    {
+        let mut data = build_site.try_borrow_mut_data()?;
+        BuildSiteState::begin_canceling(
+            &mut data,
+            &context.owner,
+            global_config.key,
+            context.clock.slot,
+        )?;
+    }
+    let chunk_authority_bump_seed = [chunk_authority_bump];
+    let chunk_authority_seeds = [
+        CHUNK_AUTHORITY_SEED,
+        global_config.key.as_ref(),
+        chunk_authority_bump_seed.as_ref(),
+    ];
+    let foundation = BuildSiteState::active_args(&site);
+    for (offset, foundation_chunk) in foundation_chunks.iter().enumerate() {
+        let index = site
+            .registered_chunks
+            .checked_sub(offset as u64 + 1)
+            .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
+        let (chunk_x, chunk_z) = BuildSiteState::chunk_at(&site, index)?;
+        let instruction = register_chunk_instruction(
+            chunk_authority.key,
+            session_authority.key,
+            foundation_chunk.key,
+            global_config.key,
+            &site.owner,
+            &foundation,
+            FoundationIndexOperation::Remove,
+            chunk_x,
+            chunk_z,
+        );
+        invoke_signed(
+            &instruction,
+            &[
+                chunk_authority.clone(),
+                session_authority.clone(),
+                foundation_chunk.clone(),
+                global_config.clone(),
+                system_program_account.clone(),
+                chunk_program.clone(),
+            ],
+            &[&chunk_authority_seeds],
+        )?;
+    }
+    let remaining = site
+        .registered_chunks
+        .checked_sub(foundation_chunks.len() as u64)
+        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
+    if !foundation_chunks.is_empty() {
+        let mut data = build_site.try_borrow_mut_data()?;
+        BuildSiteState::rewind_indexing(
+            &mut data,
+            &context.owner,
+            global_config.key,
+            foundation_chunks.len() as u64,
+            context.clock.slot,
+        )?;
+    }
+    if remaining != 0 {
+        return Ok(());
+    }
+    update_land_contract_reservation(
+        program_id,
+        owner,
+        market_user,
+        contract_authority,
+        global_config,
+        market_program,
+        site.land_contract_count,
+        MARKET_RELEASE_RESERVED_LAND_CONTRACT_INSTRUCTION,
+    )?;
+    close_program_account(build_site, session_authority)
 }
 
 fn register_chunk_instruction(
@@ -624,126 +678,6 @@ fn register_chunk_instruction(
     }
 }
 
-fn validate_legacy_build_site_pda(
-    site: &Pubkey,
-    global_config: &Pubkey,
-    foundation_id: u64,
-) -> ProgramResult {
-    let id = foundation_id.to_le_bytes();
-    let (expected, _) = Pubkey::find_program_address(
-        &[BUILD_SITE_SEED, global_config.as_ref(), &id],
-        &NICECHUNK_CHUNK_PROGRAM_ID,
-    );
-    require_key_eq(
-        site,
-        &expected,
-        NicechunkBuildingError::InvalidLegacyBuildSite,
-    )
-}
-
-fn decode_legacy_build_site(
-    data: &[u8],
-    owner: &Pubkey,
-    global_config: &Pubkey,
-    foundation_id: u64,
-) -> Result<CreateBuildSiteArgs, NicechunkBuildingError> {
-    if data.len() != LEGACY_BUILD_SITE_LEN
-        || data[0..8] != building::BUILD_SITE_MAGIC
-        || data[8] != LEGACY_BUILD_SITE_VERSION
-        || data[10] != BUILD_SITE_STATUS_ACTIVE
-        || &data[16..48] != owner.as_ref()
-        || &data[48..80] != global_config.as_ref()
-        || read_u64(data, 80) != foundation_id
-    {
-        return Err(NicechunkBuildingError::InvalidLegacyBuildSite);
-    }
-    if read_u32(data, 116) != 0 || read_u32(data, 120) != 0 {
-        return Err(NicechunkBuildingError::LegacyBuildingMigrationRequired);
-    }
-    Ok(CreateBuildSiteArgs {
-        foundation_id,
-        min_x: read_i32(data, 88),
-        min_z: read_i32(data, 92),
-        surface_y: read_i16(data, 96),
-        width: read_u32(data, 100),
-        depth: read_u32(data, 104),
-    })
-}
-
-fn read_u32(data: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap_or([0; 4]))
-}
-
-fn read_u64(data: &[u8], offset: usize) -> u64 {
-    u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap_or([0; 8]))
-}
-
-fn read_i32(data: &[u8], offset: usize) -> i32 {
-    i32::from_le_bytes(data[offset..offset + 4].try_into().unwrap_or([0; 4]))
-}
-
-fn read_i16(data: &[u8], offset: usize) -> i16 {
-    i16::from_le_bytes(data[offset..offset + 2].try_into().unwrap_or([0; 2]))
-}
-
-#[cfg(test)]
-mod legacy_build_site_tests {
-    use super::*;
-
-    #[test]
-    fn decodes_the_deployed_136_byte_build_site_layout() {
-        let owner = Pubkey::new_unique();
-        let global_config = Pubkey::new_unique();
-        let foundation_id = 12_065_219_072_965_175_186_u64;
-        let mut data = vec![0_u8; LEGACY_BUILD_SITE_LEN];
-        data[0..8].copy_from_slice(&building::BUILD_SITE_MAGIC);
-        data[8] = LEGACY_BUILD_SITE_VERSION;
-        data[10] = BUILD_SITE_STATUS_ACTIVE;
-        data[16..48].copy_from_slice(owner.as_ref());
-        data[48..80].copy_from_slice(global_config.as_ref());
-        data[80..88].copy_from_slice(&foundation_id.to_le_bytes());
-        data[88..92].copy_from_slice(&748_i32.to_le_bytes());
-        data[92..96].copy_from_slice(&781_i32.to_le_bytes());
-        data[96..98].copy_from_slice(&136_i16.to_le_bytes());
-        data[100..104].copy_from_slice(&12_u32.to_le_bytes());
-        data[104..108].copy_from_slice(&8_u32.to_le_bytes());
-
-        let decoded =
-            decode_legacy_build_site(&data, &owner, &global_config, foundation_id).unwrap();
-
-        assert_eq!(decoded.min_x, 748);
-        assert_eq!(decoded.min_z, 781);
-        assert_eq!(decoded.surface_y, 136);
-        assert_eq!(decoded.width, 12);
-        assert_eq!(decoded.depth, 8);
-    }
-}
-
-#[cfg(test)]
-mod guardian_blueprint_tests {
-    use super::*;
-
-    #[test]
-    fn only_governance_and_index_publisher_can_request_blueprint_cpi() {
-        assert!(validate_guardian_blueprint_publisher(&GUARDIAN_TREASURY_WALLET).is_ok());
-        assert!(
-            validate_guardian_blueprint_publisher(&GUARDIAN_BLUEPRINT_PUBLISHER_WALLET).is_ok()
-        );
-        assert!(validate_guardian_blueprint_publisher(&Pubkey::new_unique()).is_err());
-    }
-
-    #[test]
-    fn blueprint_cpi_authority_is_an_off_curve_building_pda() {
-        let global_config = Pubkey::new_unique();
-        let (authority, _) = Pubkey::find_program_address(
-            &[GUARDIAN_BLUEPRINT_AUTHORITY_SEED, global_config.as_ref()],
-            &crate::id(),
-        );
-        assert!(!authority.is_on_curve());
-        assert_ne!(authority, GUARDIAN_TREASURY_WALLET);
-        assert_ne!(authority, GUARDIAN_BLUEPRINT_PUBLISHER_WALLET);
-    }
-}
 fn begin_building_upload(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

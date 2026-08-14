@@ -8,7 +8,7 @@ members = [
   "programs/nicechunk_backpack",
   "programs/nicechunk_market",
   "programs/nicechunk_smelting",
-  "programs/nicechunk_civilization",
+  "programs/nicechunk_skills",
   "programs/nicechunk_building",
 ]
 resolver = "2"

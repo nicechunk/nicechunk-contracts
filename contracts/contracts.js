@@ -23,6 +23,12 @@ import playerErrors from "../programs/nicechunk_player/src/errors.rs?raw";
 import playerLib from "../programs/nicechunk_player/src/lib.rs?raw";
 import playerState from "../programs/nicechunk_player/src/state.rs?raw";
 import playerSdk from "../sdk/nicechunk-player.ts?raw";
+import skillsCargo from "../programs/nicechunk_skills/Cargo.toml?raw";
+import skillsClusterConfig from "../programs/nicechunk_skills/src/cluster_config.rs?raw";
+import skillsErrors from "../programs/nicechunk_skills/src/errors.rs?raw";
+import skillsLib from "../programs/nicechunk_skills/src/lib.rs?raw";
+import skillsState from "../programs/nicechunk_skills/src/state.rs?raw";
+import skillsSdk from "../sdk/nicechunk-skills.ts?raw";
 import chunkCargo from "../programs/nicechunk_chunk/Cargo.toml?raw";
 import chunkClusterConfig from "../programs/nicechunk_chunk/src/cluster_config.rs?raw";
 import chunkErrors from "../programs/nicechunk_chunk/src/errors.rs?raw";
@@ -54,6 +60,7 @@ import marketCargo from "../programs/nicechunk_market/Cargo.toml?raw";
 import marketClusterConfig from "../programs/nicechunk_market/src/cluster_config.rs?raw";
 import marketErrors from "../programs/nicechunk_market/src/errors.rs?raw";
 import marketLib from "../programs/nicechunk_market/src/lib.rs?raw";
+import marketMembership from "../programs/nicechunk_market/src/membership.rs?raw";
 import marketState from "../programs/nicechunk_market/src/state.rs?raw";
 import civilizationCargo from "../programs/nicechunk_civilization/Cargo.toml?raw";
 import civilizationClusterConfig from "../programs/nicechunk_civilization/src/cluster_config.rs?raw";
@@ -79,12 +86,24 @@ const plannedLanguages = [
   { code: "es", englishName: "Spanish", nativeName: "Español", enabled: true },
   { code: "fr", englishName: "French", nativeName: "Français", enabled: true },
   { code: "de", englishName: "German", nativeName: "Deutsch", enabled: true },
-  { code: "ja", englishName: "Japanese", nativeName: "Japanese", enabled: true },
+  { code: "ja", englishName: "Japanese", nativeName: "日本語", enabled: true },
   { code: "ru", englishName: "Russian", nativeName: "Русский", enabled: true },
   { code: "ko", englishName: "Korean", nativeName: "한국어", enabled: true },
-  { code: "zh-Hant", englishName: "Traditional Chinese", nativeName: "Traditional Chinese", enabled: true },
-  { code: "zh-Hans", englishName: "Simplified Chinese", nativeName: "Simplified Chinese", enabled: true },
+  { code: "zh-Hant", englishName: "Traditional Chinese", nativeName: "繁體中文", enabled: true },
+  { code: "zh-Hans", englishName: "Simplified Chinese", nativeName: "简体中文", enabled: true },
 ];
+const contractSkillIds = Object.freeze([
+  "precisionGathering",
+  "burden",
+  "smelting",
+  "forging",
+  "craftsmanship",
+  "swiftness",
+  "exploration",
+  "stamina",
+  "strength",
+  "appraisal",
+]);
 const languageCodes = new Set(plannedLanguages.map((language) => language.code));
 const dictionaryCache = new Map([["en", embeddedEnglishDictionary]]);
 const sourceTrees = {
@@ -103,6 +122,14 @@ const sourceTrees = {
     file("programs/nicechunk_player/src/lib.rs", "rust", playerLib),
     file("programs/nicechunk_player/src/state.rs", "rust", playerState),
     file("sdk/nicechunk-player.ts", "typescript", playerSdk),
+  ],
+  skills: [
+    file("programs/nicechunk_skills/Cargo.toml", "toml", skillsCargo),
+    file("programs/nicechunk_skills/src/cluster_config.rs", "rust", skillsClusterConfig),
+    file("programs/nicechunk_skills/src/errors.rs", "rust", skillsErrors),
+    file("programs/nicechunk_skills/src/lib.rs", "rust", skillsLib),
+    file("programs/nicechunk_skills/src/state.rs", "rust", skillsState),
+    file("sdk/nicechunk-skills.ts", "typescript", skillsSdk),
   ],
   chunk: [
     file("programs/nicechunk_chunk/Cargo.toml", "toml", chunkCargo),
@@ -146,6 +173,7 @@ const sourceTrees = {
     file("programs/nicechunk_market/src/cluster_config.rs", "rust", marketClusterConfig),
     file("programs/nicechunk_market/src/errors.rs", "rust", marketErrors),
     file("programs/nicechunk_market/src/lib.rs", "rust", marketLib),
+    file("programs/nicechunk_market/src/membership.rs", "rust", marketMembership),
     file("programs/nicechunk_market/src/state.rs", "rust", marketState),
   ],
   civilization: [
@@ -172,12 +200,17 @@ const pdaAccountTypes = [
   { id: "global-config", decoder: decodeGlobalConfigAccount },
   { id: "player-profile", decoder: decodePlayerProfileAccount },
   { id: "player-session", decoder: decodePlayerSessionAccount },
+  { id: "player-skills", decoder: decodePlayerSkillsAccount },
+  { id: "skill-rule-table", decoder: decodeSkillRuleTableAccount },
   { id: "chunk-broken", decoder: decodeChunkBrokenAccount },
   { id: "resource-drop-table", decoder: decodeResourceDropTableAccount },
   { id: "guardian-registry", decoder: decodeGuardianRegistryAccount },
   { id: "guardian-region", decoder: decodeGuardianRegionAccount },
   { id: "backpack", decoder: decodeBackpackAccount },
+  { id: "material-physics-table", decoder: decodeMaterialPhysicsTableAccount },
+  { id: "forged-item", decoder: decodeForgedItemAccount },
   { id: "recipe-table", decoder: decodeRecipeTableAccount },
+  { id: "market-user", decoder: decodeMarketUserAccount },
   { id: "market-listing", decoder: decodeMarketListingAccount },
   { id: "civilization-rule-book", decoder: decodeCivilizationRuleBookAccount },
   { id: "civilization-rule-signature", decoder: decodeCivilizationRuleSignatureAccount },
@@ -1582,16 +1615,29 @@ function createAccountCard(record) {
 
 function accountSummary(record) {
   const data = record.decoded ?? {};
-  const labels = dictionary.chainBrowser.summary;
+  const labels = {
+    ...fallbackDictionary.chainBrowser.summary,
+    ...dictionary.chainBrowser.summary,
+  };
   switch (record.typeId) {
     case "player-profile":
       return [[labels.owner, data.owner], [labels.position, formatPosition(data.position)], [labels.backpack, data.equippedBackpack]];
     case "player-session":
       return [[labels.owner, data.owner], [labels.authority, data.sessionAuthority], [labels.expiresAt, data.expiresAt]];
+    case "player-skills":
+      return [[labels.owner, data.owner], [labels.revision, String(data.ruleRevision)], [labels.updatedSlot, data.updatedSlot]];
+    case "skill-rule-table":
+      return [[labels.authority, data.authority], [labels.revision, String(data.revision)], [labels.rules, String(data.ruleCount)]];
     case "backpack":
       return [[labels.owner, data.owner], [labels.items, `${data.itemCount}/${data.capacity}`], [labels.updatedSlot, data.updatedSlot]];
+    case "material-physics-table":
+      return [[labels.revision, String(data.revision)], [labels.rules, String(data.ruleCount)], [labels.version, String(data.version)]];
+    case "forged-item":
+      return [[labels.creator, data.creator], [labels.item, data.itemId], [labels.source, data.originBackpack]];
     case "recipe-table":
       return [[labels.authority, data.authority], [labels.recipes, String(data.recipeCount)], [labels.updatedSlot, data.updatedSlot]];
+    case "market-user":
+      return [[labels.owner, data.owner], [labels.active, `${data.activeListingCount}/50`], [labels.total, String(data.blankLandContracts)], [labels.records, String(data.reservedBlankLandContracts)]];
     case "market-listing":
       return [[labels.seller, data.seller], [labels.state, data.stateLabel], [labels.price, data.price]];
     case "forged-items":
@@ -2002,6 +2048,132 @@ function decodePlayerSessionAccount(data) {
   };
 }
 
+function decodePlayerSkillsAccount(data) {
+  assertMagic(data, "NCKSKL01", 480);
+  const version = data.readUInt16LE(8);
+  if (version !== 1 || data.readUInt8(11) !== 1) throw new Error("Invalid PlayerSkills version.");
+  const xp = {};
+  const levels = {};
+  for (const [index, skillId] of contractSkillIds.entries()) {
+    const level = data.readUInt8(156 + index);
+    if (level > 10) throw new Error("Invalid PlayerSkills level.");
+    xp[skillId] = data.readBigUInt64LE(76 + index * 8).toString();
+    levels[skillId] = level;
+  }
+  const hasLastMiningCoordinate = (data.readUInt8(468) & 1) !== 0;
+  return {
+    magic: "NCKSKL01",
+    version,
+    bump: data.readUInt8(10),
+    initialized: true,
+    owner: readPubkey(data, 12),
+    globalConfig: readPubkey(data, 44),
+    xp,
+    levels,
+    cursorMask: data.readUInt32LE(166),
+    ruleRevision: data.readUInt32LE(172),
+    sourceCursors: Array.from({ length: 32 }, (_, index) => data.readBigUInt64LE(176 + index * 8).toString()),
+    createdSlot: data.readBigUInt64LE(432).toString(),
+    updatedSlot: data.readBigUInt64LE(440).toString(),
+    createdAt: data.readBigInt64LE(448).toString(),
+    lastMiningCoordinate: hasLastMiningCoordinate
+      ? {
+          x: data.readInt32LE(456),
+          y: data.readInt32LE(460),
+          z: data.readInt32LE(464),
+        }
+      : null,
+    miningTravelCount: data.readBigUInt64LE(472).toString(),
+    burdenXpAwarded: data.readBigUInt64LE(416).toString(),
+    lastBurdenMineSequence: data.readBigUInt64LE(424).toString(),
+  };
+}
+
+function decodeSkillRuleTableAccount(data) {
+  assertMagic(data, "NCKXPR01", 5264);
+  const version = data.readUInt16LE(8);
+  const ruleCount = data.readUInt8(76);
+  if (version !== 1 || data.readUInt8(11) !== 1 || data.readUInt8(77) !== 10 || ruleCount > 30) {
+    throw new Error("Invalid SkillRuleTable version.");
+  }
+  const thresholds = {};
+  for (const [skillIndex, skillId] of contractSkillIds.entries()) {
+    let previous = 0n;
+    thresholds[skillId] = Array.from({ length: 10 }, (_, levelIndex) => {
+      const offset = 108 + (skillIndex * 10 + levelIndex) * 8;
+      const value = data.readBigUInt64LE(offset);
+      if (value <= previous) throw new Error("Invalid SkillRuleTable thresholds.");
+      previous = value;
+      return value.toString();
+    });
+  }
+  const sourceRules = Array.from({ length: ruleCount }, (_, index) => {
+    const offset = 912 + index * 136;
+    const seedLength = data.readUInt8(offset + 48);
+    if (seedLength > 24) throw new Error("Invalid SkillRuleTable source seed.");
+    const xpPerUnit = {};
+    for (const [skillIndex, skillId] of contractSkillIds.entries()) {
+      const value = data.readUInt32LE(offset + 92 + skillIndex * 4);
+      if (value > 0) xpPerUnit[skillId] = value;
+    }
+    return {
+      index,
+      enabled: data.readUInt8(offset) !== 0,
+      metricWidth: data.readUInt8(offset + 1),
+      flags: data.readUInt8(offset + 2),
+      seedLayout: data.readUInt8(offset + 3),
+      ruleId: data.readUInt32LE(offset + 4),
+      sourceProgram: readPubkey(data, offset + 8),
+      sourceMagic: Buffer.from(data.subarray(offset + 40, offset + 48)).toString("utf8").replaceAll("\0", ""),
+      sourceSeed: Buffer.from(data.subarray(offset + 68, offset + 68 + seedLength)).toString("utf8"),
+      ownerOffset: data.readUInt16LE(offset + 50),
+      globalConfigOffset: data.readUInt16LE(offset + 52),
+      metricOffset: data.readUInt16LE(offset + 54),
+      maxDeltaPerSync: data.readBigUInt64LE(offset + 56).toString(),
+      unitDivisor: data.readUInt32LE(offset + 64),
+      xpPerUnit,
+    };
+  });
+  const miningSkillIndex = data.readUInt8(910);
+  if (miningSkillIndex >= contractSkillIds.length) throw new Error("Invalid mining travel skill.");
+  const burdenOffset = 912 + 31 * 136;
+  const hasBurdenRule = data.subarray(burdenOffset, burdenOffset + 8).toString("utf8") === "NCKBRD01";
+  if (hasBurdenRule && data.readUInt16LE(burdenOffset + 8) !== 2) {
+    throw new Error("Invalid burden mining rule version.");
+  }
+  return {
+    magic: "NCKXPR01",
+    version,
+    bump: data.readUInt8(10),
+    initialized: true,
+    authority: readPubkey(data, 12),
+    globalConfig: readPubkey(data, 44),
+    ruleCount,
+    revision: data.readUInt32LE(80),
+    createdSlot: data.readBigUInt64LE(84).toString(),
+    updatedSlot: data.readBigUInt64LE(92).toString(),
+    createdAt: data.readBigInt64LE(100).toString(),
+    thresholds,
+    sourceRules,
+    miningTravelRule: {
+      enabled: data.readUInt8(911) !== 0,
+      minimumDistance: data.readUInt16LE(78),
+      skill: contractSkillIds[miningSkillIndex],
+      xpAward: data.readUInt16LE(908),
+    },
+    burdenMiningRule: hasBurdenRule
+      ? {
+          version: data.readUInt16LE(burdenOffset + 8),
+          enabled: data.readUInt8(burdenOffset + 10) !== 0,
+          skill: contractSkillIds[data.readUInt8(burdenOffset + 11)] ?? null,
+          massStepGrams: data.readBigUInt64LE(burdenOffset + 12).toString(),
+          chunkSizeBlocks: data.readUInt16LE(burdenOffset + 20),
+          maxDistanceChunks: data.readUInt8(burdenOffset + 22),
+        }
+      : null,
+  };
+}
+
 function decodeChunkBrokenAccount(data) {
   if (data.length < 16 || data.subarray(0, 4).toString("utf8") !== "NCBK") throw new Error("Invalid ChunkBroken magic.");
   const count = data.readUInt16LE(6);
@@ -2068,8 +2240,7 @@ function decodeGuardianRegistryAccount(data) {
 }
 
 function decodeGuardianRegionAccount(data) {
-  if (data.length !== 256 && data.length !== 288) throw new Error("Invalid NCKGRG01 length.");
-  assertMagic(data, "NCKGRG01");
+  assertMagic(data, "NCKGRG01", 256);
   const hostLength = Math.min(data.readUInt8(132), 64);
   const host = new TextDecoder().decode(data.subarray(133, 133 + hostLength));
   const port = data.readUInt16LE(197);
@@ -2101,36 +2272,41 @@ function decodeGuardianRegionAccount(data) {
     penaltyCursorAt: data.readBigInt64LE(236).toString(),
     proofCount: data.readBigUInt64LE(244).toString(),
     updatedSlot: data.readUInt32LE(252),
-    blueprintHash: data.length === 288 ? data.subarray(256, 272).toString("hex") : null,
-    blueprintRevision: data.length === 288 ? data.readBigUInt64LE(272).toString() : "0",
-    blueprintRecordCount: data.length === 288 ? data.readUInt32LE(280) : 0,
-    accountLength: data.length,
   };
 }
 
 function decodeBackpackAccount(data) {
   assertMagic(data, "NCKBPK01", 8048);
   const version = data.readUInt16LE(8);
-  if (version !== 3) throw new Error("Invalid Backpack version.");
+  if (version !== 4) throw new Error("Invalid Backpack version.");
   const recordLength = 80;
   const capacity = data.readUInt8(52);
   const itemCount = data.readUInt8(53);
+  const flags = data.readUInt8(55);
+  const initialized = data.readUInt8(11) === 1;
+  if (!initialized || capacity < 1 || capacity > 99 || itemCount > capacity || (flags & 1) === 0) {
+    throw new Error("Invalid Backpack layout or mass state.");
+  }
   const readableCount = Math.min(itemCount, capacity, 99);
   return {
     magic: "NCKBPK01",
     version,
     bump: data.readUInt8(10),
-    initialized: data.readUInt8(11) === 1,
+    initialized,
     backpackId: data.readBigUInt64LE(12).toString(),
     owner: readPubkey(data, 20),
     capacity,
     itemCount,
     state: data.readUInt8(54),
-    flags: data.readUInt8(55),
+    flags,
     placed: { x: data.readInt32LE(56), y: data.readInt16LE(60), z: data.readInt32LE(62) },
     createdSlot: data.readBigUInt64LE(66).toString(),
     updatedSlot: data.readBigUInt64LE(74).toString(),
     createdAt: data.readBigInt64LE(82).toString(),
+    totalMassGrams: data.readBigUInt64LE(90).toString(),
+    lastMinePreMassGrams: data.readBigUInt64LE(98).toString(),
+    lastMineActionId: data.readBigUInt64LE(106).toString(),
+    mineSequence: data.readBigUInt64LE(114).toString(),
     sampleSlots: Array.from({ length: Math.min(readableCount, 10) }, (_, index) => decodeBackpackSlotSummary(data, 128 + index * recordLength, recordLength, index)),
   };
 }
@@ -2173,6 +2349,57 @@ function decodeBackpackResourceSummary(data, offset) {
   };
 }
 
+function decodeMaterialPhysicsTableAccount(data) {
+  assertMagic(data, "NCKPHY02", 1040);
+  const version = data.readUInt8(8);
+  const ruleCount = data.readUInt8(10);
+  if (version !== 2 || ruleCount < 1 || ruleCount > 128) {
+    throw new Error("Invalid MaterialPhysicsTable version.");
+  }
+  return {
+    magic: "NCKPHY02",
+    version,
+    bump: data.readUInt8(9),
+    ruleCount,
+    revision: data.readUInt32LE(12),
+    rules: Array.from({ length: ruleCount }, (_, index) => {
+      const offset = 16 + index * 8;
+      const key = data.readUInt16LE(offset);
+      return {
+        key,
+        kind: (key & 0x8000) !== 0 ? "item" : "block",
+        id: key & 0x7fff,
+        densityKgM3: data.readUInt16LE(offset + 2),
+        standardVolumeMm3: data.readUInt32LE(offset + 4),
+      };
+    }),
+  };
+}
+
+function decodeForgedItemAccount(data) {
+  assertMagic(data, "NCKFGI01", 752);
+  const version = data.readUInt16LE(8);
+  const itemId = data.readBigUInt64LE(12);
+  const codeLength = data.readUInt16LE(88);
+  if (version !== 1 || data.readUInt8(11) !== 1 || itemId === 0n || codeLength < 14 || codeLength > 640) {
+    throw new Error("Invalid ForgedItem version.");
+  }
+  return {
+    magic: "NCKFGI01",
+    version,
+    bump: data.readUInt8(10),
+    initialized: true,
+    itemId: itemId.toString(),
+    creator: readPubkey(data, 20),
+    originBackpack: readPubkey(data, 52),
+    designHash: data.readUInt32LE(84),
+    codeLength,
+    codeHex: Buffer.from(data.subarray(96, 96 + codeLength)).toString("hex"),
+    createdSlot: data.readBigUInt64LE(736).toString(),
+    createdAt: data.readBigInt64LE(744).toString(),
+  };
+}
+
 function decodeRecipeTableAccount(data) {
   assertMagic(data, "NCKSMR01", 9936);
   const recipeCount = data.readUInt16LE(52);
@@ -2202,6 +2429,25 @@ function decodeRecipeRecordSummary(data, offset, index) {
     inputCount: data.readUInt8(offset + 10),
     outputCount: data.readUInt8(offset + 11),
     updatedSlot: data.readBigUInt64LE(offset + 976).toString(),
+  };
+}
+
+function decodeMarketUserAccount(data) {
+  assertMagic(data, "NCKMUS01", 64);
+  const version = data.readUInt16LE(8);
+  const activeListingCount = data.readUInt8(11);
+  if (version !== 1 || activeListingCount > 50 || data.subarray(60, 64).some((byte) => byte !== 0)) {
+    throw new Error("Invalid MarketUser state.");
+  }
+  return {
+    magic: "NCKMUS01",
+    version,
+    bump: data.readUInt8(10),
+    owner: readPubkey(data, 12),
+    activeListingCount,
+    updatedSlot: data.readBigUInt64LE(44).toString(),
+    blankLandContracts: data.readUInt32LE(52),
+    reservedBlankLandContracts: data.readUInt32LE(56),
   };
 }
 
@@ -2358,45 +2604,73 @@ function decodeCivilizationCitizenPowerAccount(data) {
 }
 
 function decodeBuildSiteAccount(data) {
-  assertMagic(data, "NCKSITE1");
+  assertMagic(data, "NCKSITE3", 160);
   const version = data.readUInt8(8);
   const status = data.readUInt8(10);
-  if (data.length !== 136 && data.length !== 160) throw new Error("Invalid BuildSite length.");
-  if (version !== 1 && version !== 2) throw new Error("Invalid BuildSite version.");
-  if (version === 1 && data.length !== 136) throw new Error("Invalid legacy BuildSite length.");
-  if (version === 2 && data.length !== 160) throw new Error("Invalid BuildSite v2 length.");
+  const contractType = data.readUInt8(11);
+  const landContractCount = data.readUInt32LE(12);
+  const minX = data.readInt32LE(88);
+  const minZ = data.readInt32LE(92);
+  const width = data.readUInt32LE(100);
+  const depth = data.readUInt32LE(104);
+  const registeredChunks = data.readBigUInt64LE(132);
+  const totalChunks = data.readBigUInt64LE(140);
+  const chunkAligned = width >= 16 && depth >= 16 && width % 16 === 0 && depth % 16 === 0;
+  const expectedChunks = chunkAligned ? BigInt(width / 16) * BigInt(depth / 16) : 0n;
+  if (version !== 3
+    || status > 2
+    || contractType !== 1
+    || landContractCount === 0
+    || width < 16
+    || depth < 16
+    || width % 16 !== 0
+    || depth % 16 !== 0
+    || ((minX % 16) + 16) % 16 !== 0
+    || ((minZ % 16) + 16) % 16 !== 0
+    || expectedChunks !== BigInt(landContractCount)
+    || totalChunks !== expectedChunks
+    || registeredChunks > totalChunks
+    || (status === 1 && registeredChunks !== totalChunks)
+    || data.subarray(98, 100).some((byte) => byte !== 0)
+    || data.subarray(148, 160).some((byte) => byte !== 0)) {
+    throw new Error("Invalid BuildSite v3 state.");
+  }
   return {
-    magic: "NCKSITE1",
+    magic: "NCKSITE3",
     version,
     status,
     statusLabel: buildSiteStatusLabel(status),
     bump: data.readUInt8(9),
+    contractType,
+    landContractCount,
     owner: readPubkey(data, 16),
     globalConfig: readPubkey(data, 48),
     foundationId: data.readBigUInt64LE(80).toString(),
-    minX: data.readInt32LE(88),
-    minZ: data.readInt32LE(92),
+    minX,
+    minZ,
     surfaceY: data.readInt16LE(96),
-    width: data.readUInt32LE(100),
-    depth: data.readUInt32LE(104),
+    width,
+    depth,
     createdSlot: data.readBigUInt64LE(108).toString(),
     activeRevision: data.readUInt32LE(116),
     pendingRevision: data.readUInt32LE(120),
     updatedSlot: data.readBigUInt64LE(124).toString(),
-    registeredChunks: data.length === 160 ? data.readBigUInt64LE(132).toString() : "0",
-    totalChunks: data.length === 160 ? data.readBigUInt64LE(140).toString() : "0",
-    stagedWidth: data.length === 160 ? data.readUInt32LE(148) : 0,
-    stagedDepth: data.length === 160 ? data.readUInt32LE(152) : 0,
+    registeredChunks: registeredChunks.toString(),
+    totalChunks: totalChunks.toString(),
     accountLength: data.length,
   };
 }
 
 function decodeBuildingManifestAccount(data) {
-  assertMagic(data, "NCKBLD02", 160);
+  assertMagic(data, "NCKBLD03", 160);
+  const version = data.readUInt8(8);
   const status = data.readUInt8(10);
+  if (version !== 3 || status > 1 || data.readUInt8(11) > 3) {
+    throw new Error("Invalid BuildingManifest v3 state.");
+  }
   return {
-    magic: "NCKBLD02",
-    version: data.readUInt8(8),
+    magic: "NCKBLD03",
+    version,
     status,
     statusLabel: buildingStatusLabel(status),
     bump: data.readUInt8(9),
@@ -2420,16 +2694,17 @@ function decodeBuildingManifestAccount(data) {
 }
 
 function decodeBuildingShardAccount(data) {
-  assertMagic(data, "NCKBDT01");
+  assertMagic(data, "NCKBDT02");
   if (data.length < 64) throw new Error("Invalid BuildingShard length.");
+  const version = data.readUInt8(8);
   const payloadLen = data.readUInt16LE(12);
   const uploadedLen = data.readUInt16LE(14);
-  if (!payloadLen || uploadedLen > payloadLen || data.length !== 64 + payloadLen) {
+  if (version !== 2 || !payloadLen || uploadedLen > payloadLen || data.length !== 64 + payloadLen) {
     throw new Error("Invalid BuildingShard payload length.");
   }
   return {
-    magic: "NCKBDT01",
-    version: data.readUInt8(8),
+    magic: "NCKBDT02",
+    version,
     bump: data.readUInt8(9),
     shardIndex: data.readUInt8(10),
     payloadLen,
@@ -2444,7 +2719,7 @@ function decodeBuildingShardAccount(data) {
 }
 
 function buildSiteStatusLabel(status) {
-  return status === 0 ? "indexing" : status === 1 ? "active" : status === 2 ? "edit indexing" : status === 3 ? "edit cleaning" : "unknown";
+  return status === 0 ? "indexing" : status === 1 ? "active" : status === 2 ? "canceling" : "unknown";
 }
 
 function buildingStatusLabel(status) {

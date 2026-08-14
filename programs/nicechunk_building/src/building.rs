@@ -2,33 +2,34 @@ use solana_program::{entrypoint::ProgramResult, hash::hashv, pubkey::Pubkey};
 
 use crate::{errors::NicechunkBuildingError, state::GlobalConfigView};
 
-pub const BUILD_SITE_MAGIC: [u8; 8] = *b"NCKSITE1";
-pub const BUILD_SITE_VERSION: u8 = 2;
-pub const BUILD_SITE_SEED: &[u8] = b"build-site-v1";
+pub const BUILD_SITE_MAGIC: [u8; 8] = *b"NCKSITE3";
+pub const BUILD_SITE_VERSION: u8 = 3;
+pub const BUILD_SITE_SEED: &[u8] = b"build-site-v3";
 pub const BUILD_SITE_LEN: usize = 160;
 pub const BUILD_SITE_STATUS_INDEXING: u8 = 0;
 pub const BUILD_SITE_STATUS_ACTIVE: u8 = 1;
-pub const BUILD_SITE_STATUS_EDIT_INDEXING: u8 = 2;
-pub const BUILD_SITE_STATUS_EDIT_CLEANING: u8 = 3;
-pub const CHUNK_AUTHORITY_SEED: &[u8] = b"chunk-authority-v1";
+pub const BUILD_SITE_STATUS_CANCELING: u8 = 2;
+pub const CHUNK_AUTHORITY_SEED: &[u8] = b"chunk-authority-v2";
+pub const LAND_CONTRACT_TYPE_BLANK: u8 = 1;
+pub const MAX_LAND_CONTRACTS_PER_SITE: u32 = 4_096;
 
-pub const BUILDING_MANIFEST_MAGIC: [u8; 8] = *b"NCKBLD02";
-pub const BUILDING_MANIFEST_VERSION: u8 = 2;
-pub const BUILDING_MANIFEST_SEED: &[u8] = b"building-v2";
+pub const BUILDING_MANIFEST_MAGIC: [u8; 8] = *b"NCKBLD03";
+pub const BUILDING_MANIFEST_VERSION: u8 = 3;
+pub const BUILDING_MANIFEST_SEED: &[u8] = b"building-v3";
 pub const BUILDING_MANIFEST_LEN: usize = 160;
 pub const BUILDING_STATUS_UPLOADING: u8 = 0;
 pub const BUILDING_STATUS_ACTIVE: u8 = 1;
 
-pub const BUILDING_SHARD_MAGIC: [u8; 8] = *b"NCKBDT01";
-pub const BUILDING_SHARD_VERSION: u8 = 1;
-pub const BUILDING_SHARD_SEED: &[u8] = b"building-data-v1";
+pub const BUILDING_SHARD_MAGIC: [u8; 8] = *b"NCKBDT02";
+pub const BUILDING_SHARD_VERSION: u8 = 2;
+pub const BUILDING_SHARD_SEED: &[u8] = b"building-data-v2";
 pub const BUILDING_SHARD_HEADER_LEN: usize = 64;
 pub const BUILDING_SHARD_PAYLOAD_LEN: usize = 8_192;
 pub const BUILDING_MAX_PAYLOAD_LEN: usize = 65_535;
 pub const BUILDING_MAX_SHARDS: usize = 8;
 pub const BUILDING_MAX_WRITE_LEN: usize = 700;
 
-const FOUNDATION_MIN_SIZE: u32 = 2;
+const FOUNDATION_CHUNK_SIZE: u32 = 16;
 const NCM3_MAX_DIMENSION: u32 = 256;
 const NCM3_MAX_COMMANDS: u32 = 4_096;
 const NCM3_OPERATION_BUDGET: u64 = 262_144;
@@ -61,13 +62,20 @@ impl CreateBuildSiteArgs {
     }
 
     pub fn validate(&self, config: &GlobalConfigView) -> Result<(), NicechunkBuildingError> {
+        let chunk_size = u32::from(config.chunk_size);
         if self.foundation_id == 0
-            || self.width < FOUNDATION_MIN_SIZE
-            || self.depth < FOUNDATION_MIN_SIZE
+            || chunk_size != FOUNDATION_CHUNK_SIZE
+            || self.width < chunk_size
+            || self.depth < chunk_size
+            || self.width % chunk_size != 0
+            || self.depth % chunk_size != 0
+            || self.min_x.rem_euclid(i32::from(config.chunk_size)) != 0
+            || self.min_z.rem_euclid(i32::from(config.chunk_size)) != 0
             || self.surface_y <= config.min_build_y
             || self.surface_y > config.max_build_y
             || self.max_x().is_none()
             || self.max_z().is_none()
+            || self.required_land_contracts().is_err()
         {
             return Err(NicechunkBuildingError::InvalidBuildSiteData);
         }
@@ -81,40 +89,27 @@ impl CreateBuildSiteArgs {
     pub fn max_z(&self) -> Option<i32> {
         checked_axis_end(self.min_z, self.depth)
     }
-}
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ResizeBuildSiteArgs {
-    pub foundation_id: u64,
-    pub width: u32,
-    pub depth: u32,
-}
-
-impl ResizeBuildSiteArgs {
-    pub const LEN: usize = 16;
-
-    pub fn unpack(data: &[u8]) -> Result<Self, NicechunkBuildingError> {
-        if data.len() != Self::LEN {
-            return Err(NicechunkBuildingError::InvalidBuildSiteData);
-        }
-        let args = Self {
-            foundation_id: read_u64(data, 0),
-            width: read_u32(data, 8),
-            depth: read_u32(data, 12),
-        };
-        if args.foundation_id == 0
-            || args.width < FOUNDATION_MIN_SIZE
-            || args.depth < FOUNDATION_MIN_SIZE
+    pub fn required_land_contracts(&self) -> Result<u32, NicechunkBuildingError> {
+        if self.width < FOUNDATION_CHUNK_SIZE
+            || self.depth < FOUNDATION_CHUNK_SIZE
+            || self.width % FOUNDATION_CHUNK_SIZE != 0
+            || self.depth % FOUNDATION_CHUNK_SIZE != 0
         {
             return Err(NicechunkBuildingError::InvalidBuildSiteData);
         }
-        Ok(args)
+        (self.width / FOUNDATION_CHUNK_SIZE)
+            .checked_mul(self.depth / FOUNDATION_CHUNK_SIZE)
+            .filter(|count| *count > 0 && *count <= MAX_LAND_CONTRACTS_PER_SITE)
+            .ok_or(NicechunkBuildingError::InvalidBuildSiteData)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BuildSiteView {
     pub status: u8,
+    pub contract_type: u8,
+    pub land_contract_count: u32,
     pub owner: Pubkey,
     pub global_config: Pubkey,
     pub foundation_id: u64,
@@ -129,8 +124,6 @@ pub struct BuildSiteView {
     pub updated_slot: u64,
     pub registered_chunks: u64,
     pub total_chunks: u64,
-    pub staged_width: u32,
-    pub staged_depth: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -158,7 +151,7 @@ impl BuildSiteState {
         args: &CreateBuildSiteArgs,
         created_slot: u64,
     ) -> ProgramResult {
-        if dst.len() != BUILD_SITE_LEN {
+        if dst.len() != BUILD_SITE_LEN || foundation_chunk_span(args).is_err() {
             return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
         }
         dst.fill(0);
@@ -166,6 +159,8 @@ impl BuildSiteState {
         dst[8] = BUILD_SITE_VERSION;
         dst[9] = bump;
         dst[10] = BUILD_SITE_STATUS_INDEXING;
+        dst[11] = LAND_CONTRACT_TYPE_BLANK;
+        dst[12..16].copy_from_slice(&args.required_land_contracts()?.to_le_bytes());
         dst[16..48].copy_from_slice(owner.as_ref());
         dst[48..80].copy_from_slice(global_config.as_ref());
         dst[80..88].copy_from_slice(&args.foundation_id.to_le_bytes());
@@ -184,12 +179,14 @@ impl BuildSiteState {
         if data.len() != BUILD_SITE_LEN
             || data[0..8] != BUILD_SITE_MAGIC
             || data[8] != BUILD_SITE_VERSION
-            || data[10] > BUILD_SITE_STATUS_EDIT_CLEANING
+            || data[10] > BUILD_SITE_STATUS_CANCELING
         {
             return Err(NicechunkBuildingError::InvalidBuildSiteData);
         }
         let view = BuildSiteView {
             status: data[10],
+            contract_type: data[11],
+            land_contract_count: read_u32(data, 12),
             owner: read_pubkey(data, 16, NicechunkBuildingError::InvalidBuildSiteData)?,
             global_config: read_pubkey(data, 48, NicechunkBuildingError::InvalidBuildSiteData)?,
             foundation_id: read_u64(data, 80),
@@ -204,20 +201,25 @@ impl BuildSiteState {
             updated_slot: read_u64(data, 124),
             registered_chunks: read_u64(data, 132),
             total_chunks: read_u64(data, 140),
-            staged_width: read_u32(data, 148),
-            staged_depth: read_u32(data, 152),
         };
         let args = Self::active_args(&view);
         let active_chunks = foundation_chunk_count(&args)?;
-        let staged = Self::staged_args(&view);
         if view.foundation_id == 0
-            || view.width < FOUNDATION_MIN_SIZE
-            || view.depth < FOUNDATION_MIN_SIZE
+            || view.contract_type != LAND_CONTRACT_TYPE_BLANK
+            || view.width < FOUNDATION_CHUNK_SIZE
+            || view.depth < FOUNDATION_CHUNK_SIZE
+            || view.width % FOUNDATION_CHUNK_SIZE != 0
+            || view.depth % FOUNDATION_CHUNK_SIZE != 0
+            || view.min_x.rem_euclid(FOUNDATION_CHUNK_SIZE as i32) != 0
+            || view.min_z.rem_euclid(FOUNDATION_CHUNK_SIZE as i32) != 0
+            || view.land_contract_count != args.required_land_contracts()?
+            || data[98..100].iter().any(|byte| *byte != 0)
             || checked_axis_end(view.min_x, view.width).is_none()
             || checked_axis_end(view.min_z, view.depth).is_none()
             || view.pending_revision != 0
                 && view.pending_revision != view.active_revision.saturating_add(1)
             || view.registered_chunks > view.total_chunks
+            || data[148..160].iter().any(|byte| *byte != 0)
         {
             return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
         }
@@ -225,8 +227,6 @@ impl BuildSiteState {
             BUILD_SITE_STATUS_INDEXING => {
                 if view.active_revision != 0
                     || view.pending_revision != 0
-                    || view.staged_width != 0
-                    || view.staged_depth != 0
                     || view.total_chunks != active_chunks
                     || view.registered_chunks == view.total_chunks
                 {
@@ -234,29 +234,15 @@ impl BuildSiteState {
                 }
             }
             BUILD_SITE_STATUS_ACTIVE => {
-                if view.staged_width != 0
-                    || view.staged_depth != 0
+                if view.total_chunks != active_chunks || view.registered_chunks != view.total_chunks
+                {
+                    return Err(NicechunkBuildingError::InvalidBuildSiteData);
+                }
+            }
+            BUILD_SITE_STATUS_CANCELING => {
+                if view.active_revision != 0
+                    || view.pending_revision != 0
                     || view.total_chunks != active_chunks
-                    || view.registered_chunks != view.total_chunks
-                {
-                    return Err(NicechunkBuildingError::InvalidBuildSiteData);
-                }
-            }
-            BUILD_SITE_STATUS_EDIT_INDEXING => {
-                let staged = staged.ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-                if view.pending_revision != 0
-                    || view.total_chunks != foundation_chunk_count(&staged)?
-                    || view.registered_chunks == view.total_chunks
-                {
-                    return Err(NicechunkBuildingError::InvalidBuildSiteData);
-                }
-            }
-            BUILD_SITE_STATUS_EDIT_CLEANING => {
-                let previous = staged.ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-                if view.pending_revision != 0
-                    || view.total_chunks != foundation_chunk_difference_count(&previous, &args)?
-                    || view.total_chunks == 0
-                    || view.registered_chunks == view.total_chunks
                 {
                     return Err(NicechunkBuildingError::InvalidBuildSiteData);
                 }
@@ -290,29 +276,10 @@ impl BuildSiteState {
         if registered != view.total_chunks {
             return Ok(());
         }
-        match view.status {
-            BUILD_SITE_STATUS_INDEXING => Self::finish_indexing(data, &view),
-            BUILD_SITE_STATUS_EDIT_INDEXING => {
-                let next =
-                    Self::staged_args(&view).ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-                let previous = Self::active_args(&view);
-                data[100..104].copy_from_slice(&next.width.to_le_bytes());
-                data[104..108].copy_from_slice(&next.depth.to_le_bytes());
-                data[148..152].copy_from_slice(&previous.width.to_le_bytes());
-                data[152..156].copy_from_slice(&previous.depth.to_le_bytes());
-                let cleanup = foundation_chunk_difference_count(&previous, &next)?;
-                if cleanup == 0 {
-                    Self::finish_indexing(data, &view)
-                } else {
-                    data[10] = BUILD_SITE_STATUS_EDIT_CLEANING;
-                    data[132..140].copy_from_slice(&0_u64.to_le_bytes());
-                    data[140..148].copy_from_slice(&cleanup.to_le_bytes());
-                    Ok(())
-                }
-            }
-            BUILD_SITE_STATUS_EDIT_CLEANING => Self::finish_indexing(data, &view),
-            _ => Err(NicechunkBuildingError::InvalidBuildSiteData.into()),
+        if view.status != BUILD_SITE_STATUS_INDEXING {
+            return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
         }
+        Self::finish_indexing(data, &view)
     }
 
     fn finish_indexing(data: &mut [u8], view: &BuildSiteView) -> ProgramResult {
@@ -327,56 +294,8 @@ impl BuildSiteState {
         data[10] = BUILD_SITE_STATUS_ACTIVE;
         data[132..140].copy_from_slice(&active_chunks.to_le_bytes());
         data[140..148].copy_from_slice(&active_chunks.to_le_bytes());
-        data[148..156].fill(0);
+        data[148..160].fill(0);
         Ok(())
-    }
-
-    pub fn begin_resize(
-        data: &mut [u8],
-        owner: &Pubkey,
-        global_config: &Pubkey,
-        width: u32,
-        depth: u32,
-        updated_slot: u64,
-    ) -> ProgramResult {
-        let view = Self::validate(data)?;
-        let next = CreateBuildSiteArgs {
-            width,
-            depth,
-            ..Self::active_args(&view)
-        };
-        if view.owner != *owner
-            || view.global_config != *global_config
-            || view.status != BUILD_SITE_STATUS_ACTIVE
-            || view.pending_revision != 0
-            || next.width < FOUNDATION_MIN_SIZE
-            || next.depth < FOUNDATION_MIN_SIZE
-            || next.max_x().is_none()
-            || next.max_z().is_none()
-        {
-            return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
-        }
-        if next.width == view.width && next.depth == view.depth {
-            return Ok(());
-        }
-        data[10] = BUILD_SITE_STATUS_EDIT_INDEXING;
-        data[124..132].copy_from_slice(&updated_slot.to_le_bytes());
-        data[132..140].copy_from_slice(&0_u64.to_le_bytes());
-        data[140..148].copy_from_slice(&foundation_chunk_count(&next)?.to_le_bytes());
-        data[148..152].copy_from_slice(&next.width.to_le_bytes());
-        data[152..156].copy_from_slice(&next.depth.to_le_bytes());
-        Ok(())
-    }
-
-    pub fn matches_resize(
-        data: &[u8],
-        width: u32,
-        depth: u32,
-    ) -> Result<bool, NicechunkBuildingError> {
-        let view = Self::validate(data)?;
-        Ok(view.status == BUILD_SITE_STATUS_EDIT_INDEXING
-            && view.staged_width == width
-            && view.staged_depth == depth)
     }
 
     pub fn index_step(
@@ -386,36 +305,12 @@ impl BuildSiteState {
         if index >= view.total_chunks {
             return Err(NicechunkBuildingError::InvalidBuildSiteData);
         }
-        let (operation, foundation, chunk) = match view.status {
-            BUILD_SITE_STATUS_INDEXING => {
-                let foundation = Self::active_args(view);
-                (
-                    FoundationIndexOperation::Upsert,
-                    foundation,
-                    foundation_chunk_at(&foundation, index)?,
-                )
-            }
-            BUILD_SITE_STATUS_EDIT_INDEXING => {
-                let foundation =
-                    Self::staged_args(view).ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-                (
-                    FoundationIndexOperation::Upsert,
-                    foundation,
-                    foundation_chunk_at(&foundation, index)?,
-                )
-            }
-            BUILD_SITE_STATUS_EDIT_CLEANING => {
-                let previous =
-                    Self::staged_args(view).ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-                let active = Self::active_args(view);
-                (
-                    FoundationIndexOperation::Remove,
-                    previous,
-                    foundation_chunk_difference_at(&previous, &active, index)?,
-                )
-            }
-            _ => return Err(NicechunkBuildingError::InvalidBuildSiteData),
-        };
+        if view.status != BUILD_SITE_STATUS_INDEXING {
+            return Err(NicechunkBuildingError::InvalidBuildSiteData);
+        }
+        let foundation = Self::active_args(view);
+        let operation = FoundationIndexOperation::Upsert;
+        let chunk = foundation_chunk_at(&foundation, index)?;
         Ok(FoundationIndexStep {
             operation,
             foundation,
@@ -431,6 +326,49 @@ impl BuildSiteState {
         foundation_chunk_at(&Self::active_args(view), index)
     }
 
+    pub fn begin_canceling(
+        data: &mut [u8],
+        owner: &Pubkey,
+        global_config: &Pubkey,
+        updated_slot: u64,
+    ) -> ProgramResult {
+        let view = Self::validate(data)?;
+        if view.owner != *owner
+            || view.global_config != *global_config
+            || view.status != BUILD_SITE_STATUS_INDEXING
+                && view.status != BUILD_SITE_STATUS_CANCELING
+        {
+            return Err(NicechunkBuildingError::BuildSiteNotCancelable.into());
+        }
+        data[10] = BUILD_SITE_STATUS_CANCELING;
+        data[124..132].copy_from_slice(&updated_slot.to_le_bytes());
+        Ok(())
+    }
+
+    pub fn rewind_indexing(
+        data: &mut [u8],
+        owner: &Pubkey,
+        global_config: &Pubkey,
+        count: u64,
+        updated_slot: u64,
+    ) -> ProgramResult {
+        let view = Self::validate(data)?;
+        let registered = view
+            .registered_chunks
+            .checked_sub(count)
+            .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
+        if view.owner != *owner
+            || view.global_config != *global_config
+            || view.status != BUILD_SITE_STATUS_CANCELING
+            || count == 0
+        {
+            return Err(NicechunkBuildingError::InvalidBuildSiteData.into());
+        }
+        data[132..140].copy_from_slice(&registered.to_le_bytes());
+        data[124..132].copy_from_slice(&updated_slot.to_le_bytes());
+        Ok(())
+    }
+
     pub fn matches_creation(
         data: &[u8],
         owner: &Pubkey,
@@ -438,7 +376,8 @@ impl BuildSiteState {
         args: &CreateBuildSiteArgs,
     ) -> Result<bool, NicechunkBuildingError> {
         let view = Self::validate(data)?;
-        Ok(view.owner == *owner
+        Ok(view.status != BUILD_SITE_STATUS_CANCELING
+            && view.owner == *owner
             && view.global_config == *global_config
             && view.foundation_id == args.foundation_id
             && view.min_x == args.min_x
@@ -457,17 +396,6 @@ impl BuildSiteState {
             width: view.width,
             depth: view.depth,
         }
-    }
-
-    fn staged_args(view: &BuildSiteView) -> Option<CreateBuildSiteArgs> {
-        if view.staged_width < FOUNDATION_MIN_SIZE || view.staged_depth < FOUNDATION_MIN_SIZE {
-            return None;
-        }
-        Some(CreateBuildSiteArgs {
-            width: view.staged_width,
-            depth: view.staged_depth,
-            ..Self::active_args(view)
-        })
     }
 
     fn active_args_from_data(
@@ -552,19 +480,7 @@ impl BuildSiteState {
 }
 
 fn foundation_chunk_count(args: &CreateBuildSiteArgs) -> Result<u64, NicechunkBuildingError> {
-    let max_x = args
-        .max_x()
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let max_z = args
-        .max_z()
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let span_x = i64::from(max_x.div_euclid(16)) - i64::from(args.min_x.div_euclid(16)) + 1;
-    let span_z = i64::from(max_z.div_euclid(16)) - i64::from(args.min_z.div_euclid(16)) + 1;
-    u64::try_from(span_x)
-        .ok()
-        .and_then(|x| u64::try_from(span_z).ok().and_then(|z| x.checked_mul(z)))
-        .filter(|count| *count > 0)
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)
+    Ok(u64::from(args.required_land_contracts()?))
 }
 
 fn foundation_chunk_at(
@@ -589,70 +505,22 @@ fn foundation_chunk_at(
     Ok((x, z))
 }
 
-fn foundation_chunk_difference_count(
-    previous: &CreateBuildSiteArgs,
-    next: &CreateBuildSiteArgs,
-) -> Result<u64, NicechunkBuildingError> {
-    let (_, _, previous_x, previous_z) = foundation_chunk_span(previous)?;
-    let (_, _, next_x, next_z) = foundation_chunk_span(next)?;
-    let overlap = previous_x
-        .min(next_x)
-        .checked_mul(previous_z.min(next_z))
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    previous_x
-        .checked_mul(previous_z)
-        .and_then(|count| count.checked_sub(overlap))
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)
-}
-
-fn foundation_chunk_difference_at(
-    previous: &CreateBuildSiteArgs,
-    next: &CreateBuildSiteArgs,
-    index: u64,
-) -> Result<(i32, i32), NicechunkBuildingError> {
-    let (min_chunk_x, min_chunk_z, previous_x, previous_z) = foundation_chunk_span(previous)?;
-    let (_, _, next_x, next_z) = foundation_chunk_span(next)?;
-    let common_rows = previous_z.min(next_z);
-    let right_width = previous_x.saturating_sub(next_x);
-    let right_count = common_rows
-        .checked_mul(right_width)
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let total = foundation_chunk_difference_count(previous, next)?;
-    if index >= total {
-        return Err(NicechunkBuildingError::InvalidBuildSiteData);
-    }
-    let (x_offset, z_offset) = if index < right_count {
-        (next_x + index % right_width, index / right_width)
-    } else {
-        let remaining = index - right_count;
-        (remaining % previous_x, next_z + remaining / previous_x)
-    };
-    let x = i32::try_from(x_offset)
-        .ok()
-        .and_then(|offset| min_chunk_x.checked_add(offset))
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let z = i32::try_from(z_offset)
-        .ok()
-        .and_then(|offset| min_chunk_z.checked_add(offset))
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    Ok((x, z))
-}
-
 fn foundation_chunk_span(
     args: &CreateBuildSiteArgs,
 ) -> Result<(i32, i32, u64, u64), NicechunkBuildingError> {
-    let max_x = args
-        .max_x()
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let max_z = args
-        .max_z()
-        .ok_or(NicechunkBuildingError::InvalidBuildSiteData)?;
-    let min_chunk_x = args.min_x.div_euclid(16);
-    let min_chunk_z = args.min_z.div_euclid(16);
-    let span_x = u64::try_from(i64::from(max_x.div_euclid(16)) - i64::from(min_chunk_x) + 1)
-        .map_err(|_| NicechunkBuildingError::InvalidBuildSiteData)?;
-    let span_z = u64::try_from(i64::from(max_z.div_euclid(16)) - i64::from(min_chunk_z) + 1)
-        .map_err(|_| NicechunkBuildingError::InvalidBuildSiteData)?;
+    if args.min_x.rem_euclid(FOUNDATION_CHUNK_SIZE as i32) != 0
+        || args.min_z.rem_euclid(FOUNDATION_CHUNK_SIZE as i32) != 0
+        || args.width < FOUNDATION_CHUNK_SIZE
+        || args.depth < FOUNDATION_CHUNK_SIZE
+        || args.width % FOUNDATION_CHUNK_SIZE != 0
+        || args.depth % FOUNDATION_CHUNK_SIZE != 0
+    {
+        return Err(NicechunkBuildingError::InvalidBuildSiteData);
+    }
+    let min_chunk_x = args.min_x.div_euclid(FOUNDATION_CHUNK_SIZE as i32);
+    let min_chunk_z = args.min_z.div_euclid(FOUNDATION_CHUNK_SIZE as i32);
+    let span_x = u64::from(args.width / FOUNDATION_CHUNK_SIZE);
+    let span_z = u64::from(args.depth / FOUNDATION_CHUNK_SIZE);
     if span_x == 0 || span_z == 0 {
         return Err(NicechunkBuildingError::InvalidBuildSiteData);
     }
@@ -671,11 +539,10 @@ pub struct BeginBuildingArgs {
 }
 
 impl BeginBuildingArgs {
-    pub const LEGACY_LEN: usize = 49;
     pub const LEN: usize = 57;
 
     pub fn unpack(data: &[u8]) -> Result<Self, NicechunkBuildingError> {
-        if data.len() != Self::LEGACY_LEN && data.len() != Self::LEN {
+        if data.len() != Self::LEN {
             return Err(NicechunkBuildingError::InvalidBuildingData);
         }
         let payload_len = read_u32(data, 13);
@@ -694,16 +561,8 @@ impl BeginBuildingArgs {
             quarter_turns: data[12],
             payload_len,
             expected_hash,
-            offset_x: if data.len() == Self::LEN {
-                read_i32(data, 49)
-            } else {
-                0
-            },
-            offset_z: if data.len() == Self::LEN {
-                read_i32(data, 53)
-            } else {
-                0
-            },
+            offset_x: read_i32(data, 49),
+            offset_z: read_i32(data, 53),
         })
     }
 }
@@ -1451,20 +1310,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn build_site_keeps_legacy_spatial_bytes_reserved() {
+    fn build_site_records_contracts_and_keeps_reserved_bytes_zero() {
         let owner = Pubkey::new_unique();
         let config = Pubkey::new_unique();
         let args = CreateBuildSiteArgs {
             foundation_id: 9,
-            min_x: -2_000_000_000,
+            min_x: -32,
             surface_y: 101,
-            min_z: 20,
-            width: 3_000_000_000,
-            depth: 500_000_000,
+            min_z: 16,
+            width: 48,
+            depth: 32,
         };
         let mut data = vec![0_u8; BUILD_SITE_LEN];
         BuildSiteState::pack(&mut data, 200, &owner, &config, &args, 10).unwrap();
-        assert_eq!(&data[11..16], &[0; 5]);
+        assert_eq!(data[11], LAND_CONTRACT_TYPE_BLANK);
+        assert_eq!(read_u32(&data, 12), 6);
+        assert_eq!(&data[98..100], &[0; 2]);
+        assert_eq!(&data[148..160], &[0; 12]);
         assert_eq!(BuildSiteState::validate(&data).unwrap().width, args.width);
     }
 
@@ -1474,11 +1336,11 @@ mod tests {
         let config = Pubkey::new_unique();
         let args = CreateBuildSiteArgs {
             foundation_id: 42,
-            min_x: 748,
+            min_x: 736,
             surface_y: 136,
-            min_z: 781,
-            width: 12,
-            depth: 8,
+            min_z: 768,
+            width: 32,
+            depth: 32,
         };
         let mut data = vec![0_u8; BUILD_SITE_LEN];
         BuildSiteState::pack(&mut data, 9, &owner, &config, &args, 10).unwrap();
@@ -1498,6 +1360,38 @@ mod tests {
             },
         )
         .unwrap());
+    }
+
+    #[test]
+    fn incomplete_land_can_only_roll_back_in_reverse_progress() {
+        let owner = Pubkey::new_unique();
+        let config = Pubkey::new_unique();
+        let args = CreateBuildSiteArgs {
+            foundation_id: 77,
+            min_x: 0,
+            surface_y: 100,
+            min_z: 0,
+            width: 32,
+            depth: 32,
+        };
+        let mut data = vec![0_u8; BUILD_SITE_LEN];
+        BuildSiteState::pack(&mut data, 1, &owner, &config, &args, 10).unwrap();
+        BuildSiteState::advance_indexing(&mut data, &owner, &config, 2, 11).unwrap();
+        BuildSiteState::begin_canceling(&mut data, &owner, &config, 12).unwrap();
+
+        let canceling = BuildSiteState::validate(&data).unwrap();
+        assert_eq!(canceling.status, BUILD_SITE_STATUS_CANCELING);
+        assert_eq!(canceling.registered_chunks, 2);
+        assert!(!BuildSiteState::matches_creation(&data, &owner, &config, &args).unwrap());
+        assert!(BuildSiteState::index_step(&canceling, 2).is_err());
+        assert_eq!(BuildSiteState::chunk_at(&canceling, 1).unwrap(), (1, 0));
+
+        BuildSiteState::rewind_indexing(&mut data, &owner, &config, 1, 13).unwrap();
+        BuildSiteState::rewind_indexing(&mut data, &owner, &config, 1, 14).unwrap();
+        let empty = BuildSiteState::validate(&data).unwrap();
+        assert_eq!(empty.status, BUILD_SITE_STATUS_CANCELING);
+        assert_eq!(empty.registered_chunks, 0);
+        assert!(BuildSiteState::rewind_indexing(&mut data, &owner, &config, 1, 15).is_err());
     }
 
     #[test]
@@ -1652,22 +1546,19 @@ mod tests {
     }
 
     #[test]
-    fn begin_building_offsets_are_backward_compatible() {
-        let mut legacy = vec![0_u8; BeginBuildingArgs::LEGACY_LEN];
-        legacy[0..8].copy_from_slice(&7_u64.to_le_bytes());
-        legacy[8..12].copy_from_slice(&1_u32.to_le_bytes());
-        legacy[12] = 2;
-        legacy[13..17].copy_from_slice(&13_u32.to_le_bytes());
-        legacy[17..49].copy_from_slice(&[5_u8; 32]);
-        let legacy_args = BeginBuildingArgs::unpack(&legacy).unwrap();
-        assert_eq!((legacy_args.offset_x, legacy_args.offset_z), (0, 0));
-
-        let mut shifted = legacy;
-        shifted.resize(BeginBuildingArgs::LEN, 0);
+    fn begin_building_requires_explicit_offsets() {
+        let mut shifted = vec![0_u8; BeginBuildingArgs::LEN];
+        shifted[0..8].copy_from_slice(&7_u64.to_le_bytes());
+        shifted[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        shifted[12] = 2;
+        shifted[13..17].copy_from_slice(&13_u32.to_le_bytes());
+        shifted[17..49].copy_from_slice(&[5_u8; 32]);
         shifted[49..53].copy_from_slice(&(-3_i32).to_le_bytes());
         shifted[53..57].copy_from_slice(&4_i32.to_le_bytes());
+
         let shifted_args = BeginBuildingArgs::unpack(&shifted).unwrap();
         assert_eq!((shifted_args.offset_x, shifted_args.offset_z), (-3, 4));
+        assert!(BeginBuildingArgs::unpack(&shifted[..49]).is_err());
     }
 
     #[test]
@@ -1718,11 +1609,11 @@ mod tests {
         let config = Pubkey::new_unique();
         let args = CreateBuildSiteArgs {
             foundation_id: 42,
-            min_x: 10,
+            min_x: 16,
             surface_y: 20,
-            min_z: 30,
-            width: 8,
-            depth: 9,
+            min_z: 32,
+            width: 16,
+            depth: 16,
         };
         let mut data = vec![0_u8; BUILD_SITE_LEN];
         BuildSiteState::pack(&mut data, 1, &owner, &config, &args, 10).unwrap();
@@ -1749,11 +1640,11 @@ mod tests {
         let config = Pubkey::new_unique();
         let args = CreateBuildSiteArgs {
             foundation_id: 42,
-            min_x: 748,
+            min_x: 736,
             surface_y: 136,
-            min_z: 781,
-            width: 12,
-            depth: 8,
+            min_z: 768,
+            width: 32,
+            depth: 32,
         };
         let mut data = vec![0_u8; BUILD_SITE_LEN];
         BuildSiteState::pack(&mut data, 1, &owner, &config, &args, 10).unwrap();
@@ -1766,96 +1657,44 @@ mod tests {
     }
 
     #[test]
-    fn build_site_expansion_indexes_new_chunks_before_switching_geometry() {
-        let owner = Pubkey::new_unique();
-        let config = Pubkey::new_unique();
+    fn build_site_rejects_partial_chunks() {
         let args = CreateBuildSiteArgs {
             foundation_id: 91,
             min_x: 0,
             surface_y: 100,
             min_z: 0,
-            width: 16,
+            width: 17,
             depth: 16,
         };
-        let mut data = vec![0_u8; BUILD_SITE_LEN];
-        BuildSiteState::pack(&mut data, 1, &owner, &config, &args, 10).unwrap();
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 1, 11).unwrap();
-        BuildSiteState::begin_resize(&mut data, &owner, &config, 33, 17, 12).unwrap();
-
-        let editing = BuildSiteState::validate(&data).unwrap();
-        assert_eq!(editing.status, BUILD_SITE_STATUS_EDIT_INDEXING);
-        assert_eq!((editing.width, editing.depth), (16, 16));
-        assert_eq!((editing.staged_width, editing.staged_depth), (33, 17));
-        assert_eq!(editing.total_chunks, 6);
-        let chunks = (0..editing.total_chunks)
-            .map(|index| BuildSiteState::index_step(&editing, index).unwrap())
-            .collect::<Vec<_>>();
-        assert!(chunks
-            .iter()
-            .all(|step| step.operation == FoundationIndexOperation::Upsert));
         assert_eq!(
-            chunks
-                .iter()
-                .map(|step| (step.chunk_x, step.chunk_z))
-                .collect::<Vec<_>>(),
-            vec![(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]
+            args.required_land_contracts(),
+            Err(NicechunkBuildingError::InvalidBuildSiteData)
         );
-
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 4, 13).unwrap();
-        assert_eq!(
-            BuildSiteState::validate(&data).unwrap().status,
-            BUILD_SITE_STATUS_EDIT_INDEXING
-        );
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 2, 14).unwrap();
-        let active = BuildSiteState::validate(&data).unwrap();
-        assert_eq!(active.status, BUILD_SITE_STATUS_ACTIVE);
-        assert_eq!((active.width, active.depth), (33, 17));
-        assert_eq!((active.registered_chunks, active.total_chunks), (6, 6));
-        assert_eq!((active.staged_width, active.staged_depth), (0, 0));
     }
 
     #[test]
-    fn build_site_shrink_cleans_only_chunks_outside_the_new_geometry() {
-        let owner = Pubkey::new_unique();
-        let config = Pubkey::new_unique();
-        let args = CreateBuildSiteArgs {
+    fn build_site_caps_one_parcel_at_four_thousand_ninety_six_contracts() {
+        let maximum = CreateBuildSiteArgs {
             foundation_id: 92,
             min_x: 0,
             surface_y: 100,
             min_z: 0,
-            width: 33,
-            depth: 33,
+            width: FOUNDATION_CHUNK_SIZE * MAX_LAND_CONTRACTS_PER_SITE,
+            depth: FOUNDATION_CHUNK_SIZE,
         };
-        let mut data = vec![0_u8; BUILD_SITE_LEN];
-        BuildSiteState::pack(&mut data, 1, &owner, &config, &args, 10).unwrap();
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 9, 11).unwrap();
-        BuildSiteState::begin_resize(&mut data, &owner, &config, 16, 17, 12).unwrap();
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 2, 13).unwrap();
-
-        let cleaning = BuildSiteState::validate(&data).unwrap();
-        assert_eq!(cleaning.status, BUILD_SITE_STATUS_EDIT_CLEANING);
-        assert_eq!((cleaning.width, cleaning.depth), (16, 17));
-        assert_eq!((cleaning.staged_width, cleaning.staged_depth), (33, 33));
-        assert_eq!(cleaning.total_chunks, 7);
-        let cleanup = (0..cleaning.total_chunks)
-            .map(|index| BuildSiteState::index_step(&cleaning, index).unwrap())
-            .collect::<Vec<_>>();
-        assert!(cleanup
-            .iter()
-            .all(|step| step.operation == FoundationIndexOperation::Remove));
         assert_eq!(
-            cleanup
-                .iter()
-                .map(|step| (step.chunk_x, step.chunk_z))
-                .collect::<Vec<_>>(),
-            vec![(1, 0), (2, 0), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)]
+            maximum.required_land_contracts(),
+            Ok(MAX_LAND_CONTRACTS_PER_SITE)
         );
 
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 4, 14).unwrap();
-        BuildSiteState::advance_indexing(&mut data, &owner, &config, 3, 15).unwrap();
-        let active = BuildSiteState::validate(&data).unwrap();
-        assert_eq!(active.status, BUILD_SITE_STATUS_ACTIVE);
-        assert_eq!((active.width, active.depth), (16, 17));
-        assert_eq!((active.registered_chunks, active.total_chunks), (2, 2));
+        let oversized = CreateBuildSiteArgs {
+            foundation_id: 93,
+            width: maximum.width + FOUNDATION_CHUNK_SIZE,
+            ..maximum
+        };
+        assert_eq!(
+            oversized.required_land_contracts(),
+            Err(NicechunkBuildingError::InvalidBuildSiteData)
+        );
     }
 }

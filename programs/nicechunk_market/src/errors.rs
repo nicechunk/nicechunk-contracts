@@ -32,6 +32,19 @@ pub enum NicechunkMarketError {
     InvalidPlayerProgram = 6629,
     InvalidPlayerProfile = 6630,
     InvalidEquipmentSource = 6631,
+    InvalidMaterialPhysics = 6632,
+    NonTransferableItem = 6633,
+    InvalidMarketUser = 6634,
+    ActiveListingLimitReached = 6635,
+    InvalidActiveListingCount = 6636,
+    MarketAlreadyJoined = 6637,
+    InvalidContractType = 6638,
+    InvalidContractQuantity = 6639,
+    ContractBalanceOverflow = 6640,
+    InsufficientLandContracts = 6641,
+    InvalidContractAuthority = 6642,
+    InsufficientReservedLandContracts = 6643,
+    InvalidGlobalConfig = 6644,
 }
 
 impl From<NicechunkMarketError> for ProgramError {

@@ -6,7 +6,7 @@ use solana_program::{
     declare_id,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::{invoke, invoke_signed},
+    program::{get_return_data, invoke, invoke_signed},
     pubkey::Pubkey,
     rent::Rent,
     system_program,
@@ -24,29 +24,48 @@ pub mod state;
 use cluster_config::{
     NICECHUNK_BACKPACK_PROGRAM_ID, NICECHUNK_BUILDING_PROGRAM_ID,
     NICECHUNK_CIVILIZATION_PROGRAM_ID, NICECHUNK_CORE_PROGRAM_ID, NICECHUNK_PLAYER_PROGRAM_ID,
+    NICECHUNK_SKILLS_PROGRAM_ID,
 };
 use errors::{require_key_eq, NicechunkChunkError};
 use state::{
-    batch_mine_reward_passes, extra_drop_from_table, generated_block_id_at,
-    generated_tree_fell_blocks, is_tree_leaf_block, is_tree_trunk_block, pack_backpack_resource_y,
-    pack_broken_coord, range_mine_reward_passes, surface_decoration_from_table, BatchMineArgs,
-    ChunkBrokenInitArgs, ChunkBrokenState, FoundationChunkState, FoundationChunkV2State,
-    FoundationRecordV2, GlobalConfigView, MineBlockArgs, PlayerProfileView, PlayerProgressInitArgs,
-    PlayerProgressState, PlayerSessionView, RangeMineArgs, ResourceDropTableState,
+    batch_mine_reward_passes, extra_drop_from_table_at_surface, generated_block_id_at,
+    generated_block_id_at_surface, generated_guaranteed_deep_block_id, generated_surface_height,
+    generated_tree_fell_blocks, is_placeable_block, is_tree_leaf_block, is_tree_trunk_block,
+    pack_backpack_resource_y, pack_broken_coord, range_mine_reward_passes,
+    surface_decoration_from_table, surface_decoration_from_table_at_surface, BackpackMiningState,
+    BatchMineArgs, ChunkBrokenInitArgs, ChunkBrokenState, ChunkPlacedInitArgs, ChunkPlacedRecord,
+    ChunkPlacedState, FoundationChunkState, FoundationRecord, GlobalConfigView, MineBlockArgs,
+    PlaceBlockArgs, PlayerProfileView, PlayerProgressInitArgs, PlayerProgressState,
+    PlayerSessionView, RangeMineArgs, ResourceDropTableState, RewardMineArgs,
     SurfaceDecorationTableState, TreeFellBlock, BATCH_MINE_BASE_DROP_CHANCE_BPS,
     BATCH_MINE_DECORATION_DROP_CHANCE_BPS, BATCH_MINE_EXTRA_DROP_CHANCE_BPS, BLOCK_AIR,
     BLOCK_BEDROCK, BLOCK_WATER, CHUNK_BROKEN_GROW_BY, CHUNK_BROKEN_INITIAL_CAPACITY,
-    CHUNK_BROKEN_MAX_CAPACITY, CHUNK_BROKEN_SEED, EXPLORATION_XP_PER_EXTRA_DROP,
-    FOUNDATION_CHUNK_MAGIC, FOUNDATION_CHUNK_SEED, FOUNDATION_CHUNK_V2_GROWTH,
-    FOUNDATION_CHUNK_V2_INITIAL_CAPACITY, FOUNDATION_CHUNK_V2_MAGIC,
-    FOUNDATION_CHUNK_V2_MAX_CAPACITY, PLAYER_PROGRESS_LEN, PLAYER_PROGRESS_SEED,
-    PRECISION_GATHERING_XP_PER_BLOCK, RANGE_MINE_BASE_DROP_CHANCE_BPS, RANGE_MINE_MAX_REWARDS,
+    CHUNK_BROKEN_MAX_CAPACITY, CHUNK_BROKEN_SEED, CHUNK_PLACED_GROW_BY,
+    CHUNK_PLACED_INITIAL_CAPACITY, CHUNK_PLACED_MAX_CAPACITY, CHUNK_PLACED_SEED,
+    EXPLORATION_XP_PER_EXTRA_DROP, FOUNDATION_CHUNK_GROWTH, FOUNDATION_CHUNK_INITIAL_CAPACITY,
+    FOUNDATION_CHUNK_MAX_CAPACITY, FOUNDATION_CHUNK_SEED, PLACEMENT_SOURCE_BACKPACK,
+    PLACEMENT_SOURCE_EQUIPMENT, PLAYER_PROGRESS_LEN, PLAYER_PROGRESS_SEED,
+    PRECISION_GATHERING_XP_PER_ACTION, RANGE_MINE_BASE_DROP_CHANCE_BPS, RANGE_MINE_MAX_REWARDS,
     RANGE_MINE_SECONDARY_CANDIDATE_CHANCE_BPS, RANGE_MINE_SECONDARY_PROOF_LIMIT,
-    RESOURCE_DROP_TABLE_SEED, SURFACE_DECORATION_FLAG_MINEABLE, SURFACE_DECORATION_TABLE_LEN,
-    SURFACE_DECORATION_TABLE_SEED, TREE_FELL_MAX_CHUNKS,
+    RESOURCE_DROP_TABLE_SEED, SESSION_ACTION_BREAK_BLOCK, SESSION_ACTION_PLACE_BLOCK,
+    SURFACE_DECORATION_FLAG_MINEABLE, SURFACE_DECORATION_TABLE_LEN, SURFACE_DECORATION_TABLE_SEED,
+    TREE_FELL_MAX_CHUNKS,
 };
 
 declare_id!("GnVKn442KDTDgCyjVG7SEtCQQLjaCiLvrEZDWSU13wbj");
+
+const PLAYER_SKILLS_SEED: &[u8] = b"player-skills-v2";
+const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
+const PLAYER_SKILLS_MAGIC: [u8; 8] = *b"NCKSKL02";
+const PLAYER_SKILLS_VERSION: u16 = 2;
+const PLAYER_SKILLS_LEN: usize = 480;
+const PLAYER_SKILLS_OWNER_OFFSET: usize = 12;
+const PLAYER_SKILLS_GLOBAL_CONFIG_OFFSET: usize = 44;
+const PLAYER_SKILLS_LEVELS_OFFSET: usize = 156;
+const PRECISION_GATHERING_SKILL_INDEX: usize = 0;
+const EXPLORATION_SKILL_INDEX: usize = 6;
+const MAX_SKILL_LEVEL: u8 = 10;
+const PLAYER_CONSUME_PLACEMENT_RESOURCE_TAG: u8 = 17;
 
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
@@ -70,7 +89,9 @@ pub fn process_instruction(
         11 => initialize_surface_decoration_table(program_id, accounts, payload),
         12 => verify_surface_decoration(program_id, accounts, payload),
         13 => apply_civilization_surface_decoration_receipt(program_id, accounts, payload),
+        14 => place_block(program_id, accounts, payload),
         15 => register_build_site_chunk(program_id, accounts, payload),
+        16 => mine_placed_block(program_id, accounts, payload),
         20 => batch_mine_with_rewards(program_id, accounts, payload),
         21 => range_mine_with_rewards(program_id, accounts, payload),
         _ => Err(NicechunkChunkError::InvalidInstruction.into()),
@@ -89,6 +110,24 @@ fn validate_player_action(
     player_session: &AccountInfo,
     global_config: &AccountInfo,
     system_program_account: &AccountInfo,
+) -> Result<PlayerActionContext, solana_program::program_error::ProgramError> {
+    validate_player_action_for(
+        session_authority,
+        player_profile,
+        player_session,
+        global_config,
+        system_program_account,
+        SESSION_ACTION_BREAK_BLOCK,
+    )
+}
+
+fn validate_player_action_for(
+    session_authority: &AccountInfo,
+    player_profile: &AccountInfo,
+    player_session: &AccountInfo,
+    global_config: &AccountInfo,
+    system_program_account: &AccountInfo,
+    action: u8,
 ) -> Result<PlayerActionContext, solana_program::program_error::ProgramError> {
     if !session_authority.is_signer || !session_authority.is_writable {
         return Err(NicechunkChunkError::InvalidSessionAuthority.into());
@@ -117,7 +156,7 @@ fn validate_player_action(
             session_authority.key,
             player_profile.key,
             global_config.key,
-            1,
+            action,
             clock.unix_timestamp,
         )?
         .owner
@@ -138,10 +177,11 @@ fn load_player_progress<'a>(
     program_id: &Pubkey,
     session_authority: &AccountInfo<'a>,
     player_progress: &AccountInfo<'a>,
+    player_skills: &AccountInfo<'a>,
     global_config: &AccountInfo<'a>,
     system_program_account: &AccountInfo<'a>,
     context: &PlayerActionContext,
-) -> Result<(u32, u64), solana_program::program_error::ProgramError> {
+) -> Result<(u32, u8), solana_program::program_error::ProgramError> {
     if !player_progress.is_writable {
         return Err(NicechunkChunkError::InvalidWritableAccount.into());
     }
@@ -162,13 +202,67 @@ fn load_player_progress<'a>(
         &context.clock,
     )?;
     let data = player_progress.try_borrow_data()?;
-    let progress = PlayerProgressState::validate(&data, &context.owner, global_config.key)?;
+    PlayerProgressState::validate(&data, &context.owner, global_config.key)?;
+    let precision_level = player_skill_level(
+        player_skills,
+        global_config.key,
+        &context.owner,
+        PRECISION_GATHERING_SKILL_INDEX,
+    )?;
+    let exploration_level = player_skill_level(
+        player_skills,
+        global_config.key,
+        &context.owner,
+        EXPLORATION_SKILL_INDEX,
+    )?;
     Ok((
-        PlayerProgressState::precision_gathering_volume_mm3_from_xp(
-            progress.precision_gathering_xp,
-        ),
-        progress.exploration_xp,
+        PlayerProgressState::precision_gathering_volume_mm3_from_level(precision_level),
+        exploration_level,
     ))
+}
+
+fn player_skill_level(
+    player_skills: &AccountInfo,
+    global_config: &Pubkey,
+    owner: &Pubkey,
+    skill_index: usize,
+) -> Result<u8, solana_program::program_error::ProgramError> {
+    let (expected, _) = Pubkey::find_program_address(
+        &[PLAYER_SKILLS_SEED, global_config.as_ref(), owner.as_ref()],
+        &NICECHUNK_SKILLS_PROGRAM_ID,
+    );
+    require_key_eq(
+        player_skills.key,
+        &expected,
+        NicechunkChunkError::InvalidPlayerSkillsPda,
+    )?;
+    if player_skills.owner == &system_program::ID && player_skills.data_len() == 0 {
+        return Ok(0);
+    }
+    require_key_eq(
+        player_skills.owner,
+        &NICECHUNK_SKILLS_PROGRAM_ID,
+        NicechunkChunkError::InvalidPlayerSkillsOwner,
+    )?;
+    let data = player_skills.try_borrow_data()?;
+    if data.len() != PLAYER_SKILLS_LEN
+        || data[0..8] != PLAYER_SKILLS_MAGIC
+        || u16::from_le_bytes([data[8], data[9]]) != PLAYER_SKILLS_VERSION
+        || data[11] != 1
+        || &data[PLAYER_SKILLS_OWNER_OFFSET..PLAYER_SKILLS_OWNER_OFFSET + 32] != owner.as_ref()
+        || &data[PLAYER_SKILLS_GLOBAL_CONFIG_OFFSET..PLAYER_SKILLS_GLOBAL_CONFIG_OFFSET + 32]
+            != global_config.as_ref()
+    {
+        return Err(NicechunkChunkError::InvalidPlayerSkillsData.into());
+    }
+    let level = data
+        .get(PLAYER_SKILLS_LEVELS_OFFSET + skill_index)
+        .copied()
+        .ok_or(NicechunkChunkError::InvalidPlayerSkillsData)?;
+    if level > MAX_SKILL_LEVEL {
+        return Err(NicechunkChunkError::InvalidPlayerSkillsData.into());
+    }
+    Ok(level)
 }
 
 fn validate_backpack(backpack_program: &AccountInfo, backpack: &AccountInfo) -> ProgramResult {
@@ -182,6 +276,15 @@ fn validate_backpack(backpack_program: &AccountInfo, backpack: &AccountInfo) -> 
         &NICECHUNK_BACKPACK_PROGRAM_ID,
         NicechunkChunkError::InvalidBackpackOwner,
     )
+}
+
+fn is_new_backpack_mining_action(
+    backpack: &AccountInfo,
+    owner: &Pubkey,
+    action_id: u64,
+) -> Result<bool, solana_program::program_error::ProgramError> {
+    let data = backpack.try_borrow_data()?;
+    BackpackMiningState::is_new_action(&data, owner, action_id).map_err(Into::into)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -286,7 +389,8 @@ fn mine_block(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> 
         chunk_z,
     )?;
 
-    let block_id = generated_block_id_at(global_config_view, &generated_args);
+    let surface = generated_surface_height(global_config_view, args.world_x, args.world_z);
+    let block_id = generated_block_id_at_surface(global_config_view, &generated_args, surface);
     if args.expected_block_id != block_id {
         return Err(NicechunkChunkError::GeneratedBlockMismatch.into());
     }
@@ -315,7 +419,181 @@ fn mine_block(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> 
     Ok(())
 }
 
-fn mine_block_with_rewards(
+fn place_block(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
+    if accounts.len() != 15 {
+        return Err(NicechunkChunkError::InvalidAccountCount.into());
+    }
+    let args = PlaceBlockArgs::unpack(payload)?;
+    let account_info_iter = &mut accounts.iter();
+    let session_authority = next_account_info(account_info_iter)?;
+    let player_profile = next_account_info(account_info_iter)?;
+    let player_session = next_account_info(account_info_iter)?;
+    let chunk_broken = next_account_info(account_info_iter)?;
+    let chunk_placed = next_account_info(account_info_iter)?;
+    let anchor_chunk_broken = next_account_info(account_info_iter)?;
+    let anchor_chunk_placed = next_account_info(account_info_iter)?;
+    let foundation_chunk = next_account_info(account_info_iter)?;
+    let global_config = next_account_info(account_info_iter)?;
+    let backpack_program = next_account_info(account_info_iter)?;
+    let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let player_program = next_account_info(account_info_iter)?;
+    let player_equipment = next_account_info(account_info_iter)?;
+    let system_program_account = next_account_info(account_info_iter)?;
+
+    if !chunk_placed.is_writable
+        || !backpack.is_writable
+        || (args.source_kind == PLACEMENT_SOURCE_EQUIPMENT
+            && (!player_profile.is_writable || !player_equipment.is_writable))
+    {
+        return Err(NicechunkChunkError::InvalidWritableAccount.into());
+    }
+    validate_backpack(backpack_program, backpack)?;
+    require_key_eq(
+        player_program.key,
+        &NICECHUNK_PLAYER_PROGRAM_ID,
+        NicechunkChunkError::InvalidPlayerProgram,
+    )?;
+    if !player_program.executable {
+        return Err(NicechunkChunkError::InvalidPlayerProgram.into());
+    }
+    let context = validate_player_action_for(
+        session_authority,
+        player_profile,
+        player_session,
+        global_config,
+        system_program_account,
+        SESSION_ACTION_PLACE_BLOCK,
+    )?;
+    let block = args.block();
+    let generated_args = block.generated_args(&context.config)?;
+    generated_args.validate(&context.config)?;
+    let (chunk_x, chunk_z, local_x, local_z) = block.chunk_coords(&context.config)?;
+    reject_foundation_protected_block(
+        program_id,
+        foundation_chunk,
+        global_config,
+        chunk_x,
+        chunk_z,
+        &block,
+    )?;
+    let packed = pack_broken_coord(local_x, block.world_y, local_z, context.config.min_build_y)?;
+    validate_placement_anchor(
+        program_id,
+        &args,
+        anchor_chunk_broken,
+        anchor_chunk_placed,
+        global_config,
+        &context.config,
+    )?;
+    let generated_block_id = generated_block_id_at(&context.config, &generated_args);
+    if generated_block_id != BLOCK_AIR
+        && !chunk_broken_contains(
+            program_id,
+            chunk_broken,
+            global_config,
+            chunk_x,
+            chunk_z,
+            context.config.min_build_y,
+            packed,
+        )?
+    {
+        return Err(NicechunkChunkError::PlacementOccupied.into());
+    }
+
+    let placed_bump = validate_chunk_placed_pda(
+        program_id,
+        chunk_placed.key,
+        global_config.key,
+        chunk_x,
+        chunk_z,
+    )?;
+    if chunk_placed.owner == program_id {
+        let (count, capacity) = {
+            let data = chunk_placed.try_borrow_data()?;
+            if ChunkPlacedState::find(&data, context.config.min_build_y, packed)?.is_some() {
+                return Err(NicechunkChunkError::PlacementOccupied.into());
+            }
+            ChunkPlacedState::validate_header(&data, context.config.min_build_y)?
+        };
+        if count >= capacity {
+            create_or_grow_chunk_placed_if_needed(
+                session_authority,
+                chunk_placed,
+                global_config,
+                system_program_account,
+                program_id,
+                context.config.min_build_y,
+                chunk_x,
+                chunk_z,
+                placed_bump,
+                true,
+            )?;
+        }
+    } else {
+        create_or_grow_chunk_placed_if_needed(
+            session_authority,
+            chunk_placed,
+            global_config,
+            system_program_account,
+            program_id,
+            context.config.min_build_y,
+            chunk_x,
+            chunk_z,
+            placed_bump,
+            false,
+        )?;
+    }
+
+    let (block_id, volume_mm3) = match args.source_kind {
+        PLACEMENT_SOURCE_BACKPACK => consume_backpack_placement_resource(
+            program_id,
+            backpack_program,
+            chunk_placed,
+            global_config,
+            player_profile,
+            backpack,
+            material_physics,
+            chunk_x,
+            chunk_z,
+            placed_bump,
+            args.source_index,
+            &args.expected_slot,
+        )?,
+        PLACEMENT_SOURCE_EQUIPMENT => consume_player_equipment_placement_resource(
+            program_id,
+            player_program,
+            chunk_placed,
+            player_profile,
+            player_equipment,
+            global_config,
+            backpack,
+            material_physics,
+            backpack_program,
+            chunk_x,
+            chunk_z,
+            placed_bump,
+            args.source_index,
+            &args.expected_slot,
+        )?,
+        _ => return Err(NicechunkChunkError::InvalidPlacementSource.into()),
+    };
+    if !is_placeable_block(block_id) {
+        return Err(NicechunkChunkError::InvalidPlacementBlock.into());
+    }
+    let mut data = chunk_placed.try_borrow_mut_data()?;
+    ChunkPlacedState::append(
+        &mut data,
+        context.config.min_build_y,
+        ChunkPlacedRecord {
+            packed,
+            block_id,
+            volume_mm3,
+        },
+    )
+}
+
+fn mine_placed_block(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     payload: &[u8],
@@ -323,8 +601,121 @@ fn mine_block_with_rewards(
     if accounts.len() != 12 {
         return Err(NicechunkChunkError::InvalidAccountCount.into());
     }
+    let reward_args = RewardMineArgs::unpack(payload)?;
+    let action_id = reward_args.action_id;
+    let args = reward_args.block;
+    let account_info_iter = &mut accounts.iter();
+    let session_authority = next_account_info(account_info_iter)?;
+    let player_profile = next_account_info(account_info_iter)?;
+    let player_session = next_account_info(account_info_iter)?;
+    let player_progress = next_account_info(account_info_iter)?;
+    let chunk_placed = next_account_info(account_info_iter)?;
+    let foundation_chunk = next_account_info(account_info_iter)?;
+    let global_config = next_account_info(account_info_iter)?;
+    let backpack_program = next_account_info(account_info_iter)?;
+    let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let player_skills = next_account_info(account_info_iter)?;
+    let system_program_account = next_account_info(account_info_iter)?;
 
-    let args = MineBlockArgs::unpack(payload)?;
+    if !player_progress.is_writable || !chunk_placed.is_writable || !backpack.is_writable {
+        return Err(NicechunkChunkError::InvalidWritableAccount.into());
+    }
+    validate_backpack(backpack_program, backpack)?;
+    let context = validate_player_action(
+        session_authority,
+        player_profile,
+        player_session,
+        global_config,
+        system_program_account,
+    )?;
+    let is_new_action = is_new_backpack_mining_action(backpack, &context.owner, action_id)?;
+    load_player_progress(
+        program_id,
+        session_authority,
+        player_progress,
+        player_skills,
+        global_config,
+        system_program_account,
+        &context,
+    )?;
+    let (chunk_x, chunk_z, local_x, local_z) = args.chunk_coords(&context.config)?;
+    reject_foundation_protected_block(
+        program_id,
+        foundation_chunk,
+        global_config,
+        chunk_x,
+        chunk_z,
+        &args,
+    )?;
+    let bump = validate_chunk_placed_pda(
+        program_id,
+        chunk_placed.key,
+        global_config.key,
+        chunk_x,
+        chunk_z,
+    )?;
+    require_key_eq(
+        chunk_placed.owner,
+        program_id,
+        NicechunkChunkError::InvalidChunkPlacedData,
+    )?;
+    let packed = pack_broken_coord(local_x, args.world_y, local_z, context.config.min_build_y)?;
+    let record = {
+        let data = chunk_placed.try_borrow_data()?;
+        ChunkPlacedState::find(&data, context.config.min_build_y, packed)?
+            .map(|(_, record)| record)
+            .ok_or(NicechunkChunkError::PlacedBlockNotFound)?
+    };
+    if record.block_id != args.expected_block_id {
+        return Err(NicechunkChunkError::PlacedBlockMismatch.into());
+    }
+    {
+        let mut data = chunk_placed.try_borrow_mut_data()?;
+        ChunkPlacedState::remove(&mut data, context.config.min_build_y, packed)?;
+    }
+    append_backpack_placed_resource(
+        program_id,
+        backpack_program,
+        chunk_placed,
+        global_config,
+        player_profile,
+        backpack,
+        material_physics,
+        chunk_x,
+        chunk_z,
+        bump,
+        args.world_x,
+        pack_backpack_resource_y(args.world_y, record.block_id, context.config.min_build_y),
+        args.world_z,
+        record.volume_mm3,
+        action_id,
+    )?;
+    if is_new_action {
+        let mut data = player_progress.try_borrow_mut_data()?;
+        PlayerProgressState::add_precision_gathering_xp(
+            &mut data,
+            &context.owner,
+            global_config.key,
+            PRECISION_GATHERING_XP_PER_ACTION,
+            context.clock.slot,
+        )?;
+    }
+    Ok(())
+}
+
+fn mine_block_with_rewards(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    payload: &[u8],
+) -> ProgramResult {
+    if accounts.len() != 14 {
+        return Err(NicechunkChunkError::InvalidAccountCount.into());
+    }
+
+    let reward_args = RewardMineArgs::unpack(payload)?;
+    let action_id = reward_args.action_id;
+    let args = reward_args.block;
     let account_info_iter = &mut accounts.iter();
     let session_authority = next_account_info(account_info_iter)?;
     let player_profile = next_account_info(account_info_iter)?;
@@ -337,6 +728,8 @@ fn mine_block_with_rewards(
     let surface_decoration_table = next_account_info(account_info_iter)?;
     let backpack_program = next_account_info(account_info_iter)?;
     let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let player_skills = next_account_info(account_info_iter)?;
     let system_program_account = next_account_info(account_info_iter)?;
 
     if !player_progress.is_writable || !chunk_broken.is_writable || !backpack.is_writable {
@@ -352,12 +745,14 @@ fn mine_block_with_rewards(
         system_program_account,
     )?;
     let global_config_view = &context.config;
+    let is_new_action = is_new_backpack_mining_action(backpack, &context.owner, action_id)?;
     let generated_args = args.generated_args(global_config_view)?;
     generated_args.validate(global_config_view)?;
-    let (gathered_volume_mm3, exploration_xp) = load_player_progress(
+    let (gathered_volume_mm3, exploration_level) = load_player_progress(
         program_id,
         session_authority,
         player_progress,
+        player_skills,
         global_config,
         system_program_account,
         &context,
@@ -394,7 +789,8 @@ fn mine_block_with_rewards(
         NicechunkChunkError::InvalidSurfaceDecorationTablePda,
     )?;
 
-    let block_id = generated_block_id_at(global_config_view, &generated_args);
+    let surface = generated_surface_height(global_config_view, args.world_x, args.world_z);
+    let block_id = generated_block_id_at_surface(global_config_view, &generated_args, surface);
     if args.expected_block_id != block_id {
         return Err(NicechunkChunkError::GeneratedBlockMismatch.into());
     }
@@ -409,29 +805,37 @@ fn mine_block_with_rewards(
             NicechunkChunkError::InvalidResourceDropTableData,
         )?;
         let data = resource_drop_table.try_borrow_data()?;
-        extra_drop_from_table(
+        extra_drop_from_table_at_surface(
             global_config_view,
             &data,
             args.world_x,
             args.world_y,
             args.world_z,
+            surface,
             block_id,
-            exploration_xp,
+            exploration_level,
         )?
     };
-    let surface_decoration_drop = {
+    let surface_decoration_drop = if args.world_y == surface {
         require_key_eq(
             surface_decoration_table.owner,
             program_id,
             NicechunkChunkError::InvalidSurfaceDecorationTableData,
         )?;
         let data = surface_decoration_table.try_borrow_data()?;
-        surface_decoration_from_table(global_config_view, &data, args.world_x, args.world_z)?
-            .filter(|entry| {
-                entry.surface_y == args.world_y
-                    && entry.surface_block_id == block_id
-                    && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
-            })
+        surface_decoration_from_table_at_surface(
+            global_config_view,
+            &data,
+            args.world_x,
+            args.world_z,
+            surface,
+        )?
+        .filter(|entry| {
+            entry.surface_block_id == block_id
+                && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
+        })
+    } else {
+        None
     };
 
     let packed = pack_broken_coord(
@@ -460,6 +864,7 @@ fn mine_block_with_rewards(
         global_config,
         player_profile,
         backpack,
+        material_physics,
         chunk_x,
         chunk_z,
         bump,
@@ -467,6 +872,7 @@ fn mine_block_with_rewards(
         pack_backpack_resource_y(args.world_y, block_id, global_config_view.min_build_y),
         args.world_z,
         gathered_volume_mm3,
+        action_id,
     )?;
 
     let mut secondary_rewards = Vec::with_capacity(2);
@@ -508,21 +914,25 @@ fn mine_block_with_rewards(
         global_config,
         player_profile,
         backpack,
+        material_physics,
         chunk_x,
         chunk_z,
         bump,
         &secondary_rewards,
+        action_id,
     )?;
 
     {
         let mut data = player_progress.try_borrow_mut_data()?;
-        PlayerProgressState::add_precision_gathering_xp(
-            &mut data,
-            &context.owner,
-            global_config.key,
-            PRECISION_GATHERING_XP_PER_BLOCK,
-            context.clock.slot,
-        )?;
+        if is_new_action {
+            PlayerProgressState::add_precision_gathering_xp(
+                &mut data,
+                &context.owner,
+                global_config.key,
+                PRECISION_GATHERING_XP_PER_ACTION,
+                context.clock.slot,
+            )?;
+        }
         if extra_drop.is_some() {
             PlayerProgressState::add_exploration_xp(
                 &mut data,
@@ -549,7 +959,7 @@ fn batch_mine_with_rewards(
     accounts: &[AccountInfo],
     payload: &[u8],
 ) -> ProgramResult {
-    if accounts.len() != 12 {
+    if accounts.len() != 14 {
         return Err(NicechunkChunkError::InvalidAccountCount.into());
     }
 
@@ -566,6 +976,8 @@ fn batch_mine_with_rewards(
     let surface_decoration_table = next_account_info(account_info_iter)?;
     let backpack_program = next_account_info(account_info_iter)?;
     let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let player_skills = next_account_info(account_info_iter)?;
     let system_program_account = next_account_info(account_info_iter)?;
 
     if !player_progress.is_writable || !chunk_broken.is_writable || !backpack.is_writable {
@@ -585,6 +997,8 @@ fn batch_mine_with_rewards(
         .blocks
         .first()
         .ok_or(NicechunkChunkError::InvalidBatchMine)?;
+    let action_id = args.action_id;
+    let is_new_action = is_new_backpack_mining_action(backpack, &context.owner, action_id)?;
     let (chunk_x, chunk_z, _, _) = first.chunk_coords(global_config_view)?;
     for block in &args.blocks {
         let (block_chunk_x, block_chunk_z, _, _) = block.chunk_coords(global_config_view)?;
@@ -593,10 +1007,11 @@ fn batch_mine_with_rewards(
         }
     }
 
-    let (gathered_volume_mm3, exploration_xp) = load_player_progress(
+    let (gathered_volume_mm3, exploration_level) = load_player_progress(
         program_id,
         session_authority,
         player_progress,
+        player_skills,
         global_config,
         system_program_account,
         &context,
@@ -653,7 +1068,8 @@ fn batch_mine_with_rewards(
             block,
         )?;
 
-        let block_id = generated_block_id_at(global_config_view, &generated_args);
+        let surface = generated_surface_height(global_config_view, block.world_x, block.world_z);
+        let block_id = generated_block_id_at_surface(global_config_view, &generated_args, surface);
         if block.expected_block_id != block_id {
             return Err(NicechunkChunkError::GeneratedBlockMismatch.into());
         }
@@ -661,26 +1077,31 @@ fn batch_mine_with_rewards(
             return Err(NicechunkChunkError::UnmineableBlock.into());
         }
 
-        let extra_drop = extra_drop_from_table(
+        let extra_drop = extra_drop_from_table_at_surface(
             global_config_view,
             &resource_drop_data,
             block.world_x,
             block.world_y,
             block.world_z,
+            surface,
             block_id,
-            exploration_xp,
+            exploration_level,
         )?;
-        let surface_decoration = surface_decoration_from_table(
-            global_config_view,
-            &surface_decoration_data,
-            block.world_x,
-            block.world_z,
-        )?
-        .filter(|entry| {
-            entry.surface_y == block.world_y
-                && entry.surface_block_id == block_id
-                && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
-        });
+        let surface_decoration = if block.world_y == surface {
+            surface_decoration_from_table_at_surface(
+                global_config_view,
+                &surface_decoration_data,
+                block.world_x,
+                block.world_z,
+                surface,
+            )?
+            .filter(|entry| {
+                entry.surface_block_id == block_id
+                    && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
+            })
+        } else {
+            None
+        };
 
         let packed = pack_broken_coord(
             local_x,
@@ -777,21 +1198,25 @@ fn batch_mine_with_rewards(
         global_config,
         player_profile,
         backpack,
+        material_physics,
         chunk_x,
         chunk_z,
         bump,
         &primary_rewards,
+        action_id,
     )?;
 
     {
         let mut data = player_progress.try_borrow_mut_data()?;
-        PlayerProgressState::add_precision_gathering_xp(
-            &mut data,
-            &context.owner,
-            global_config.key,
-            PRECISION_GATHERING_XP_PER_BLOCK.saturating_mul(args.blocks.len() as u64),
-            context.clock.slot,
-        )?;
+        if is_new_action {
+            PlayerProgressState::add_precision_gathering_xp(
+                &mut data,
+                &context.owner,
+                global_config.key,
+                PRECISION_GATHERING_XP_PER_ACTION,
+                context.clock.slot,
+            )?;
+        }
         PlayerProgressState::add_exploration_xp(
             &mut data,
             &context.owner,
@@ -816,7 +1241,7 @@ fn range_mine_with_rewards(
     accounts: &[AccountInfo],
     payload: &[u8],
 ) -> ProgramResult {
-    if accounts.len() != 12 {
+    if accounts.len() != 14 {
         return Err(NicechunkChunkError::InvalidAccountCount.into());
     }
 
@@ -833,6 +1258,8 @@ fn range_mine_with_rewards(
     let surface_decoration_table = next_account_info(account_info_iter)?;
     let backpack_program = next_account_info(account_info_iter)?;
     let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let player_skills = next_account_info(account_info_iter)?;
     let system_program_account = next_account_info(account_info_iter)?;
 
     if !player_progress.is_writable || !chunk_broken.is_writable || !backpack.is_writable {
@@ -848,6 +1275,8 @@ fn range_mine_with_rewards(
         system_program_account,
     )?;
     let global_config_view = &context.config;
+    let action_id = args.action_id;
+    let is_new_action = is_new_backpack_mining_action(backpack, &context.owner, action_id)?;
     let chunk_size = i32::from(global_config_view.chunk_size);
     let max_x = args
         .min_x
@@ -871,10 +1300,11 @@ fn range_mine_with_rewards(
         &args.blocks,
     )?;
 
-    let (gathered_volume_mm3, exploration_xp) = load_player_progress(
+    let (gathered_volume_mm3, exploration_level) = load_player_progress(
         program_id,
         session_authority,
         player_progress,
+        player_skills,
         global_config,
         system_program_account,
         &context,
@@ -898,7 +1328,10 @@ fn range_mine_with_rewards(
     let mut accepted = Vec::with_capacity(args.blocks.len());
     let chunk_origin_x = chunk_x.saturating_mul(chunk_size);
     let chunk_origin_z = chunk_z.saturating_mul(chunk_size);
+    let mut generated_surfaces = [None; 16 * 16];
     for block in args.blocks {
+        let generated_args = block.generated_args(global_config_view)?;
+        generated_args.validate(global_config_view)?;
         let local_x = u8::try_from(block.world_x.saturating_sub(chunk_origin_x))
             .map_err(|_| NicechunkChunkError::InvalidBlockCoordinate)?;
         let local_z = u8::try_from(block.world_z.saturating_sub(chunk_origin_z))
@@ -907,6 +1340,32 @@ fn range_mine_with_rewards(
             || u16::from(local_z) >= global_config_view.chunk_size
         {
             return Err(NicechunkChunkError::InvalidBlockCoordinate.into());
+        }
+        let block_id = match generated_guaranteed_deep_block_id(global_config_view, &generated_args)
+        {
+            Some(block_id) => block_id,
+            None => {
+                let surface_index = usize::from(local_z) * 16 + usize::from(local_x);
+                let surface = match generated_surfaces[surface_index] {
+                    Some(surface) => surface,
+                    None => {
+                        let surface = generated_surface_height(
+                            global_config_view,
+                            block.world_x,
+                            block.world_z,
+                        );
+                        generated_surfaces[surface_index] = Some(surface);
+                        surface
+                    }
+                };
+                generated_block_id_at_surface(global_config_view, &generated_args, surface)
+            }
+        };
+        if block.expected_block_id != block_id {
+            return Err(NicechunkChunkError::GeneratedBlockMismatch.into());
+        }
+        if matches!(block_id, BLOCK_AIR | BLOCK_WATER | BLOCK_BEDROCK) {
+            return Err(NicechunkChunkError::UnmineableBlock.into());
         }
         let packed = pack_broken_coord(
             local_x,
@@ -1016,14 +1475,17 @@ fn range_mine_with_rewards(
         }
         secondary_proofs += 1;
 
-        if let Some(drop) = extra_drop_from_table(
+        let surface = generated_surface_height(global_config_view, block.world_x, block.world_z);
+
+        if let Some(drop) = extra_drop_from_table_at_surface(
             global_config_view,
             &resource_drop_data,
             block.world_x,
             block.world_y,
             block.world_z,
+            surface,
             block.expected_block_id,
-            exploration_xp,
+            exploration_level,
         )? {
             if range_mine_reward_passes(
                 global_config_view,
@@ -1046,37 +1508,39 @@ fn range_mine_with_rewards(
             }
         }
 
-        if let Some(decoration) = surface_decoration_from_table(
-            global_config_view,
-            &surface_decoration_data,
-            block.world_x,
-            block.world_z,
-        )?
-        .filter(|entry| {
-            entry.surface_y == block.world_y
-                && entry.surface_block_id == block.expected_block_id
-                && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
-        }) {
-            if range_mine_reward_passes(
+        if block.world_y == surface {
+            if let Some(decoration) = surface_decoration_from_table_at_surface(
                 global_config_view,
-                block,
-                0x1_000_u32.saturating_add(u32::from(decoration.rule_id)),
-                BATCH_MINE_DECORATION_DROP_CHANCE_BPS,
-            ) {
-                secondary_rewards.push(BackpackBlockReward {
-                    world_x: block.world_x,
-                    packed_y: pack_backpack_resource_y(
-                        decoration.surface_y.saturating_add(1),
-                        decoration.drop_block_id,
-                        global_config_view.min_build_y,
-                    ),
-                    world_z: block.world_z,
-                    volume_mm3: gathered_volume_mm3,
-                    metadata: pack_surface_decoration_metadata(
-                        decoration.rule_id,
-                        decoration.decoration_id,
-                    ),
-                });
+                &surface_decoration_data,
+                block.world_x,
+                block.world_z,
+                surface,
+            )?
+            .filter(|entry| {
+                entry.surface_block_id == block.expected_block_id
+                    && entry.flags & SURFACE_DECORATION_FLAG_MINEABLE != 0
+            }) {
+                if range_mine_reward_passes(
+                    global_config_view,
+                    block,
+                    0x1_000_u32.saturating_add(u32::from(decoration.rule_id)),
+                    BATCH_MINE_DECORATION_DROP_CHANCE_BPS,
+                ) {
+                    secondary_rewards.push(BackpackBlockReward {
+                        world_x: block.world_x,
+                        packed_y: pack_backpack_resource_y(
+                            decoration.surface_y.saturating_add(1),
+                            decoration.drop_block_id,
+                            global_config_view.min_build_y,
+                        ),
+                        world_z: block.world_z,
+                        volume_mm3: gathered_volume_mm3,
+                        metadata: pack_surface_decoration_metadata(
+                            decoration.rule_id,
+                            decoration.decoration_id,
+                        ),
+                    });
+                }
             }
         }
     }
@@ -1092,21 +1556,25 @@ fn range_mine_with_rewards(
         global_config,
         player_profile,
         backpack,
+        material_physics,
         chunk_x,
         chunk_z,
         bump,
         &primary_rewards,
+        action_id,
     )?;
 
     {
         let mut data = player_progress.try_borrow_mut_data()?;
-        PlayerProgressState::add_precision_gathering_xp(
-            &mut data,
-            &context.owner,
-            global_config.key,
-            PRECISION_GATHERING_XP_PER_BLOCK.saturating_mul(accepted.len() as u64),
-            context.clock.slot,
-        )?;
+        if is_new_action {
+            PlayerProgressState::add_precision_gathering_xp(
+                &mut data,
+                &context.owner,
+                global_config.key,
+                PRECISION_GATHERING_XP_PER_ACTION,
+                context.clock.slot,
+            )?;
+        }
         PlayerProgressState::add_exploration_xp(
             &mut data,
             &context.owner,
@@ -1131,11 +1599,13 @@ fn fell_tree_with_rewards(
     accounts: &[AccountInfo],
     payload: &[u8],
 ) -> ProgramResult {
-    if accounts.len() < 9 || accounts.len() > 8 + TREE_FELL_MAX_CHUNKS {
+    if accounts.len() < 11 || accounts.len() > 10 + TREE_FELL_MAX_CHUNKS {
         return Err(NicechunkChunkError::InvalidAccountCount.into());
     }
 
-    let args = MineBlockArgs::unpack(payload)?;
+    let reward_args = RewardMineArgs::unpack(payload)?;
+    let action_id = reward_args.action_id;
+    let args = reward_args.block;
     let session_authority = &accounts[0];
     let player_profile = &accounts[1];
     let player_session = &accounts[2];
@@ -1143,8 +1613,10 @@ fn fell_tree_with_rewards(
     let global_config = &accounts[4];
     let backpack_program = &accounts[5];
     let backpack = &accounts[6];
-    let system_program_account = &accounts[7];
-    let chunk_accounts = &accounts[8..];
+    let material_physics = &accounts[7];
+    let system_program_account = &accounts[8];
+    let player_skills = &accounts[9];
+    let chunk_accounts = &accounts[10..];
 
     if !player_progress.is_writable
         || !backpack.is_writable
@@ -1162,12 +1634,14 @@ fn fell_tree_with_rewards(
         system_program_account,
     )?;
     let global_config_view = &context.config;
+    let is_new_action = is_new_backpack_mining_action(backpack, &context.owner, action_id)?;
     let generated_args = args.generated_args(global_config_view)?;
     generated_args.validate(global_config_view)?;
     let (gathered_volume_mm3, _) = load_player_progress(
         program_id,
         session_authority,
         player_progress,
+        player_skills,
         global_config,
         system_program_account,
         &context,
@@ -1367,22 +1841,26 @@ fn fell_tree_with_rewards(
             global_config,
             player_profile,
             backpack,
+            material_physics,
             *chunk_x,
             *chunk_z,
             bump,
             &chunk_rewards,
+            action_id,
         )?;
     }
 
     if !rewards.is_empty() {
         let mut data = player_progress.try_borrow_mut_data()?;
-        PlayerProgressState::add_precision_gathering_xp(
-            &mut data,
-            &context.owner,
-            global_config.key,
-            PRECISION_GATHERING_XP_PER_BLOCK.saturating_mul(rewards.len() as u64),
-            context.clock.slot,
-        )?;
+        if is_new_action {
+            PlayerProgressState::add_precision_gathering_xp(
+                &mut data,
+                &context.owner,
+                global_config.key,
+                PRECISION_GATHERING_XP_PER_ACTION,
+                context.clock.slot,
+            )?;
+        }
         PlayerProgressState::add_explored_chunk_count(
             &mut data,
             &context.owner,
@@ -1443,14 +1921,14 @@ fn reject_foundation_protected_blocks(
     Ok(())
 }
 
-const BUILDING_CHUNK_AUTHORITY_SEED: &[u8] = b"chunk-authority-v1";
+const BUILDING_CHUNK_AUTHORITY_SEED: &[u8] = b"chunk-authority-v2";
 const FOUNDATION_REGISTRATION_LEN: usize = 67;
 const FOUNDATION_OPERATION_UPSERT: u8 = 0;
 const FOUNDATION_OPERATION_REMOVE: u8 = 1;
 
 #[derive(Clone, Copy)]
 struct FoundationRegistrationArgs {
-    record: FoundationRecordV2,
+    record: FoundationRecord,
     chunk_x: i32,
     chunk_z: i32,
     operation: u8,
@@ -1461,7 +1939,7 @@ impl FoundationRegistrationArgs {
         if payload.len() != FOUNDATION_REGISTRATION_LEN {
             return Err(NicechunkChunkError::InvalidFoundationRegistration);
         }
-        let record = FoundationRecordV2 {
+        let record = FoundationRecord {
             owner: Pubkey::new_from_array(
                 payload[0..32]
                     .try_into()
@@ -1511,8 +1989,12 @@ impl FoundationRegistrationArgs {
         let operation = payload[66];
         if record.owner == Pubkey::default()
             || record.foundation_id == 0
-            || record.width < 2
-            || record.depth < 2
+            || record.width < 16
+            || record.depth < 16
+            || record.width % 16 != 0
+            || record.depth % 16 != 0
+            || record.min_x.rem_euclid(16) != 0
+            || record.min_z.rem_euclid(16) != 0
             || record.max_x().is_none()
             || record.max_z().is_none()
             || operation != FOUNDATION_OPERATION_UPSERT && operation != FOUNDATION_OPERATION_REMOVE
@@ -1604,7 +2086,7 @@ fn register_build_site_chunk(
     {
         return Ok(());
     }
-    ensure_foundation_chunk_v2(
+    ensure_foundation_chunk(
         payer,
         foundation_chunk,
         global_config,
@@ -1613,15 +2095,10 @@ fn register_build_site_chunk(
         args.chunk_x,
         args.chunk_z,
         bump,
-        if args.operation == FOUNDATION_OPERATION_UPSERT {
-            Some((&args.record, i32::from(config.chunk_size)))
-        } else {
-            None
-        },
     )?;
     if args.operation == FOUNDATION_OPERATION_REMOVE {
         let mut data = foundation_chunk.try_borrow_mut_data()?;
-        return FoundationChunkV2State::remove(
+        return FoundationChunkState::remove(
             &mut data,
             global_config.key,
             args.chunk_x,
@@ -1630,7 +2107,7 @@ fn register_build_site_chunk(
             args.record.foundation_id,
         );
     }
-    grow_foundation_chunk_v2_if_full(
+    grow_foundation_chunk_if_full(
         payer,
         foundation_chunk,
         global_config,
@@ -1641,7 +2118,7 @@ fn register_build_site_chunk(
         args.record.foundation_id,
     )?;
     let mut data = foundation_chunk.try_borrow_mut_data()?;
-    FoundationChunkV2State::append(
+    FoundationChunkState::append(
         &mut data,
         global_config.key,
         args.chunk_x,
@@ -1651,7 +2128,7 @@ fn register_build_site_chunk(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn ensure_foundation_chunk_v2<'a>(
+fn ensure_foundation_chunk<'a>(
     payer: &AccountInfo<'a>,
     foundation_chunk: &AccountInfo<'a>,
     global_config: &AccountInfo<'a>,
@@ -1660,11 +2137,10 @@ fn ensure_foundation_chunk_v2<'a>(
     chunk_x: i32,
     chunk_z: i32,
     bump: u8,
-    replacement: Option<(&FoundationRecordV2, i32)>,
 ) -> ProgramResult {
     if foundation_chunk.owner == &system_program::ID && foundation_chunk.data_len() == 0 {
-        let capacity = FOUNDATION_CHUNK_V2_INITIAL_CAPACITY;
-        let len = FoundationChunkV2State::len(capacity)?;
+        let capacity = FOUNDATION_CHUNK_INITIAL_CAPACITY;
+        let len = FoundationChunkState::len(capacity)?;
         let chunk_x_bytes = chunk_x.to_le_bytes();
         let chunk_z_bytes = chunk_z.to_le_bytes();
         let bump_seed = [bump];
@@ -1684,7 +2160,7 @@ fn ensure_foundation_chunk_v2<'a>(
             &seeds,
         )?;
         let mut data = foundation_chunk.try_borrow_mut_data()?;
-        return FoundationChunkV2State::pack_empty(
+        return FoundationChunkState::pack_empty(
             &mut data,
             bump,
             global_config.key,
@@ -1698,58 +2174,12 @@ fn ensure_foundation_chunk_v2<'a>(
         program_id,
         NicechunkChunkError::InvalidFoundationChunkData,
     )?;
-    let magic = {
-        let data = foundation_chunk.try_borrow_data()?;
-        if data.len() < 8 {
-            return Err(NicechunkChunkError::InvalidFoundationChunkData.into());
-        }
-        data[0..8].try_into().unwrap_or([0; 8])
-    };
-    if magic == FOUNDATION_CHUNK_V2_MAGIC {
-        return Ok(());
-    }
-    if magic != FOUNDATION_CHUNK_MAGIC {
-        return Err(NicechunkChunkError::InvalidFoundationChunkData.into());
-    }
-    let legacy = {
-        let data = foundation_chunk.try_borrow_data()?;
-        FoundationChunkState::records(&data, global_config.key, chunk_x, chunk_z)?
-    };
-    let migrated: Vec<_> = legacy
-        .into_iter()
-        .map(|record| FoundationRecordV2::from_legacy(&record))
-        .filter(|record| {
-            !replacement
-                .map(|(candidate, chunk_size)| {
-                    candidate.supersedes_legacy_index(record, chunk_size)
-                })
-                .unwrap_or(false)
-        })
-        .collect();
-    let required = u16::try_from(migrated.len())
-        .ok()
-        .and_then(|count| count.checked_add(1))
-        .ok_or(NicechunkChunkError::FoundationChunkCapacityExceeded)?;
-    let capacity = rounded_foundation_capacity(required)?;
-    let len = FoundationChunkV2State::len(capacity)?;
-    fund_account_to_rent_exempt(payer, foundation_chunk, system_program_account, len)?;
-    foundation_chunk.realloc(len, true)?;
-    let mut data = foundation_chunk.try_borrow_mut_data()?;
-    FoundationChunkV2State::pack_empty(
-        &mut data,
-        bump,
-        global_config.key,
-        chunk_x,
-        chunk_z,
-        capacity,
-    )?;
-    for record in migrated {
-        FoundationChunkV2State::append(&mut data, global_config.key, chunk_x, chunk_z, &record)?;
-    }
+    let data = foundation_chunk.try_borrow_data()?;
+    FoundationChunkState::validate(&data, global_config.key, chunk_x, chunk_z)?;
     Ok(())
 }
 
-fn grow_foundation_chunk_v2_if_full<'a>(
+fn grow_foundation_chunk_if_full<'a>(
     payer: &AccountInfo<'a>,
     foundation_chunk: &AccountInfo<'a>,
     global_config: &AccountInfo<'a>,
@@ -1762,8 +2192,8 @@ fn grow_foundation_chunk_v2_if_full<'a>(
     let (count, capacity, exists) = {
         let data = foundation_chunk.try_borrow_data()?;
         let (count, capacity) =
-            FoundationChunkV2State::validate(&data, global_config.key, chunk_x, chunk_z)?;
-        let exists = FoundationChunkV2State::contains_foundation(
+            FoundationChunkState::validate(&data, global_config.key, chunk_x, chunk_z)?;
+        let exists = FoundationChunkState::contains_foundation(
             &data,
             global_config.key,
             chunk_x,
@@ -1777,31 +2207,19 @@ fn grow_foundation_chunk_v2_if_full<'a>(
         return Ok(());
     }
     let next_capacity = capacity
-        .checked_add(FOUNDATION_CHUNK_V2_GROWTH)
-        .map(|value| value.min(FOUNDATION_CHUNK_V2_MAX_CAPACITY))
+        .checked_add(FOUNDATION_CHUNK_GROWTH)
+        .map(|value| value.min(FOUNDATION_CHUNK_MAX_CAPACITY))
         .ok_or(NicechunkChunkError::FoundationChunkCapacityExceeded)?;
     if next_capacity <= capacity {
         return Err(NicechunkChunkError::FoundationChunkCapacityExceeded.into());
     }
-    let len = FoundationChunkV2State::len(next_capacity)?;
+    let len = FoundationChunkState::len(next_capacity)?;
     fund_account_to_rent_exempt(payer, foundation_chunk, system_program_account, len)?;
     foundation_chunk.realloc(len, true)?;
     let mut data = foundation_chunk.try_borrow_mut_data()?;
     data[12..14].copy_from_slice(&next_capacity.to_le_bytes());
-    FoundationChunkV2State::validate(&data, global_config.key, chunk_x, chunk_z)?;
+    FoundationChunkState::validate(&data, global_config.key, chunk_x, chunk_z)?;
     Ok(())
-}
-
-fn rounded_foundation_capacity(required: u16) -> Result<u16, NicechunkChunkError> {
-    let capacity = required
-        .max(FOUNDATION_CHUNK_V2_INITIAL_CAPACITY)
-        .saturating_add(FOUNDATION_CHUNK_V2_GROWTH - 1)
-        / FOUNDATION_CHUNK_V2_GROWTH
-        * FOUNDATION_CHUNK_V2_GROWTH;
-    if capacity > FOUNDATION_CHUNK_V2_MAX_CAPACITY {
-        return Err(NicechunkChunkError::FoundationChunkCapacityExceeded);
-    }
-    Ok(capacity)
 }
 
 fn validate_foundation_chunk_pda(
@@ -2079,6 +2497,13 @@ fn validate_global_config(
         &NICECHUNK_CORE_PROGRAM_ID,
         NicechunkChunkError::InvalidGlobalConfigOwner,
     )?;
+    let (expected, _) =
+        Pubkey::find_program_address(&[GLOBAL_CONFIG_SEED], &NICECHUNK_CORE_PROGRAM_ID);
+    require_key_eq(
+        global_config.key,
+        &expected,
+        NicechunkChunkError::InvalidGlobalConfigData,
+    )?;
     let data = global_config.try_borrow_data()?;
     GlobalConfigView::unpack(&data).map_err(Into::into)
 }
@@ -2107,6 +2532,138 @@ fn validate_chunk_broken_pda(
         NicechunkChunkError::InvalidChunkBrokenPda,
     )?;
     Ok(bump)
+}
+
+fn validate_chunk_placed_pda(
+    program_id: &Pubkey,
+    chunk_placed: &Pubkey,
+    global_config: &Pubkey,
+    chunk_x: i32,
+    chunk_z: i32,
+) -> Result<u8, solana_program::program_error::ProgramError> {
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let (expected_chunk, bump) = Pubkey::find_program_address(
+        &[
+            CHUNK_PLACED_SEED,
+            global_config.as_ref(),
+            &chunk_x_bytes,
+            &chunk_z_bytes,
+        ],
+        program_id,
+    );
+    require_key_eq(
+        chunk_placed,
+        &expected_chunk,
+        NicechunkChunkError::InvalidChunkPlacedPda,
+    )?;
+    Ok(bump)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn chunk_broken_contains(
+    program_id: &Pubkey,
+    chunk_broken: &AccountInfo,
+    global_config: &AccountInfo,
+    chunk_x: i32,
+    chunk_z: i32,
+    min_build_y: i16,
+    packed: [u8; 3],
+) -> Result<bool, solana_program::program_error::ProgramError> {
+    validate_chunk_broken_pda(
+        program_id,
+        chunk_broken.key,
+        global_config.key,
+        chunk_x,
+        chunk_z,
+    )?;
+    if chunk_broken.owner == &system_program::ID && chunk_broken.data_len() == 0 {
+        return Ok(false);
+    }
+    require_key_eq(
+        chunk_broken.owner,
+        program_id,
+        NicechunkChunkError::InvalidChunkBrokenData,
+    )?;
+    let data = chunk_broken.try_borrow_data()?;
+    ChunkBrokenState::validate_header(&data, min_build_y)?;
+    ChunkBrokenState::contains_packed(&data, packed).map_err(Into::into)
+}
+
+fn chunk_placed_at(
+    program_id: &Pubkey,
+    chunk_placed: &AccountInfo,
+    global_config: &AccountInfo,
+    chunk_x: i32,
+    chunk_z: i32,
+    min_build_y: i16,
+    packed: [u8; 3],
+) -> Result<Option<ChunkPlacedRecord>, solana_program::program_error::ProgramError> {
+    validate_chunk_placed_pda(
+        program_id,
+        chunk_placed.key,
+        global_config.key,
+        chunk_x,
+        chunk_z,
+    )?;
+    if chunk_placed.owner == &system_program::ID && chunk_placed.data_len() == 0 {
+        return Ok(None);
+    }
+    require_key_eq(
+        chunk_placed.owner,
+        program_id,
+        NicechunkChunkError::InvalidChunkPlacedData,
+    )?;
+    let data = chunk_placed.try_borrow_data()?;
+    Ok(ChunkPlacedState::find(&data, min_build_y, packed)?.map(|(_, record)| record))
+}
+
+fn validate_placement_anchor(
+    program_id: &Pubkey,
+    args: &PlaceBlockArgs,
+    anchor_chunk_broken: &AccountInfo,
+    anchor_chunk_placed: &AccountInfo,
+    global_config: &AccountInfo,
+    config: &GlobalConfigView,
+) -> ProgramResult {
+    let anchor = args.anchor();
+    let generated_args = anchor.generated_args(config)?;
+    generated_args.validate(config)?;
+    let (chunk_x, chunk_z, local_x, local_z) = anchor.chunk_coords(config)?;
+    let packed = pack_broken_coord(local_x, anchor.world_y, local_z, config.min_build_y)?;
+
+    if let Some(record) = chunk_placed_at(
+        program_id,
+        anchor_chunk_placed,
+        global_config,
+        chunk_x,
+        chunk_z,
+        config.min_build_y,
+        packed,
+    )? {
+        return if is_placeable_block(record.block_id) {
+            Ok(())
+        } else {
+            Err(NicechunkChunkError::InvalidPlacementAnchor.into())
+        };
+    }
+
+    let generated_block_id = generated_block_id_at(config, &generated_args);
+    if generated_block_id != BLOCK_BEDROCK && !is_placeable_block(generated_block_id) {
+        return Err(NicechunkChunkError::InvalidPlacementAnchor.into());
+    }
+    if chunk_broken_contains(
+        program_id,
+        anchor_chunk_broken,
+        global_config,
+        chunk_x,
+        chunk_z,
+        config.min_build_y,
+        packed,
+    )? {
+        return Err(NicechunkChunkError::InvalidPlacementAnchor.into());
+    }
+    Ok(())
 }
 
 fn validate_rule_table_pda(
@@ -2397,13 +2954,173 @@ fn create_player_progress_if_needed<'a>(
     )
 }
 
-fn append_backpack_block_resource<'a>(
+#[allow(clippy::too_many_arguments)]
+fn consume_backpack_placement_resource<'a>(
     program_id: &Pubkey,
     backpack_program: &AccountInfo<'a>,
-    chunk_broken: &AccountInfo<'a>,
+    chunk_placed: &AccountInfo<'a>,
     global_config: &AccountInfo<'a>,
     player_profile: &AccountInfo<'a>,
     backpack: &AccountInfo<'a>,
+    material_physics: &AccountInfo<'a>,
+    chunk_x: i32,
+    chunk_z: i32,
+    chunk_bump: u8,
+    source_index: u8,
+    expected_slot: &[u8; 80],
+) -> Result<(u16, u32), solana_program::program_error::ProgramError> {
+    let mut data = Vec::with_capacity(1 + 4 + 4 + 1 + expected_slot.len());
+    data.push(15);
+    data.extend_from_slice(&chunk_x.to_le_bytes());
+    data.extend_from_slice(&chunk_z.to_le_bytes());
+    data.push(source_index);
+    data.extend_from_slice(expected_slot);
+    let data = backpack_cpi_data(&data);
+    let ix = Instruction {
+        program_id: *backpack_program.key,
+        accounts: vec![
+            AccountMeta::new_readonly(*chunk_placed.key, true),
+            AccountMeta::new_readonly(*global_config.key, false),
+            AccountMeta::new_readonly(*player_profile.key, false),
+            AccountMeta::new(*backpack.key, false),
+            AccountMeta::new_readonly(*material_physics.key, false),
+        ],
+        data,
+    };
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let seeds = &[
+        CHUNK_PLACED_SEED,
+        global_config.key.as_ref(),
+        &chunk_x_bytes,
+        &chunk_z_bytes,
+        &[chunk_bump],
+    ];
+    let expected = Pubkey::create_program_address(seeds, program_id)
+        .map_err(|_| NicechunkChunkError::InvalidChunkPlacedPda)?;
+    require_key_eq(
+        chunk_placed.key,
+        &expected,
+        NicechunkChunkError::InvalidChunkPlacedPda,
+    )?;
+    invoke_signed(
+        &ix,
+        &[
+            chunk_placed.clone(),
+            global_config.clone(),
+            player_profile.clone(),
+            backpack.clone(),
+            material_physics.clone(),
+            backpack_program.clone(),
+        ],
+        &[seeds],
+    )?;
+    placement_return_data(backpack_program.key)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn consume_player_equipment_placement_resource<'a>(
+    program_id: &Pubkey,
+    player_program: &AccountInfo<'a>,
+    chunk_placed: &AccountInfo<'a>,
+    player_profile: &AccountInfo<'a>,
+    player_equipment: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    backpack: &AccountInfo<'a>,
+    material_physics: &AccountInfo<'a>,
+    backpack_program: &AccountInfo<'a>,
+    chunk_x: i32,
+    chunk_z: i32,
+    chunk_bump: u8,
+    source_index: u8,
+    expected_slot: &[u8; 80],
+) -> Result<(u16, u32), solana_program::program_error::ProgramError> {
+    let mut data = Vec::with_capacity(1 + 4 + 4 + 1 + expected_slot.len());
+    // Player tag 16 is the stable market-escrow release ABI.
+    data.push(PLAYER_CONSUME_PLACEMENT_RESOURCE_TAG);
+    data.extend_from_slice(&chunk_x.to_le_bytes());
+    data.extend_from_slice(&chunk_z.to_le_bytes());
+    data.push(source_index);
+    data.extend_from_slice(expected_slot);
+    let ix = Instruction {
+        program_id: *player_program.key,
+        accounts: vec![
+            AccountMeta::new_readonly(*chunk_placed.key, true),
+            AccountMeta::new(*player_profile.key, false),
+            AccountMeta::new(*player_equipment.key, false),
+            AccountMeta::new_readonly(*global_config.key, false),
+            AccountMeta::new_readonly(*backpack.key, false),
+            AccountMeta::new_readonly(*material_physics.key, false),
+            AccountMeta::new_readonly(*backpack_program.key, false),
+        ],
+        data,
+    };
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let seeds = &[
+        CHUNK_PLACED_SEED,
+        global_config.key.as_ref(),
+        &chunk_x_bytes,
+        &chunk_z_bytes,
+        &[chunk_bump],
+    ];
+    let expected = Pubkey::create_program_address(seeds, program_id)
+        .map_err(|_| NicechunkChunkError::InvalidChunkPlacedPda)?;
+    require_key_eq(
+        chunk_placed.key,
+        &expected,
+        NicechunkChunkError::InvalidChunkPlacedPda,
+    )?;
+    invoke_signed(
+        &ix,
+        &[
+            chunk_placed.clone(),
+            player_profile.clone(),
+            player_equipment.clone(),
+            global_config.clone(),
+            backpack.clone(),
+            material_physics.clone(),
+            backpack_program.clone(),
+            player_program.clone(),
+        ],
+        &[seeds],
+    )?;
+    placement_return_data(player_program.key)
+}
+
+fn placement_return_data(
+    expected_program: &Pubkey,
+) -> Result<(u16, u32), solana_program::program_error::ProgramError> {
+    let (return_program_id, return_data) =
+        get_return_data().ok_or(NicechunkChunkError::InvalidPlacementReturnData)?;
+    if return_program_id != *expected_program || return_data.len() != 6 {
+        return Err(NicechunkChunkError::InvalidPlacementReturnData.into());
+    }
+    let block_id = u16::from_le_bytes(
+        return_data[0..2]
+            .try_into()
+            .map_err(|_| NicechunkChunkError::InvalidPlacementReturnData)?,
+    );
+    let volume_mm3 = u32::from_le_bytes(
+        return_data[2..6]
+            .try_into()
+            .map_err(|_| NicechunkChunkError::InvalidPlacementReturnData)?,
+    );
+    if block_id == BLOCK_AIR || volume_mm3 == 0 {
+        return Err(NicechunkChunkError::InvalidPlacementReturnData.into());
+    }
+    Ok((block_id, volume_mm3))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_backpack_placed_resource<'a>(
+    program_id: &Pubkey,
+    backpack_program: &AccountInfo<'a>,
+    chunk_placed: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    player_profile: &AccountInfo<'a>,
+    backpack: &AccountInfo<'a>,
+    material_physics: &AccountInfo<'a>,
     chunk_x: i32,
     chunk_z: i32,
     chunk_bump: u8,
@@ -2411,13 +3128,81 @@ fn append_backpack_block_resource<'a>(
     packed_y: i16,
     world_z: i32,
     volume_mm3: u32,
+    action_id: u64,
 ) -> ProgramResult {
-    let mut data = [0_u8; 15];
+    let mut data = [0_u8; 23];
+    data[0] = 16;
+    data[1..5].copy_from_slice(&world_x.to_le_bytes());
+    data[5..7].copy_from_slice(&packed_y.to_le_bytes());
+    data[7..11].copy_from_slice(&world_z.to_le_bytes());
+    data[11..15].copy_from_slice(&volume_mm3.to_le_bytes());
+    data[15..23].copy_from_slice(&action_id.to_le_bytes());
+    let data = backpack_cpi_data(&data);
+    let ix = Instruction {
+        program_id: *backpack_program.key,
+        accounts: vec![
+            AccountMeta::new_readonly(*chunk_placed.key, true),
+            AccountMeta::new_readonly(*global_config.key, false),
+            AccountMeta::new_readonly(*player_profile.key, false),
+            AccountMeta::new(*backpack.key, false),
+            AccountMeta::new_readonly(*material_physics.key, false),
+        ],
+        data,
+    };
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let seeds = &[
+        CHUNK_PLACED_SEED,
+        global_config.key.as_ref(),
+        &chunk_x_bytes,
+        &chunk_z_bytes,
+        &[chunk_bump],
+    ];
+    let expected = Pubkey::create_program_address(seeds, program_id)
+        .map_err(|_| NicechunkChunkError::InvalidChunkPlacedPda)?;
+    require_key_eq(
+        chunk_placed.key,
+        &expected,
+        NicechunkChunkError::InvalidChunkPlacedPda,
+    )?;
+    invoke_signed(
+        &ix,
+        &[
+            chunk_placed.clone(),
+            global_config.clone(),
+            player_profile.clone(),
+            backpack.clone(),
+            material_physics.clone(),
+            backpack_program.clone(),
+        ],
+        &[seeds],
+    )
+}
+
+fn append_backpack_block_resource<'a>(
+    program_id: &Pubkey,
+    backpack_program: &AccountInfo<'a>,
+    chunk_broken: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    player_profile: &AccountInfo<'a>,
+    backpack: &AccountInfo<'a>,
+    material_physics: &AccountInfo<'a>,
+    chunk_x: i32,
+    chunk_z: i32,
+    chunk_bump: u8,
+    world_x: i32,
+    packed_y: i16,
+    world_z: i32,
+    volume_mm3: u32,
+    action_id: u64,
+) -> ProgramResult {
+    let mut data = [0_u8; 23];
     data[0] = 1;
     data[1..5].copy_from_slice(&world_x.to_le_bytes());
     data[5..7].copy_from_slice(&packed_y.to_le_bytes());
     data[7..11].copy_from_slice(&world_z.to_le_bytes());
     data[11..15].copy_from_slice(&volume_mm3.to_le_bytes());
+    data[15..23].copy_from_slice(&action_id.to_le_bytes());
     let data = backpack_cpi_data(&data);
     let ix = Instruction {
         program_id: *backpack_program.key,
@@ -2426,6 +3211,7 @@ fn append_backpack_block_resource<'a>(
             AccountMeta::new_readonly(*global_config.key, false),
             AccountMeta::new_readonly(*player_profile.key, false),
             AccountMeta::new(*backpack.key, false),
+            AccountMeta::new_readonly(*material_physics.key, false),
         ],
         data,
     };
@@ -2452,6 +3238,8 @@ fn append_backpack_block_resource<'a>(
             global_config.clone(),
             player_profile.clone(),
             backpack.clone(),
+            material_physics.clone(),
+            backpack_program.clone(),
         ],
         &[seeds],
     )
@@ -2478,17 +3266,31 @@ fn append_backpack_block_resources_lossy<'a>(
     global_config: &AccountInfo<'a>,
     player_profile: &AccountInfo<'a>,
     backpack: &AccountInfo<'a>,
+    material_physics: &AccountInfo<'a>,
     chunk_x: i32,
     chunk_z: i32,
     chunk_bump: u8,
     rewards: &[BackpackBlockReward],
+    action_id: u64,
 ) -> ProgramResult {
     if rewards.is_empty() {
-        return Ok(());
+        return record_backpack_mining_action(
+            program_id,
+            backpack_program,
+            chunk_broken,
+            global_config,
+            player_profile,
+            backpack,
+            chunk_x,
+            chunk_z,
+            chunk_bump,
+            action_id,
+        );
     }
-    let mut data = Vec::with_capacity(2 + rewards.len() * 18);
+    let mut data = Vec::with_capacity(10 + rewards.len() * 18);
     data.push(6);
     data.push(rewards.len().min(u8::MAX as usize) as u8);
+    data.extend_from_slice(&action_id.to_le_bytes());
     for reward in rewards {
         data.extend_from_slice(&reward.world_x.to_le_bytes());
         data.extend_from_slice(&reward.packed_y.to_le_bytes());
@@ -2496,6 +3298,66 @@ fn append_backpack_block_resources_lossy<'a>(
         data.extend_from_slice(&reward.volume_mm3.to_le_bytes());
         data.extend_from_slice(&reward.metadata.to_le_bytes());
     }
+    let data = backpack_cpi_data(&data);
+    let ix = Instruction {
+        program_id: *backpack_program.key,
+        accounts: vec![
+            AccountMeta::new_readonly(*chunk_broken.key, true),
+            AccountMeta::new_readonly(*global_config.key, false),
+            AccountMeta::new_readonly(*player_profile.key, false),
+            AccountMeta::new(*backpack.key, false),
+            AccountMeta::new_readonly(*material_physics.key, false),
+        ],
+        data,
+    };
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let seeds = &[
+        CHUNK_BROKEN_SEED,
+        global_config.key.as_ref(),
+        &chunk_x_bytes,
+        &chunk_z_bytes,
+        &[chunk_bump],
+    ];
+    let expected = Pubkey::create_program_address(seeds, program_id)
+        .map_err(|_| NicechunkChunkError::InvalidChunkBrokenPda)?;
+    require_key_eq(
+        chunk_broken.key,
+        &expected,
+        NicechunkChunkError::InvalidChunkBrokenPda,
+    )?;
+    invoke_signed(
+        &ix,
+        &[
+            chunk_broken.clone(),
+            global_config.clone(),
+            player_profile.clone(),
+            backpack.clone(),
+            material_physics.clone(),
+            backpack_program.clone(),
+        ],
+        &[seeds],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_backpack_mining_action<'a>(
+    program_id: &Pubkey,
+    backpack_program: &AccountInfo<'a>,
+    chunk_broken: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    player_profile: &AccountInfo<'a>,
+    backpack: &AccountInfo<'a>,
+    chunk_x: i32,
+    chunk_z: i32,
+    chunk_bump: u8,
+    action_id: u64,
+) -> ProgramResult {
+    let mut data = [0_u8; 17];
+    data[0] = 13;
+    data[1..9].copy_from_slice(&action_id.to_le_bytes());
+    data[9..13].copy_from_slice(&chunk_x.to_le_bytes());
+    data[13..17].copy_from_slice(&chunk_z.to_le_bytes());
     let data = backpack_cpi_data(&data);
     let ix = Instruction {
         program_id: *backpack_program.key,
@@ -2530,6 +3392,7 @@ fn append_backpack_block_resources_lossy<'a>(
             global_config.clone(),
             player_profile.clone(),
             backpack.clone(),
+            backpack_program.clone(),
         ],
         &[seeds],
     )
@@ -2625,6 +3488,111 @@ fn tree_fell_chunks(
         chunks.push((chunk_x, chunk_z));
     }
     Ok(chunks)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_or_grow_chunk_placed_if_needed<'a>(
+    payer: &AccountInfo<'a>,
+    chunk_placed: &AccountInfo<'a>,
+    global_config: &AccountInfo<'a>,
+    system_program_account: &AccountInfo<'a>,
+    program_id: &Pubkey,
+    min_build_y: i16,
+    chunk_x: i32,
+    chunk_z: i32,
+    bump: u8,
+    force_grow: bool,
+) -> ProgramResult {
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let seeds = &[
+        CHUNK_PLACED_SEED,
+        global_config.key.as_ref(),
+        &chunk_x_bytes,
+        &chunk_z_bytes,
+        &[bump],
+    ];
+
+    if chunk_placed.owner == program_id {
+        let capacity = {
+            let data = chunk_placed.try_borrow_data()?;
+            let (_, capacity) = ChunkPlacedState::validate_header(&data, min_build_y)?;
+            capacity
+        };
+        if !force_grow {
+            return Ok(());
+        }
+        if capacity >= CHUNK_PLACED_MAX_CAPACITY {
+            return Err(NicechunkChunkError::ChunkPlacedCapacityExceeded.into());
+        }
+        let next_capacity = capacity
+            .saturating_add(CHUNK_PLACED_GROW_BY)
+            .min(CHUNK_PLACED_MAX_CAPACITY);
+        let next_len = ChunkPlacedState::len_for_capacity(next_capacity);
+        fund_account_to_rent_exempt(payer, chunk_placed, system_program_account, next_len)?;
+        chunk_placed.realloc(next_len, false)?;
+        let mut data = chunk_placed.try_borrow_mut_data()?;
+        data[8..10].copy_from_slice(&next_capacity.to_le_bytes());
+        return Ok(());
+    }
+
+    if chunk_placed.owner != &system_program::ID || chunk_placed.data_len() != 0 {
+        return Err(NicechunkChunkError::InvalidSystemAccount.into());
+    }
+    let initial_len = ChunkPlacedState::len_for_capacity(CHUNK_PLACED_INITIAL_CAPACITY);
+    let lamports = Rent::get()?.minimum_balance(initial_len);
+    if chunk_placed.lamports() == 0 {
+        let create = system_create_account(
+            payer.key,
+            chunk_placed.key,
+            lamports,
+            initial_len as u64,
+            program_id,
+        );
+        invoke_signed(
+            &create,
+            &[
+                payer.clone(),
+                chunk_placed.clone(),
+                system_program_account.clone(),
+            ],
+            &[seeds],
+        )?;
+    } else {
+        if chunk_placed.lamports() < lamports {
+            invoke(
+                &system_transfer(
+                    payer.key,
+                    chunk_placed.key,
+                    lamports - chunk_placed.lamports(),
+                ),
+                &[
+                    payer.clone(),
+                    chunk_placed.clone(),
+                    system_program_account.clone(),
+                ],
+            )?;
+        }
+        invoke_signed(
+            &system_allocate(chunk_placed.key, initial_len as u64),
+            &[chunk_placed.clone(), system_program_account.clone()],
+            &[seeds],
+        )?;
+        invoke_signed(
+            &system_assign(chunk_placed.key, program_id),
+            &[chunk_placed.clone(), system_program_account.clone()],
+            &[seeds],
+        )?;
+    }
+    let mut data = chunk_placed.try_borrow_mut_data()?;
+    ChunkPlacedState::pack_empty(
+        &mut data,
+        &ChunkPlacedInitArgs {
+            bump,
+            min_y: min_build_y,
+            capacity: CHUNK_PLACED_INITIAL_CAPACITY,
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

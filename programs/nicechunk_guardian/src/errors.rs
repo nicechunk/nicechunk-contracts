@@ -32,9 +32,6 @@ pub enum NicechunkGuardianError {
     GuardianNotActive = 6426,
     GuardianStillFresh = 6427,
     PackSizeMismatch = 6428,
-    InvalidBlueprintRevision = 6429,
-    InvalidTreasuryWallet = 6430,
-    InvalidBlueprintAuthority = 6431,
 }
 
 impl From<NicechunkGuardianError> for ProgramError {

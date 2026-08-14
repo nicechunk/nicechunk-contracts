@@ -10,7 +10,6 @@ import {
   decodeGuardianRegion,
   deriveGuardianRegionPda,
   deriveGuardianTreasuryAuthorityPda,
-  GUARDIAN_TREASURY_WALLET,
 } from "../sdk/nicechunk-guardian.ts";
 import { deriveGlobalConfigPda } from "../sdk/nicechunk-core.ts";
 import {
@@ -32,6 +31,7 @@ function readNumber(name: string, fallback: number): number {
 const conn = connection();
 const payer = readPayerKeypair();
 const operatorKeypair = readOptionalKeypair(process.env.GUARDIAN_OPERATOR_KEYPAIR) ?? payer;
+const owner = payer.publicKey;
 const selectedCoreProgramId = coreProgramId();
 const selectedGuardianProgramId = guardianProgramId();
 const selectedNckMint = nckMint();
@@ -50,10 +50,7 @@ const port = readNumber("GUARDIAN_PORT", 8899);
 const useTls = process.env.GUARDIAN_USE_TLS === "1";
 const operator = operatorKeypair.publicKey;
 const isGenesis = process.env.GUARDIAN_GENESIS === "1";
-if (isGenesis && !payer.publicKey.equals(GUARDIAN_TREASURY_WALLET)) {
-  throw new Error(`Genesis guardian registration requires governance ${GUARDIAN_TREASURY_WALLET.toBase58()}`);
-}
-const operatorNckToken = getAssociatedTokenAddressSync(selectedNckMint, operator);
+const ownerNckToken = getAssociatedTokenAddressSync(selectedNckMint, owner);
 const [region, bump] = deriveGuardianRegionPda({
   globalConfig,
   regionX,
@@ -65,7 +62,7 @@ if (process.env.DRY_RUN === "1") {
   console.log(JSON.stringify({
     status: "dry-run",
     payer: payer.publicKey.toBase58(),
-    owner: GUARDIAN_TREASURY_WALLET.toBase58(),
+    owner: owner.toBase58(),
     operator: operator.toBase58(),
     guardianProgramId: selectedGuardianProgramId.toBase58(),
     globalConfig: globalConfig.toBase58(),
@@ -79,7 +76,7 @@ if (process.env.DRY_RUN === "1") {
     port,
     useTls,
     isGenesis,
-    operatorNckToken: operatorNckToken.toBase58(),
+    ownerNckToken: ownerNckToken.toBase58(),
     treasuryNckToken: treasuryNckToken.toBase58(),
   }, null, 2));
   process.exit(0);
@@ -87,8 +84,9 @@ if (process.env.DRY_RUN === "1") {
 
 const ix = createRegisterGuardianInstruction({
   payer: payer.publicKey,
+  owner,
   operator,
-  operatorNckToken,
+  ownerNckToken,
   treasuryNckToken,
   regionX,
   regionY,
@@ -96,13 +94,11 @@ const ix = createRegisterGuardianInstruction({
   port,
   useTls,
   isGenesis,
-  genesisAuthority: isGenesis ? payer.publicKey : undefined,
   guardianProgramId: selectedGuardianProgramId,
   coreProgramId: selectedCoreProgramId,
   nckMint: selectedNckMint,
 });
-const signers = operator.equals(payer.publicKey) ? [payer] : [payer, operatorKeypair];
-const signature = await sendAndConfirmTransaction(conn, new Transaction().add(ix), signers, {
+const signature = await sendAndConfirmTransaction(conn, new Transaction().add(ix), [payer], {
   commitment: "confirmed",
   preflightCommitment: "confirmed",
 });

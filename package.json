@@ -7,7 +7,6 @@
   "scripts": {
     "audit:deps": "node scripts/audit-dependencies.mjs",
     "audit:licenses": "node scripts/audit-licenses.mjs",
-    "backpack:issue-blueprint": "node --loader ts-node/esm scripts/issue-blueprint.ts",
     "build": "vite build",
     "build:nginx": "vite build",
     "chunk:init-surface-decorations": "node scripts/initialize-surface-decoration-table.ts",
@@ -24,7 +23,6 @@
     "guardian:init-registry": "node scripts/init-guardian-registry.ts",
     "guardian:list": "node scripts/list-guardians.ts",
     "guardian:register": "node scripts/register-guardian.ts",
-    "guardian:sync-blueprint": "node scripts/sync-guardian-blueprint.ts",
     "initialize:global-config": "node scripts/initialize-global-config.ts",
     "player:init": "node scripts/init-player.ts",
     "preview": "vite preview --host 0.0.0.0",
@@ -50,7 +48,8 @@
   },
   "overrides": {
     "brace-expansion": "^5.0.9",
-    "js-yaml": "^4.3.0",
+    "js-yaml": "^4.3.1",
+    "nanoid": "^3.3.18",
     "mocha": {
       "diff": "^9.0.0",
       "serialize-javascript": "^7.0.6"

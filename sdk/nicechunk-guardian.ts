@@ -3,7 +3,6 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { Buffer } from "buffer";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
   deriveGlobalConfigPda,
@@ -13,24 +12,19 @@ import {
 const env = typeof process !== "undefined" ? process.env : {};
 
 export const NICECHUNK_GUARDIAN_PROGRAM_ID = new PublicKey(
-  env.NICECHUNK_GUARDIAN_PROGRAM_ID ?? "RQQZKA1fGELBxtxCQ6q7P26GJH4whWmPjH9XqmihVRK",
+  env.NICECHUNK_GUARDIAN_PROGRAM_ID ?? "6frJyJSirfEwsztsxijcJLe29LSaceET1wanXSFwPQyE",
 );
 export const DEVNET_NCK_MINT = new PublicKey(
   env.NCK_MINT ?? "HSnWF5kjkWVrceW2SaSskScuLveUZE4gpthZ2ZXRPQPo",
 );
-export const GUARDIAN_GOVERNANCE_WALLET = new PublicKey(
-  "9XuoVVwqP2jipt3jpJVXCSS2N2jr9vDuV3d6K73FKVud",
-);
-export const GUARDIAN_TREASURY_WALLET = GUARDIAN_GOVERNANCE_WALLET;
 export const GUARDIAN_REGISTRY_SEED = "guardian-registry";
 export const GUARDIAN_REGION_SEED = "guardian-region";
 export const GUARDIAN_TREASURY_AUTHORITY_SEED = "guardian-treasury";
 export const GUARDIAN_REGISTRY_LEN = 160;
-export const GUARDIAN_REGION_LEN = 288;
+export const GUARDIAN_REGION_LEN = 256;
 export const GUARDIAN_REGISTRY_MAGIC = "NCKGDR01";
 export const GUARDIAN_REGION_MAGIC = "NCKGRG01";
 export const GUARDIAN_REGION_SIZE = 100;
-export const EMPTY_GUARDIAN_BLUEPRINT_HASH = "25232284e49cf2cb4201bb072e27626c";
 export const GUARDIAN_STAKE_AMOUNT = 100_000_000_000n;
 export const GUARDIAN_STATUS_ACTIVE = 1;
 export const GUARDIAN_STATUS_REMOVED = 2;
@@ -79,10 +73,6 @@ export interface DecodedGuardianRegion {
   penaltyCursorAt: bigint;
   proofCount: bigint;
   updatedSlot: number;
-  blueprintHash: string | null;
-  blueprintRevision: bigint;
-  blueprintRecordCount: number;
-  accountLength: number;
 }
 
 export function chunkToGuardianRegion(chunkCoord: number): number {
@@ -156,13 +146,13 @@ export function deriveNeighborGuardianRegions({
 }
 
 export function createInitializeGuardianRegistryInstruction({
-  treasury,
+  payer,
   treasuryNckToken,
   guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
   coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
   nckMint = DEVNET_NCK_MINT,
 }: {
-  treasury: PublicKey;
+  payer: PublicKey;
   treasuryNckToken: PublicKey;
   guardianProgramId?: PublicKey;
   coreProgramId?: PublicKey;
@@ -177,7 +167,7 @@ export function createInitializeGuardianRegistryInstruction({
   return new TransactionInstruction({
     programId: guardianProgramId,
     keys: [
-      { pubkey: treasury, isSigner: true, isWritable: true },
+      { pubkey: payer, isSigner: true, isWritable: true },
       { pubkey: registry, isSigner: false, isWritable: true },
       { pubkey: globalConfig, isSigner: false, isWritable: false },
       { pubkey: treasuryAuthority, isSigner: false, isWritable: false },
@@ -191,31 +181,31 @@ export function createInitializeGuardianRegistryInstruction({
 
 export function createRegisterGuardianInstruction({
   payer,
-  operator,
-  operatorNckToken,
+  owner,
+  ownerNckToken,
   treasuryNckToken,
   regionX,
   regionY,
   host,
   port,
   useTls,
+  operator,
   isGenesis = false,
-  genesisAuthority,
   guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
   coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
   nckMint = DEVNET_NCK_MINT,
 }: {
   payer: PublicKey;
-  operator: PublicKey;
-  operatorNckToken: PublicKey;
+  owner: PublicKey;
+  ownerNckToken: PublicKey;
   treasuryNckToken: PublicKey;
   regionX: number;
   regionY: number;
   host: string;
   port: number;
   useTls: boolean;
+  operator: PublicKey;
   isGenesis?: boolean;
-  genesisAuthority?: PublicKey;
   guardianProgramId?: PublicKey;
   coreProgramId?: PublicKey;
   nckMint?: PublicKey;
@@ -227,7 +217,7 @@ export function createRegisterGuardianInstruction({
     globalConfig,
     programId: guardianProgramId,
   });
-  const hostBytes = encodeGuardianHost(host);
+  const hostBytes = guardianHostBytes(host);
   assertGuardianPort(port);
   const data = Buffer.alloc(1 + 12 + hostBytes.length + 32);
   data.writeUInt8(isGenesis ? 1 : 2, 0);
@@ -241,8 +231,8 @@ export function createRegisterGuardianInstruction({
 
   const keys = [
     { pubkey: payer, isSigner: true, isWritable: true },
-    { pubkey: operator, isSigner: true, isWritable: false },
-    { pubkey: operatorNckToken, isSigner: false, isWritable: true },
+    { pubkey: owner, isSigner: true, isWritable: false },
+    { pubkey: ownerNckToken, isSigner: false, isWritable: true },
     { pubkey: registry, isSigner: false, isWritable: true },
     { pubkey: region, isSigner: false, isWritable: true },
     { pubkey: globalConfig, isSigner: false, isWritable: false },
@@ -253,10 +243,7 @@ export function createRegisterGuardianInstruction({
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
 
-  if (isGenesis) {
-    if (!genesisAuthority) throw new Error("Genesis guardian registration requires governance authority");
-    keys.push({ pubkey: genesisAuthority, isSigner: true, isWritable: false });
-  } else {
+  if (!isGenesis) {
     keys.push(
       ...deriveNeighborGuardianRegions({ globalConfig, regionX, regionY, programId: guardianProgramId }).map((pubkey) => ({
         pubkey,
@@ -273,8 +260,69 @@ export function createRegisterGuardianInstruction({
   });
 }
 
+export function createSubmitGuardianProofInstruction({
+  operator,
+  regionX,
+  regionY,
+  guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
+  coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
+}: {
+  operator: PublicKey;
+  regionX: number;
+  regionY: number;
+  guardianProgramId?: PublicKey;
+  coreProgramId?: PublicKey;
+}): TransactionInstruction {
+  const [globalConfig] = deriveGlobalConfigPda(coreProgramId);
+  const [registry] = deriveGuardianRegistryPda({ globalConfig, programId: guardianProgramId });
+  const [region] = deriveGuardianRegionPda({ globalConfig, regionX, regionY, programId: guardianProgramId });
+  const data = Buffer.alloc(9);
+  data.writeUInt8(3, 0);
+  data.writeInt32LE(regionX, 1);
+  data.writeInt32LE(regionY, 5);
+  return new TransactionInstruction({
+    programId: guardianProgramId,
+    keys: [
+      { pubkey: operator, isSigner: true, isWritable: false },
+      { pubkey: registry, isSigner: false, isWritable: true },
+      { pubkey: region, isSigner: false, isWritable: true },
+      { pubkey: globalConfig, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+}
+
+export function createSettleGuardianInstruction({
+  regionX,
+  regionY,
+  guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
+  coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
+}: {
+  regionX: number;
+  regionY: number;
+  guardianProgramId?: PublicKey;
+  coreProgramId?: PublicKey;
+}): TransactionInstruction {
+  const [globalConfig] = deriveGlobalConfigPda(coreProgramId);
+  const [registry] = deriveGuardianRegistryPda({ globalConfig, programId: guardianProgramId });
+  const [region] = deriveGuardianRegionPda({ globalConfig, regionX, regionY, programId: guardianProgramId });
+  const data = Buffer.alloc(9);
+  data.writeUInt8(4, 0);
+  data.writeInt32LE(regionX, 1);
+  data.writeInt32LE(regionY, 5);
+  return new TransactionInstruction({
+    programId: guardianProgramId,
+    keys: [
+      { pubkey: registry, isSigner: false, isWritable: true },
+      { pubkey: region, isSigner: false, isWritable: true },
+      { pubkey: globalConfig, isSigner: false, isWritable: false },
+    ],
+    data,
+  });
+}
+
 export function createUpdateGuardianEndpointInstruction({
-  authority,
+  owner,
   regionX,
   regionY,
   host,
@@ -283,7 +331,7 @@ export function createUpdateGuardianEndpointInstruction({
   guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
   coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
 }: {
-  authority: PublicKey;
+  owner: PublicKey;
   regionX: number;
   regionY: number;
   host: string;
@@ -295,7 +343,7 @@ export function createUpdateGuardianEndpointInstruction({
   const [globalConfig] = deriveGlobalConfigPda(coreProgramId);
   const [registry] = deriveGuardianRegistryPda({ globalConfig, programId: guardianProgramId });
   const [region] = deriveGuardianRegionPda({ globalConfig, regionX, regionY, programId: guardianProgramId });
-  const hostBytes = encodeGuardianHost(host);
+  const hostBytes = guardianHostBytes(host);
   assertGuardianPort(port);
   const data = Buffer.alloc(13 + hostBytes.length);
   data.writeUInt8(5, 0);
@@ -309,42 +357,8 @@ export function createUpdateGuardianEndpointInstruction({
   return new TransactionInstruction({
     programId: guardianProgramId,
     keys: [
-      { pubkey: authority, isSigner: true, isWritable: false },
+      { pubkey: owner, isSigner: true, isWritable: false },
       { pubkey: registry, isSigner: false, isWritable: false },
-      { pubkey: region, isSigner: false, isWritable: true },
-      { pubkey: globalConfig, isSigner: false, isWritable: false },
-    ],
-    data,
-  });
-}
-
-export function createUpdateGuardianOperatorInstruction({
-  treasury,
-  newOperator,
-  regionX,
-  regionY,
-  guardianProgramId = NICECHUNK_GUARDIAN_PROGRAM_ID,
-  coreProgramId = NICECHUNK_CORE_PROGRAM_ID,
-}: {
-  treasury: PublicKey;
-  newOperator: PublicKey;
-  regionX: number;
-  regionY: number;
-  guardianProgramId?: PublicKey;
-  coreProgramId?: PublicKey;
-}): TransactionInstruction {
-  if (newOperator.equals(PublicKey.default)) throw new Error("Guardian operator cannot be the default public key");
-  const [globalConfig] = deriveGlobalConfigPda(coreProgramId);
-  const [region] = deriveGuardianRegionPda({ globalConfig, regionX, regionY, programId: guardianProgramId });
-  const data = Buffer.alloc(41);
-  data.writeUInt8(8, 0);
-  data.writeInt32LE(regionX, 1);
-  data.writeInt32LE(regionY, 5);
-  newOperator.toBuffer().copy(data, 9);
-  return new TransactionInstruction({
-    programId: guardianProgramId,
-    keys: [
-      { pubkey: treasury, isSigner: true, isWritable: false },
       { pubkey: region, isSigner: false, isWritable: true },
       { pubkey: globalConfig, isSigner: false, isWritable: false },
     ],
@@ -397,7 +411,7 @@ export function decodeGuardianRegistry(data: Buffer): DecodedGuardianRegistry {
     createdSlot: u64(),
     createdAt: i64(),
   };
-  if (decoded.magic !== GUARDIAN_REGISTRY_MAGIC || decoded.version !== 1 || offset !== GUARDIAN_REGISTRY_LEN) {
+  if (decoded.magic !== GUARDIAN_REGISTRY_MAGIC || offset !== GUARDIAN_REGISTRY_LEN) {
     throw new Error("Invalid GuardianRegistry data");
   }
   const { _reserved, ...result } = decoded;
@@ -468,10 +482,6 @@ export function decodeGuardianRegion(data: Buffer, publicKey?: PublicKey): Decod
     penaltyCursorAt: 0n,
     proofCount: 0n,
     updatedSlot: 0,
-    blueprintHash: null,
-    blueprintRevision: 0n,
-    blueprintRecordCount: 0,
-    accountLength: data.length,
   };
   const hostLen = u8();
   decoded.host = bytes(64).subarray(0, hostLen).toString("utf8");
@@ -485,17 +495,8 @@ export function decodeGuardianRegion(data: Buffer, publicKey?: PublicKey): Decod
   decoded.penaltyCursorAt = i64();
   decoded.proofCount = u64();
   decoded.updatedSlot = u32();
-  decoded.blueprintHash = bytes(16).toString("hex");
-  decoded.blueprintRevision = u64();
-  decoded.blueprintRecordCount = u32();
-  u32();
 
-  if (
-    decoded.magic !== GUARDIAN_REGION_MAGIC
-    || decoded.version !== 2
-    || !decoded.owner.equals(GUARDIAN_GOVERNANCE_WALLET)
-    || offset !== data.length
-  ) {
+  if (decoded.magic !== GUARDIAN_REGION_MAGIC || offset !== GUARDIAN_REGION_LEN) {
     throw new Error("Invalid GuardianRegion data");
   }
   return decoded;
@@ -505,27 +506,29 @@ export function bigintJsonReplacer(_key: string, value: unknown): unknown {
   return typeof value === "bigint" ? value.toString() : value;
 }
 
-function encodeGuardianHost(host: string): Buffer {
-  const bytes = Buffer.from(host, "utf8");
-  const valid = bytes.length > 0
-    && bytes.length <= 64
-    && bytes.every((byte) => (
-      byte >= 0x30 && byte <= 0x39
-      || byte >= 0x41 && byte <= 0x5a
-      || byte >= 0x61 && byte <= 0x7a
-      || byte === 0x2e
-      || byte === 0x2d
-      || byte === 0x5f
-      || byte === 0x3a
-      || byte === 0x5b
-      || byte === 0x5d
-    ));
-  if (!valid) throw new Error("Guardian host must be a 1-64 byte hostname or IP without a URL scheme");
+function guardianHostBytes(host: string): Buffer {
+  const bytes = Buffer.from(String(host ?? "").trim(), "utf8");
+  if (bytes.length === 0 || bytes.length > 64) {
+    throw new Error("Guardian host must be 1-64 bytes");
+  }
+  if (![...bytes].every((byte) => (
+    byte >= 0x30 && byte <= 0x39
+    || byte >= 0x41 && byte <= 0x5a
+    || byte >= 0x61 && byte <= 0x7a
+    || byte === 0x2e
+    || byte === 0x2d
+    || byte === 0x5f
+    || byte === 0x3a
+    || byte === 0x5b
+    || byte === 0x5d
+  ))) {
+    throw new Error("Guardian host must not include a URL scheme or path");
+  }
   return bytes;
 }
 
 function assertGuardianPort(port: number): void {
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error("Guardian port must be an integer from 1 to 65535");
+  if (!Number.isInteger(port) || port < 1 || port > 0xffff) {
+    throw new Error("Guardian port must be an integer in 1..65535");
   }
 }

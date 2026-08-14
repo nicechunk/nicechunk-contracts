@@ -1,4 +1,66 @@
 {
+  "_meta": {
+    "language": "zh-Hant",
+    "label": "Traditional Chinese",
+    "version": "contracts-locale-zh-Hant-58b486dbe1bac2e5",
+    "contentHash": "58b486dbe1bac2e5"
+  },
+  "siteFooter": {
+    "tagline": "Solana 上的種子體素世界協議。",
+    "navigationAria": "頁腳導航",
+    "socialAria": "NiceChunk 社交連結",
+    "home": "首頁",
+    "play": "進入世界",
+    "roadmap": "路書",
+    "docs": "文檔",
+    "guardian": "守護者",
+    "contracts": "合約",
+    "x": "X / Twitter",
+    "github": "GitHub",
+    "copyright": "2026 NiceChunk。保留所有權利。"
+  },
+  "common": {
+    "language": "語言",
+    "comingSoon": "即將推出",
+    "languageNative": {
+      "en": "English",
+      "es": "Español",
+      "fr": "Français",
+      "de": "Deutsch",
+      "ja": "日本語",
+      "ru": "Русский",
+      "ko": "한국어",
+      "zhHant": "繁體中文",
+      "zhHans": "简体中文"
+    }
+  },
+  "siteHeader": {
+    "brandName": "NICECHUNK",
+    "brandHomeAria": "NiceChunk 首頁",
+    "primaryNavigationAria": "主要導覽",
+    "openMenu": "開啟選單",
+    "closeMenu": "關閉選單",
+    "routes": {
+      "home": "首頁",
+      "roadbook": "路書",
+      "worldRules": "世界規則",
+      "resources": "資源",
+      "ncm": "NCM",
+      "ncfm": "NCFM",
+      "elements": "元素",
+      "fairness": "公平性",
+      "proofOfFrontier": "證明",
+      "seed": "種子",
+      "guardians": "守護者",
+      "contracts": "合約",
+      "civilization": "文明",
+      "trust": "信任",
+      "whitepaper": "Whitepaper",
+      "docs": "文檔",
+      "miner": "礦工",
+      "enterWorld": "進入世界"
+    }
+  },
   "meta": {
     "title": "NiceChunk 合約"
   },
@@ -68,10 +130,10 @@
       },
       {
         "title": "開啟挖礦會話",
-      "body": "玩家可以建立帶過期時間的 session authority，讓連續挖礦不需要每破壞一個方塊都彈出錢包確認。過期時間由呼叫者選擇，程式沒有最大持續時長或撤銷路徑。",
+        "body": "玩家可以建立帶過期時間的 session authority，讓連續挖礦不需要每破壞一個方塊都彈出錢包確認。過期時間由呼叫者選擇，程式沒有最大持續時長或撤銷路徑。",
         "surface": "會話",
-      "writes": "寫入包含 authority、動作遮罩、過期時間和僅儲存計數欄位的 PlayerSession PDA",
-      "audit": "實際強制檢查動作遮罩和過期時間；maxActions 與 actionCount 只儲存、不消耗"
+        "writes": "寫入包含 authority、動作遮罩、過期時間和僅儲存計數欄位的 PlayerSession PDA",
+        "audit": "實際強制檢查動作遮罩和過期時間；maxActions 與 actionCount 只儲存、不消耗"
       },
       {
         "title": "記錄已破壞方塊",
@@ -79,13 +141,6 @@
         "surface": "世界狀態",
         "writes": "Chunk 程式下的 ChunkBrokenState 記錄",
         "audit": "壓縮破壞方塊記錄、minY、count/capacity 和方塊證明假設"
-      },
-      {
-        "title": "發布玩家建築",
-      "body": "Building 程式檢查 PlayerSession signer 綁定和過期時間，但目前每個 Building 分支請求的都是 BREAK_BLOCK 位元，而不是獨立的建造權限。隨後程式索引地基 chunk、分片暫存 NCM3 payload、完成雜湊校驗並確定 manifest，還可發布 Guardian blueprint 摘要。",
-        "surface": "建築",
-        "writes": "BuildSite、BuildingManifest 和 BuildingShard PDA",
-        "audit": "地基 footprint、revision 狀態、shard bitmap、NCM3 hash 和 Guardian blueprint hash"
       },
       {
         "title": "追加資源記錄",
@@ -96,10 +151,10 @@
       },
       {
         "title": "把資源熔煉成物品",
-      "body": "Smelting 程式讀取呼叫者選擇且由本程式擁有的 RecipeTable，把選中的 Backpack 輸入和燃料槽與該表匹配，移除後由 smelting-authority PDA 追加表中定義的產物；程式不強制 canonical table 或可信 authority。",
+        "body": "Smelting 程式讀取呼叫者選擇且由本程式擁有的 RecipeTable，把選中的 Backpack 輸入和燃料槽與該表匹配，移除後由 smelting-authority PDA 追加表中定義的產物；程式不強制 canonical table 或可信 authority。",
         "surface": "製造",
         "writes": "讀取 RecipeTable，並透過 smelting authority 對 Backpack 執行 remove/append",
-      "audit": "所選 table ID 與 authority 來源、recipe IDs、heat tiers、輸入/輸出體積、停用配方和輸出 slot 證據"
+        "audit": "所選 table ID 與 authority 來源、recipe IDs、heat tiers、輸入/輸出體積、停用配方和輸出 slot 證據"
       },
       {
         "title": "掛單背包物品",
@@ -110,7 +165,7 @@
       },
       {
         "title": "結算市場訂單",
-        "body": "買家用 NCK 或 SOL 支付，程式把 1% 市場手續費路由到 treasury，並透過 market authority 交付託管的 Backpack slot 位元組。若該 slot 引用 BlueprintItem，其單獨的 owner 欄位不會更新。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "surface": "結算",
         "writes": "Listing 結算狀態和買家 Backpack 交付",
         "audit": "treasury fee 路由、payment mint/native 標記、已結算 slot 和最終 listing 狀態"
@@ -131,7 +186,7 @@
     "pdaTitle": "PDA seed 示例",
     "boundaryTitle": "當前邊界",
     "boundaryBody": "本頁記錄當前面向 devnet 的合約表面，以及從 mainnet.json 載入的遊戲執行配置。它不聲稱已經完成最終主網治理、文明真實執行、土地所有權、完整即時去中心化或完整玩法去中心化。",
-    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nBlueprintItem: [\"blueprint-item\", itemId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v1\", globalConfig]\nGuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
+    "pdaCode": "GlobalConfig: [\"global-config\"]\nPlayerProfile: [\"player-v7\", owner]\nPlayerAppearance: [\"appearance-v1\", owner]\nPlayerEquipment: [\"player-equipment-v1\", owner]\nEquipmentTransferAuthority: [\"equipment-transfer-v1\"]\nUsernameIndex: [\"player-name-v1\", nameHash]\nInviteIndex: [\"invite-index-v1\", inviter, pageIndex:u32_le]\nPlayerSession: [\"session\", owner, sessionAuthority]\nChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nResourceDropTable: [\"resource-drops-v2\", globalConfig]\nSurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]\nPlayerProgress: [\"player-progress\", globalConfig, owner]\nFoundationChunk: [\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]\nBackpack: [\"backpack\", creator, backpackId:u64_le]\nRecipeTable: [\"smelting-recipes\", tableId:u64_le]\nSmeltingAuthority: [\"smelting-authority\"]\nMarketplaceListing: [\"listing\", seller, listingId:u64_le]\nMarketplaceAuthority: [\"market-authority\"]\nMarketUser: [\"market-user-v1\", owner]\nLandContractAuthority: [\"land-contract-authority-v1\", globalConfig] under the Building program\nGuardianRegistry: [\"guardian-registry\", globalConfig]\nGuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]\nGuardianRegion: [\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]\nBuildSite: [\"build-site-v3\", globalConfig, foundationId:u64_le]\nBuildingManifest: [\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]\nBuildingShard: [\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]\nChunkAuthority: [\"chunk-authority-v2\", globalConfig]\nRuleBook: [\"rule-book\", ruleIdHash]\nRuleSignature: [\"rule-signature\", ruleBook, signer]\nRuleTally: [\"rule-tally\", ruleBook]\nExecutionReceipt: [\"rule-execution\", ruleBook]\nPowerSnapshot: [\"power-snapshot\", snapshotHash]\nCitizenPower: [\"citizen-power\", powerSnapshot, citizen]\nCivilizationAdapterAuthority: [\"civilization-adapter\", ruleBook] under target program"
   },
   "labels": {
     "programId": "Program ID",
@@ -229,6 +284,10 @@
     {
       "id": "nicechunk-player",
       "label": "玩家程式"
+    },
+    {
+      "id": "nicechunk-skills",
+      "label": "Skills / XP"
     },
     {
       "id": "nicechunk-chunk",
@@ -400,6 +459,74 @@
       ]
     },
     {
+      "id": "nicechunk-skills",
+      "codeKey": "skills",
+      "name": "NiceChunk Skills",
+      "kind": "Authoritative XP, level, and progression-rule layer",
+      "programId": "5gkdfmRJogdSdPrT8rvnEkPdn2N2fLBnQ6YDdegUcu3P",
+      "status": "Devnet",
+      "role": "Stores ten authoritative XP totals and levels per owner, consumes validated source counters, and applies mining-only Swiftness and Burden awards.",
+      "source": "programs/nicechunk_skills/src/lib.rs",
+      "sdk": "sdk/nicechunk-skills.ts",
+      "magic": "NCKSKL01 / NCKXPR01 / NCKBRD01",
+      "accountSize": "PlayerSkills: 480 bytes; SkillRuleTable: 5,264 bytes",
+      "summary": "The Skills program is the single level authority. PlayerSkills stores XP, cached levels, source cursors, mining travel state, and burden work. Treasury-governed SkillRuleTable thresholds and source rules determine every accepted delta; mining-only awards also require a matching Chunk instruction in the same transaction.",
+      "instructions": [
+        "0 initialize_rule_table",
+        "1 set_skill_thresholds",
+        "2 upsert_source_rule",
+        "3 sync_player_skills",
+        "4 set_rule_table_authority",
+        "5 set_mining_travel_rule",
+        "6 set_burden_mining_rule",
+        "All other skill tags return InvalidInstruction."
+      ],
+      "pdaSeeds": [
+        "SkillRuleTable: [\"skill-rules-v1\", globalConfig]",
+        "PlayerSkills: [\"player-skills-v1\", globalConfig, owner]"
+      ],
+      "storage": [
+        "PlayerSkills stores ten u64 XP totals, ten cached levels, 32 source cursors, the applied rule revision, and creation/update slots.",
+        "Mining state stores the last proven coordinate, qualifying travel count, accumulated burden work, and the last consumed Backpack mining sequence.",
+        "SkillRuleTable stores ten cumulative thresholds for each of ten skills, up to 30 generic source rules, one travel rule, and one burden rule.",
+        "Source rules bind a program owner, account magic, PDA seed layout, metric offset, bounded sync delta, divisor, and per-skill XP rates."
+      ],
+      "notes": [
+        "The browser does not merge local XP with chain XP; PlayerSkills is the authoritative ledger.",
+        "Generic source synchronization validates account owner, PDA, magic, owner/global-config fields, monotonic counters, and a bounded delta.",
+        "Swiftness distance and Burden mass awards require an Instructions sysvar proof of a matching Chunk mining instruction in the same transaction.",
+        "Changing thresholds increments the rule revision; the next sync recomputes cached levels from the same cumulative table."
+      ],
+      "pdaAccounts": [
+        {
+          "name": "PlayerSkills",
+          "seeds": "[\"player-skills-v1\", globalConfig, owner]",
+          "magic": "NCKSKL01",
+          "size": "480 bytes",
+          "purpose": "One owner-scoped authoritative ledger for all ten skills.",
+          "fields": [
+            "owner, globalConfig, XP totals, cached levels",
+            "source cursor mask, 32 cursors, ruleRevision",
+            "createdSlot, updatedSlot, createdAt",
+            "last mining coordinate, travel count, burden work and mine sequence"
+          ]
+        },
+        {
+          "name": "SkillRuleTable",
+          "seeds": "[\"skill-rules-v1\", globalConfig]",
+          "magic": "NCKXPR01",
+          "size": "5264 bytes",
+          "purpose": "Treasury-governed cumulative thresholds and validated XP-source conversion rules.",
+          "fields": [
+            "authority, globalConfig, ruleCount, revision",
+            "ten cumulative thresholds for each of ten skills",
+            "generic source rules with PDA and metric validation",
+            "mining travel and Backpack-mass burden rules"
+          ]
+        }
+      ]
+    },
+    {
       "id": "nicechunk-chunk",
       "codeKey": "chunk",
       "name": "NiceChunk Chunk",
@@ -409,7 +536,7 @@
       "role": "校驗單點生成方塊，並按 Chunk 記錄極簡已破壞方塊狀態。",
       "source": "programs/nicechunk_chunk/src/lib.rs",
       "sdk": "sdk/nicechunk-chunk.ts",
-      "magic": "NCBK / NCKDRP02 / NCKDEC01 / NCKFCI01|02",
+      "magic": "NCBK / NCKDRP02 / NCKDEC01 / NCKFCI03",
       "accountSize": "ChunkBrokenState：16 位元組 header + 每條容量記錄 3 位元組；規則表和地基索引使用獨立版面",
       "summary": "Chunk 程式支援舊版 Chunk delta 帳戶，也支援當前最佳化後的挖礦路徑。挖礦時，玩家提交一個世界方塊座標。程式推導所在 Chunk，校驗生成方塊，拒絕空氣、水、基岩或已經被挖過的位置，然後追加一條壓縮的已破壞方塊記錄。",
       "instructions": [
@@ -424,24 +551,22 @@
         "13 apply_civilization_surface_decoration_receipt",
         "15 register_build_site_chunk",
         "20 batch_mine_with_rewards",
-        "21 range_mine_with_rewards",
-        "舊 Chunk tag 0-4 已不被目前 dispatcher 接受。"
+        "21 range_mine_with_rewards"
       ],
       "pdaSeeds": [
         "ChunkBrokenState: [\"chunk-broken\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
         "ResourceDropTable: [\"resource-drops-v2\", globalConfig]",
         "SurfaceDecorationTable: [\"surface-decor-v1\", globalConfig]",
-        "FoundationChunk: [\"foundation-chunk\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
+        "FoundationChunk: [\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]"
       ],
       "storage": [
-        "ChunkBrokenState 存 16 位元組 header 和每條 3 位元組的已挖記錄；目前 dispatcher 不再包含舊版 ChunkState 分支。",
+        "ChunkBrokenState stores a 16-byte header and 3-byte mined-block records; the dispatcher exposes only the final mining instruction surface.",
         "ResourceDropTable、SurfaceDecorationTable 和 FoundationChunk 用不同 PDA 家族保存規則與地基佔用證據。",
         "記錄會打包 local x、local z 和 y offset。初始容量 64，每次擴容 64，最大 2,048 條。",
         "生成方塊校驗使用 GlobalConfig 中的世界種子、Chunk 大小、建造高度、最大地形高度和海平面。"
       ],
       "notes": [
         "這是當前瀏覽器客戶端使用的挖礦寫入路徑。",
-        "目前 dispatcher 會拒絕舊版 Chunk tag 0-4；該 crate 沒有啟用中的 MagicBlock delegation instruction。",
         "背包資源結算刻意拆成獨立程式，方便挖礦狀態和庫存狀態分別演進。"
       ],
       "pdaAccounts": [
@@ -467,6 +592,18 @@
             "sourceBlockId, dropBlockId, baseChanceBps",
             "altitude and depth bounds",
             "salt plus min/max drop volume in mm³"
+          ]
+        },
+        {
+          "name": "FoundationChunk",
+          "seeds": "[\"foundation-chunk-v3\", globalConfig, chunkX:i32_le, chunkZ:i32_le]",
+          "magic": "NCKFCI03",
+          "size": "56-byte header + capacity * 58-byte records",
+          "purpose": "Chunk-local index of immutable BuildSite v3 land registrations.",
+          "fields": [
+            "globalConfig, chunkX, chunkZ, count, capacity",
+            "owner, foundationId, surfaceY, local bounds for each land record",
+            "records are inserted during registration and removed in reverse order during incomplete-site rollback"
           ]
         }
       ]
@@ -509,63 +646,60 @@
       "id": "nicechunk-building",
       "codeKey": "building",
       "name": "NiceChunk Building",
-      "kind": "建造場地、NCM3 建築 manifest 與 Guardian blueprint 發布",
+      "kind": "Immutable chunk-aligned land and NCM3 building manifests",
       "programId": "39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx",
       "status": "開發網",
-      "role": "管理 BuildSite v2 帳戶、chunk 索引、建築 manifests、上傳 shards、resize 流程，以及 Guardian blueprint 發布 authority。",
+      "role": "Reserves treasury-issued land contracts, registers BuildSite v3 chunks, and finalizes NCM3 buildings for direct on-chain discovery.",
       "source": "programs/nicechunk_building/src/lib.rs",
       "sdk": "sdk/nicechunk-building.ts",
-      "magic": "NCKSITE1 / NCKBLD02 / NCKBDT01",
-      "accountSize": "BuildSite: 160 位元組；legacy BuildSite: 136 位元組；BuildingManifest: 160 位元組；BuildingShard: 64 位元組 header + payload",
-      "summary": "Building 程式建立和調整 BuildSite、登記佔用 chunk、暫存並完成 NCM3 上傳、遷移 legacy site，以及發布 Guardian blueprint 後設資料。它的 session guard 會檢查 signer 綁定和過期時間，但目前所有玩家分支請求的都是 BREAK_BLOCK，而不是獨立的建造權限。",
+      "magic": "NCKSITE3 / NCKBLD03 / NCKBDT02",
+      "accountSize": "BuildSite: 160 位元組；BuildingManifest: 160 位元組；BuildingShard: 64 位元組 header + payload",
+      "summary": "Building 程式按完整 16×16 chunk 預留土地契約、登記不可調整的 BuildSite v3、在最後一個 chunk 登記時原子消耗契約，並在失敗取消時逆序清理索引和返還契約；NCM3 建築清單與分片使用獨立 v3 命名空間。",
       "instructions": [
-        "0 create_build_site",
-        "1 register_build_site_chunks",
+        "0 create_build_site and reserve the required land contracts",
+        "1 register_build_site_chunks and consume the reservation after the final chunk",
         "2 begin_building_upload",
         "3 write_building_shard",
         "4 finalize_building",
         "5 cancel_building_upload",
-        "6 migrate_legacy_build_site",
-        "7 begin_build_site_resize",
-        "8 publish_guardian_blueprint",
-        "其他 Building tag 都返回 InvalidInstruction。"
+        "6 cancel_build_site_indexing, remove registered chunks in reverse order, and release contracts",
+        "All other building tags return InvalidInstruction."
       ],
       "pdaSeeds": [
-        "BuildSite: [\"build-site-v1\", globalConfig, foundationId:u64_le]",
-        "BuildingManifest: [\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
-        "BuildingShard: [\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
-        "ChunkAuthority: [\"chunk-authority-v1\", globalConfig]",
-        "GuardianBlueprintAuthority: [\"guardian-blueprint\", globalConfig]"
+        "BuildSite: [\"build-site-v3\", globalConfig, foundationId:u64_le]",
+        "BuildingManifest: [\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]",
+        "BuildingShard: [\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+        "ChunkAuthority: [\"chunk-authority-v2\", globalConfig]",
+        "LandContractAuthority: [\"land-contract-authority-v1\", globalConfig]"
       ],
       "storage": [
-        "BuildSite 儲存 owner、global config、foundation ID、footprint、surface Y、active/pending revisions、已索引 chunk 計數、暫存 resize 尺寸和 update slots。",
-        "BuildingManifest 儲存 owner、global config、foundation ID、revision、payload length、expected NCM3 hash、dimensions、rotation、offsets、shard count、uploaded bitmap 和 status。",
-        "BuildingShard 儲存 NCM3 建築上傳的一段有界 payload，64 位元組 header 後面是 uploaded length 和 payload bytes。"
+        "BuildSite stores the owner, global config, foundation ID, chunk-aligned footprint, blank-contract type and count, revision state, and indexing counters.",
+        "BuildingManifest stores one finalized NCM3 building revision, dimensions, offsets, hash, shard bitmap, and activation state under the v3 building namespace.",
+        "BuildingShard stores one bounded payload segment under the v2 shard namespace, with payload bytes after its 64-byte header."
       ],
       "notes": [
-        "受 PlayerSession 門控的 Building 分支需要匹配的 PlayerProfile 和未過期 session，但請求的是 BREAK_BLOCK 位元，而不是已定義的 PLACE_BLOCK 位元；restricted-publisher 藍圖分支沒有 PlayerSession 門控。",
-        "只有所有 shards 都寫入、payload hash 匹配，並且 NCM3 dimensions 適配 BuildSite footprint 和世界高度限制後，BuildingManifest 才會變為 active。",
-        "Guardian blueprint publication 僅限 treasury 或配置好的 blueprint publisher wallet，並透過 Building program PDA 呼叫 Guardian 程式。",
-        "136 位元組 legacy BuildSite layout 仍會被解碼，方便已部署地基安全遷移。"
+        "One blank land contract covers one complete 16x16 chunk; a parcel consumes chunksX multiplied by chunksZ contracts and is capped at 4,096 contracts.",
+        "Active land cannot be resized or canceled. Incomplete indexing can be canceled only by removing registered FoundationChunk entries in reverse order before releasing the full reservation.",
+        "Nearby clients derive FoundationChunk v3 PDAs, validate each referenced BuildSite, and compare the complete BuildingManifest SHA-256 before reusing cached NCM3 bytes."
       ],
       "pdaAccounts": [
         {
           "name": "BuildSite",
-          "seeds": "[\"build-site-v1\", globalConfig, foundationId:u64_le]",
-          "magic": "NCKSITE1",
-          "size": "160 bytes; legacy layout is 136 bytes",
-          "purpose": "玩家擁有的地基 footprint 和建造場地 revision 狀態。",
+          "seeds": "[\"build-site-v3\", globalConfig, foundationId:u64_le]",
+          "magic": "NCKSITE3",
+          "size": "160 位元組",
+          "purpose": "Immutable player-owned land registration for one or more complete chunks.",
           "fields": [
             "owner, globalConfig, foundationId",
+            "contractType, landContractCount",
             "minX, minZ, surfaceY, width, depth",
-            "activeRevision and pendingRevision",
-            "registeredChunks, totalChunks, stagedWidth, stagedDepth"
+            "activeRevision, pendingRevision, registeredChunks, totalChunks"
           ]
         },
         {
           "name": "BuildingManifest",
-          "seeds": "[\"building-v2\", globalConfig, foundationId:u64_le, revision:u32_le]",
-          "magic": "NCKBLD02",
+          "seeds": "[\"building-v3\", globalConfig, foundationId:u64_le, revision:u32_le]",
+          "magic": "NCKBLD03",
           "size": "160 bytes",
           "purpose": "單個 NCM3 建築 revision 的上傳和啟用 manifest。",
           "fields": [
@@ -577,25 +711,14 @@
         },
         {
           "name": "BuildingShard",
-          "seeds": "[\"building-data-v1\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
-          "magic": "NCKBDT01",
+          "seeds": "[\"building-data-v2\", globalConfig, foundationId:u64_le, revision:u32_le, shardIndex:u8]",
+          "magic": "NCKBDT02",
           "size": "64-byte header plus payload, up to 8,256 bytes",
           "purpose": "finalization 前上傳 NCM3 建築用的有界 shard payload。",
           "fields": [
             "shardIndex, payloadLen, uploadedLen",
             "globalConfig, foundationId, revision",
             "payload bytes after the header"
-          ]
-        },
-        {
-          "name": "GuardianBlueprintAuthority",
-          "seeds": "[\"guardian-blueprint\", globalConfig]",
-          "magic": "PDA signer only",
-          "size": "No data account",
-          "purpose": "把已驗證建築 blueprint 摘要發布到 Guardian regions 的 program signer。",
-          "fields": [
-            "Derived under the Building program",
-            "Calls Guardian update_blueprint with the expected region and global config"
           ]
         }
       ]
@@ -604,23 +727,23 @@
       "id": "nicechunk-guardian",
       "codeKey": "guardian",
       "name": "NiceChunk Guardian Registry",
-      "kind": "守護者端點登記表",
+      "kind": "Regional relay registration, liveness proofs, settlement, and endpoint discovery",
       "programId": "RQQZKA1fGELBxtxCQ6q7P26GJH4whWmPjH9XqmihVRK",
       "status": "開發網",
-      "role": "登記帶 NCK 質押的 Guardian 區域、operator endpoint 和 blueprint 後設資料；V2 中 proof 與 settlement 分支並未啟用。",
+      "role": "Registers 100x100-Chunk relay regions, records operator proofs, settles stale regions, and lets the region owner update its endpoint.",
       "source": "programs/nicechunk_guardian/src/lib.rs",
       "sdk": "sdk/nicechunk-guardian.ts",
       "magic": "NCKGDR01 / NCKGRG01",
-      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion: 288 bytes",
-      "summary": "Guardian 程式記錄區域服務 endpoint，並接受轉入 treasury token account 的 NCK 註冊質押。退役的 proof 與 settlement tag 會被拒絕；V2 沒有 proof、slash、deregistration、stake 退出/退款或結構化事件發出路徑。",
+      "accountSize": "GuardianRegistry: 160 bytes; GuardianRegion V1: 256 bytes",
+      "summary": "Guardian is a realtime relay registry. It does not index land, publish building summaries, validate BuildingManifest accounts, or participate in land-contract consumption.",
       "instructions": [
         "0 initialize_registry",
         "1 register_genesis_guardian",
         "2 register_guardian",
-        "5 update_guardian_endpoint",
-        "6 update_guardian_blueprint",
-        "8 update_guardian_operator",
-        "tag 3 和 4 是已退役/未分配入口，且目前 process_instruction 測試明確要求拒絕。"
+        "3 submit_guardian_proof",
+        "4 settle_guardian",
+        "5 update_guardian_endpoint with the region owner signature",
+        "All other Guardian tags return InvalidInstruction."
       ],
       "pdaSeeds": [
         "GuardianRegistry: [\"guardian-registry\", globalConfig]",
@@ -628,22 +751,20 @@
         "GuardianTreasuryAuthority: [\"guardian-treasury\", globalConfig]"
       ],
       "storage": [
-        "Registry 存 GlobalConfig、NCK mint、treasury token account、active count 和 genesis flag。",
-        "Region 儲存 treasury 所有權、Guardian operator、endpoint、stake、舊 proof/penalty 欄位，以及鏈上提交的 blueprint hash、revision 和 record count。",
-        "區域大小是 100 x 100 個 Chunk。註冊需要支付 100,000 NCK 到國庫，NCK 為 6 decimals。",
-        "佈局仍保留 proof interval、penalty 和 slash 欄位，但目前 dispatcher 沒有 proof、settlement、slash、deregistration、refund 或 stake reclaim 指令。"
+        "GuardianRegistry stores GlobalConfig, NCK mint and treasury token identities, active and total registration counters, genesis state, region size, stake policy, and creation metadata.",
+        "GuardianRegion V1 stores owner, operator, GlobalConfig, endpoint, stake and proof lifecycle fields for one 100x100-Chunk region."
       ],
       "notes": [
-        "當前網頁 Guardian 頁面從開發網讀取 registry 和 region PDA 資料。",
-        "只有已儲存的 Guardian operator 能更新 endpoint。固定 treasury wallet 可在無需 operator 接受、timelock 或鏈上治理投票的單筆交易中替換 operator；受限的 Building publisher 路徑負責更新 blueprint 後設資料。",
-        "註冊轉帳進入 treasury token account。V2 沒有 deregistration、stake reclaim、refund、slash 或結構化事件指令；審閱者必須依賴交易歷史和帳戶差異。"
+        "Guardian realtime messages are availability hints, not authoritative land or building state.",
+        "Land and buildings are discovered from FoundationChunk, BuildSite, BuildingManifest, and BuildingShard PDAs without a Guardian dependency.",
+        "Endpoint mutation requires the stored region owner; proof submission requires the stored operator."
       ],
       "pdaAccounts": [
         {
           "name": "GuardianRegistry",
           "seeds": "[\"guardian-registry\", globalConfig]",
           "magic": "NCKGDR01",
-          "size": "160 位元組",
+          "size": "160 bytes",
           "purpose": "全域性 Guardian 登錄檔和國庫指標。",
           "fields": [
             "globalConfig、nckMint、treasuryToken",
@@ -656,14 +777,12 @@
           "name": "GuardianRegion",
           "seeds": "[\"guardian-region\", globalConfig, regionX:i32_le, regionY:i32_le]",
           "magic": "NCKGRG01",
-          "size": "288 位元組",
-          "purpose": "已註冊即時區域 endpoint、stake 狀態、blueprint 後設資料和舊 proof 欄位。",
+          "size": "256 bytes",
+          "purpose": "Owner-configured realtime relay endpoint and proof lifecycle for one 100x100-Chunk region.",
           "fields": [
-            "區域座標和 Chunk 邊界",
-            "owner、operator、globalConfig",
-            "host、port、useTls",
-            "stakeAmount、處罰、proof 計數、updatedSlot",
-            "blueprintHash、blueprintRevision、blueprintRecordCount"
+            "owner, operator, globalConfig",
+            "region coordinates and inclusive Chunk bounds",
+            "host, port, TLS, stake, proof, penalty, and update fields"
           ]
         }
       ]
@@ -675,12 +794,12 @@
       "kind": "Inventory slot layer for blocks, resources, and items",
       "programId": "FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt",
       "status": "Devnet",
-      "role": "Creates player backpacks, stores block-resource and item slots, removes selected slots, and accepts marketplace or smelting-authorized delivery.",
+      "role": "Creates player backpacks, maintains authoritative volume and mass, stores resource and item slots, and creates immutable forged-model accounts.",
       "source": "programs/nicechunk_backpack/src/lib.rs",
       "sdk": "sdk/nicechunk-backpack.ts",
-      "magic": "NCKBPK01",
-      "accountSize": "BackpackAccount v3: 8,048 bytes; BackpackSlotRecord: 80 bytes",
-      "summary": "Backpack 程式儲存固定 80 位元組的資源和物品 slot，並支援挖礦、冶煉、鍛造、裝備和市場路徑。攜帶 BREAK_BLOCK 權限的 session 可透過 tag 2 移除任意選中 slot index；tag 8 只校驗 NCF1 位元組與材料要求，不校驗 BlueprintItem 或 issuer 記錄。",
+      "magic": "NCKBPK01 / NCKPHY02 / NCKBPT01 / NCKFGI01",
+      "accountSize": "BackpackAccount v4: 8,048 bytes; MaterialPhysicsTable: 1,040 bytes; ForgedItem: 752 bytes",
+      "summary": "The Backpack program stores v4 fixed-size slots, enforces per-slot and total mass from MaterialPhysicsTable, records pre-mine mass and mining sequence for Burden XP, and creates immutable ForgedItem model PDAs. Marketplace, Smelting, Chunk, Player equipment, and Skills consume explicit PDA-gated paths.",
       "instructions": [
         "0 initialize_backpack",
         "1 append_mined_resource",
@@ -689,41 +808,72 @@
         "4 remove_resources",
         "5 append_smelting_item",
         "6 append_mined_resources_batch",
-        "7 已停用：UnverifiedForgeInstructionDisabled",
+        "7 disabled: UnverifiedForgeInstructionDisabled",
         "8 forge_equipment_with_material_verification",
-        "9 issue_blueprint",
         "10 transfer_backpack_item_to_equipment",
         "11 transfer_equipment_item_to_backpack",
-        "其他 Backpack tag 都返回 InvalidInstruction。"
+        "12 configure_material_physics",
+        "13 record_mining_action",
+        "All other backpack tags return InvalidInstruction.",
+        "9 retired construction-item issuance: always returns InvalidInstruction"
       ],
       "pdaSeeds": [
-        "Backpack: [\"backpack\", creator, backpackId:u64_le]"
+        "Backpack: [\"backpack\", creator, backpackId:u64_le]",
+        "MaterialPhysicsTable: [\"material-physics-v2\", globalConfig]",
+        "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
+        "ForgedItem: [\"forged-item-v1\", creator, itemId:u64_le]"
       ],
       "storage": [
-        "Backpack header stores backpack ID, owner, capacity, item count, state, placement fields, timestamps, and flags.",
-        "Default capacity is 50 slots. Max capacity is 99 slots.",
-        "Each v3 BackpackSlotRecord is 80 bytes: kind, category, flags, quantity, resource coordinate, item code, item ID, item PDA, volume, durability, grade, item level, quality, and metadata.",
-        "Slot kind 1 stores block resources. Slot kind 2 stores item/material records such as smelted outputs or forged outputs.",
-        "The decoder only accepts the current v3 account layout."
+        "Backpack v4 stores owner, capacity, item count, placement, timestamps, total mass, the pre-mine mass snapshot, action ID, and mining sequence.",
+        "Default capacity is 50 slots and maximum capacity is 99 slots; every slot is a fixed 80-byte record.",
+        "Each slot stores kind, category, flags, quantity, resource coordinate, item identity, volume, mass, durability, grade, level, quality, and metadata.",
+        "MaterialPhysicsTable maps block and item keys to density in kg/m³ and standard volume in mm³.",
+        "ForgedItem stores immutable canonical NCF1 bytes separately from the movable Backpack slot that references it."
       ],
       "notes": [
-        "Backpack contents are separate from public player profile display; the player profile stores only the equipped backpack public key.",
-        "The marketplace program can escrow or deliver backpack resources through the market-authority PDA.",
-        "Smelting 程式可透過 smelting-authority PDA 追加材料或物品產物；由於執行不強制 canonical table，產物可信度仍取決於所選 RecipeTable 的來源。",
-        "玩家直接追加仍僅限經校驗的挖礦 session 和方塊資源，但 tag 2 也允許攜帶 BREAK_BLOCK 權限的 session 移除任意選中 Backpack slot，包括物品 slot。"
+        "Backpack v4 requires an initialized mass state; old Backpack account layouts are intentionally unsupported on testnet.",
+        "Every material-bearing append validates or derives mass from the current MaterialPhysicsTable before updating totalMassGrams.",
+        "Tag 13 snapshots pre-mine mass and advances a monotonic mineSequence so Skills can award Burden XP once per proven mining action.",
+        "Marketplace and equipment move slot custody, while an immutable ForgedItem PDA remains the canonical model proof.",
+        "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
+        "Backpack v4 compacts and discards historical construction-item slots; they cannot be issued, equipped, listed, or used to register land."
       ],
       "pdaAccounts": [
         {
           "name": "Backpack",
           "seeds": "[\"backpack\", creator, backpackId:u64_le]",
           "magic": "NCKBPK01",
-          "size": "8048 位元組",
-          "purpose": "錢包擁有的庫存 PDA，儲存方塊資源和物品引用。",
+          "size": "8048 bytes",
+          "purpose": "Wallet-owned inventory PDA with authoritative per-slot and total mass.",
           "fields": [
-            "backpackId、owner、capacity、itemCount",
-            "state、flags、placed position",
-            "createdSlot、updatedSlot、createdAt",
-            "最多 99 個 slot，記錄方塊資源或物品引用"
+            "backpackId, owner, capacity, itemCount, state and flags",
+            "createdSlot, updatedSlot, createdAt and placement",
+            "totalMassGrams, lastMinePreMassGrams, lastMineActionId and mineSequence",
+            "up to 99 fixed 80-byte block, material, or forged-item slots"
+          ]
+        },
+        {
+          "name": "MaterialPhysicsTable",
+          "seeds": "[\"material-physics-v2\", globalConfig]",
+          "magic": "NCKPHY02",
+          "size": "1040 bytes",
+          "purpose": "Treasury-governed density and standard-volume rules used to derive authoritative mass.",
+          "fields": [
+            "revision, ruleCount",
+            "block or item key",
+            "densityKgM3, standardVolumeMm3"
+          ]
+        },
+        {
+          "name": "ForgedItem",
+          "seeds": "[\"forged-item-v1\", creator, itemId:u64_le]",
+          "magic": "NCKFGI01",
+          "size": "752 bytes",
+          "purpose": "Immutable canonical NCF1 model bytes and design identity for one forged item.",
+          "fields": [
+            "itemId, creator, originBackpack",
+            "designHash, codeLength, canonical code",
+            "createdSlot, createdAt"
           ]
         }
       ]
@@ -745,7 +895,6 @@
         "0 initialize_recipe_table",
         "1 upsert_recipe",
         "2 execute_smelting",
-        "3 set_recipe_table_authority",
         "4 apply_civilization_recipe_receipt",
         "execute_smelting 支援輸入索引、燃料索引和批量倍數。"
       ],
@@ -774,7 +923,7 @@
           "fields": [
             "tableId、authority、recipeCount",
             "createdSlot、updatedSlot、createdAt",
-          "最多 10 條 recipe 記錄",
+            "最多 10 條 recipe 記錄",
             "每條配方儲存熱力等級、輸入槽、輸出槽和 updatedSlot"
           ]
         },
@@ -795,39 +944,42 @@
       "id": "nicechunk-market",
       "codeKey": "market",
       "name": "NiceChunk Marketplace",
-      "kind": "背包 slot 市場結算層",
-      "programId": "1PwPzFtdJ5gQqku5gBo4b6Wvo48Qe8NuXSogUP8TWpR",
+      "kind": "Escrow marketplace and treasury-issued land contracts",
+      "programId": "6CurnvneezBuHwPUnrCiFg1QMWeUF67ufQxYebyr2UP7",
       "status": "Devnet",
-      "role": "從賣家 Backpack PDA 建立掛單，託管完整 80 位元組 slot，結算 NCK 或 SOL 付款，並在取消或購買時恢復/交付庫存。",
+      "role": "Escrows transferable inventory listings and sells blank land contracts directly from the treasury without creating Listing PDAs.",
       "source": "programs/nicechunk_market/src/lib.rs",
       "sdk": "src/chain/nicechunkChain.js",
       "magic": "NCKMKT01",
-      "accountSize": "ListingAccount: 216 bytes",
-      "summary": "Marketplace 程式託管現有 Backpack 的 80 位元組 slot 快照，並在取消或購買時恢復或交付這些位元組。對於 BlueprintItem slot，這只移動 Backpack 記錄，不會更新獨立 BlueprintItem 帳戶中的 owner 欄位。",
+      "accountSize": "ListingAccount: 216 bytes; MarketUser: 64 bytes",
+      "summary": "The unified Game/Market program settles item listings and maintains MarketUser v1 membership. A treasury purchase transfers exactly 1 NCK per blank land contract and credits the buyer's available contract balance without creating a Listing PDA.",
       "instructions": [
         "0 create_listing",
         "1 cancel_listing",
         "2 buy_listing",
-        "3 已停用 / 無效的舊 initialize_asset",
-        "Create listing 只接受 listingId、currency、sourceType、sourceIndex 和 price；物品參數從 Backpack PDA 讀取。",
-        "取消和購買都會透過 market-authority PDA，把 Listing 託管的 80 位元組 slot 寫回目標 Backpack。",
-        "支付支援 NCK 和 SOL，市場費為 1%。"
+        "3 join_market",
+        "4 buy_treasury_contract at exactly 1 NCK per blank land contract",
+        "5 reserve_blank_land_contracts for Building CPI",
+        "6 consume_reserved_blank_land_contracts for Building CPI",
+        "7 release_reserved_blank_land_contracts for Building CPI",
+        "Listing settlement supports NCK and SOL with a 1% market fee; treasury land-contract purchases do not create listings or charge that fee."
       ],
       "pdaSeeds": [
         "Listing: [\"listing\", seller, listingId:u64_le]",
-        "MarketAuthority: [\"market-authority\"]"
+        "MarketUser: [\"market-user-v1\", owner]",
+        "MarketAuthority: [\"market-authority\"]",
+        "LandContractAuthority is derived by Building: [\"land-contract-authority-v1\", globalConfig]"
       ],
       "storage": [
-        "Listing 儲存賣家錢包、listing ID、幣種、來源類型/索引、價格、完整來源 slot 快照、時間戳、買家和最終結算欄位。",
-        "來源 slot 在 create_listing 時從 Backpack v3 slot 資料複製；category、quantity、itemCode、durability、grade、itemLevel 和 quality 都不接受使用者 payload。",
-        "購買後的 listing 會保留為 sold 結算記錄，且沒有關閉路徑。取消後的 listing 會恢復託管 slot、清零資料並把 listing lamports 退給賣家，因此取消記錄本身不持久。"
+        "Listing stores seller, listing ID, currency, source type/index, price, the full 80-byte escrowed source slot, buyer, and settlement fields.",
+        "MarketUser v1 stores owner, active listing count, updated slot, available blank land contracts at bytes 52-55, and reserved contracts at bytes 56-59.",
+        "Blank land contracts are balances inside MarketUser, not Backpack items; they use no Backpack slot and no Listing account when purchased from the treasury."
       ],
       "notes": [
-        "只有掛單賣家可以取消活躍掛單。",
-        "買家不能購買自己的掛單。",
-        "只有 marketplace PDA 可以透過背包程式恢復或交付託管 slot。",
-        "Treasury 費用為所選幣種掛單價格的 1%。",
-        "Marketplace 結算只轉移 Backpack slot 位元組，不會更新被引用 BlueprintItem 帳戶的 owner。"
+        "Each wallet may have at most 50 active listings.",
+        "Each treasury purchase may buy 1 to 4,096 blank land contracts at a fixed price of 1 NCK each.",
+        "Only the Building program's land-contract authority can reserve, consume, or release contract balances.",
+        "Historical construction-item records are discarded and cannot be transferred or used to register land."
       ],
       "pdaAccounts": [
         {
@@ -852,6 +1004,18 @@
           "fields": [
             "Derived signer PDA",
             "Does not custody player wallets outside explicit instructions"
+          ]
+        },
+        {
+          "name": "MarketUser",
+          "seeds": "[\"market-user-v1\", owner]",
+          "magic": "NCKMUS01",
+          "size": "64 bytes",
+          "purpose": "Membership, active listing limit, and available/reserved blank land-contract balances.",
+          "fields": [
+            "owner, activeListingCount, updatedSlot",
+            "blankLandContracts, reservedBlankLandContracts",
+            "maximum 50 active listings"
           ]
         }
       ]
@@ -1025,7 +1189,12 @@
       "civilization-citizen-power": "玩家文明值",
       "build-site": "BuildSite",
       "building-manifest": "BuildingManifest",
-      "building-shard": "BuildingShard"
+      "building-shard": "BuildingShard",
+      "player-skills": "PlayerSkills",
+      "skill-rule-table": "SkillRuleTable",
+      "material-physics-table": "MaterialPhysicsTable",
+      "forged-item": "ForgedItem model",
+      "market-user": "MarketUser"
     },
     "summary": {
       "owner": "Owner",
@@ -1067,7 +1236,10 @@
       "executor": "執行者",
       "executed": "已執行",
       "totalPower": "總權力",
-      "citizen": "玩家"
+      "citizen": "玩家",
+      "revision": "修訂版",
+      "issuer": "發行者",
+      "creator": "建立者"
     },
     "timeout": "RPC 請求超時，請稍後重試或切換更穩定的 RPC。",
     "searchLabel": "搜尋",
@@ -1076,8 +1248,13 @@
     "visibleLabel": "可見資料",
     "trustLabel": "信任價值",
     "quickTypes": [
+      "market-user",
       "player-profile",
+      "player-skills",
+      "skill-rule-table",
       "backpack",
+      "material-physics-table",
+      "forged-item",
       "forged-items",
       "recipe-table",
       "civilization-rule-book",
@@ -1129,9 +1306,9 @@
       },
       "guardian-region": {
         "title": "GuardianRegion",
-        "body": "已註冊的即時區域端點、stake、藍圖後設資料和舊版 proof 欄位。",
-        "visible": "區域邊界、擁有者、操作者、端點、TLS 標記、質押、懲罰和證明計數。",
-        "trust": "玩家可以驗證 operator、端點、stake 和藍圖 revision；由於 proof tag 已退役，休眠計數器不能證明目前存活性。"
+        "body": "256 位元組 V1 實時區域記錄，儲存端點、owner/operator 角色、質押、proof、懲罰與結算狀態。",
+        "visible": "區域邊界、owner、operator、端點、TLS、剩餘質押、懲罰、proof 時間、proof 數量與更新 slot。",
+        "trust": "owner 控制端點更新，operator 簽署存活 proof，任何呼叫者都可結算完整错过的 proof 小時。"
       },
       "backpack": {
         "title": "Backpack",
@@ -1155,7 +1332,7 @@
         "title": "鍛造物品記錄",
         "body": "一個便利掃描，會從已上線的 Backpack 帳戶中找出鍛造產物。",
         "visible": "來源帳戶型別、owner、backpack identity、鍛造樣本 slots、item code 和 item ID。",
-        "trust": "展示 forge 分支產生的 slot，但不能證明存在 BlueprintItem、固定 issuer 批准或 canonical 設計，因為 tag 8 只檢查 NCF1 位元組和材料要求。"
+        "trust": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them."
       },
       "civilization-rule-book": {
         "title": "文明 RuleBook",
@@ -1213,7 +1390,7 @@
       {
         "kicker": "庫存",
         "title": "背包和市場掛單是可讀取的儲存物件。",
-        "body": "Backpack 和 MarketplaceListing 帳戶會顯示物品數量、Backpack owner、狀態、價格和安全樣本 slot。這可追蹤 slot 位元組移動，但 Marketplace 不會更新所引用 BlueprintItem.owner 欄位。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "points": [
           "背包歸屬明確。",
           "掛單公開託管狀態。",
@@ -1280,7 +1457,7 @@
       {
         "surface": "守護者服務",
         "status": "已上線 PDA",
-        "audit": "讀取 GuardianRegion 和 GuardianRegistry 帳戶，可審計即時區域擁有者、端點、質押、證明次數和懲罰。",
+        "audit": "讀取 GuardianRegistry 與 256 位元組 GuardianRegion V1，審計端點、owner/operator 角色、質押、proof、懲罰與結算狀態。",
         "typeId": "guardian-region",
         "action": "檢視守護者"
       },
@@ -1371,6 +1548,17 @@
         "boundary": "瀏覽器快取的錢包地址不是控制權證明；PDA owner 和簽名才是信任邊界。"
       },
       {
+        "id": "skills",
+        "surface": "Skills and XP",
+        "status": "Active progression authority",
+        "state": "live",
+        "intent": "Makes every accepted XP delta, threshold, cached level, and anti-replay cursor publicly inspectable.",
+        "authority": "The stored rule-table authority manages thresholds and source rules; sync accepts only source accounts whose program, PDA, magic, owner, GlobalConfig, metric, and monotonic counter match the configured rule.",
+        "evidence": "PlayerSkills, SkillRuleTable, source cursors, rule revision, mining coordinate proof, Backpack mass snapshot, and mining sequence.",
+        "live": "Scan player-skills and skill-rule-table accounts, then compare their revision, source cursors, thresholds, and mining state with the source progress PDAs.",
+        "boundary": "Browser previews and local counters are not XP authority. Mining-only awards require a matching Chunk instruction in the same transaction."
+      },
+      {
         "id": "chunk",
         "surface": "Chunk / 挖礦",
         "status": "活躍世界寫入",
@@ -1399,7 +1587,7 @@
         "state": "live",
         "intent": "說明玩家擁有的地基和上傳的 NCM3 建築 payload 是否在發布前經過驗證。",
         "authority": "PlayerProfile 與 PlayerSession 門控 BuildSite 寫入，但目前 Building 分支請求的是 BREAK_BLOCK，而不是已定義的 PLACE_BLOCK 動作位。",
-        "evidence": "BuildSite、BuildingManifest、BuildingShard、chunk authority PDA 和 Guardian blueprint authority PDA。",
+        "evidence": "Guardian 僅負責即時中繼註冊、存活證明、結算與端點發現；土地和建築直接從 Chunk 與 Building PDA 讀取。",
         "live": "檢查 build-site、building-manifest 和 building-shard 帳戶，對比 footprint、revision、hash、dimensions 和 shard bitmap。",
         "boundary": "只有所有 shard 都存在，且 payload hash 與尺寸適配校驗通過後，manifest 才會變為 active。"
       },
@@ -1408,11 +1596,11 @@
         "surface": "Guardian 登記表",
         "status": "活躍即時登記表",
         "state": "live",
-        "intent": "讓審查者核對哪些即時區域存在，以及哪個 operator endpoint 被公開登記。",
-        "authority": "固定 treasury 初始化 registry 狀態，並可在無需接受的情況下更換 operator；目前 operator 只能更新 endpoint。",
-        "evidence": "GuardianRegistry 和 GuardianRegion，包含 owner、operator、endpoint、proof counters、stake 和 blueprint metadata。",
-        "live": "掃描 guardian-registry 與 guardian-region 帳戶，核對 endpoint、operator、stake、藍圖 revision 和舊版 proof 欄位。",
-        "boundary": "proof/settlement tag 已退役，stake 沒有退出、退款或 slash 路徑，儲存的計數器不能證明存活性，程式也不發出結構化生命週期事件。"
+        "intent": "讓審查者檢查實時中继區域、登记 owner、存活 proof operator 與公開端點。",
+        "authority": "任何 payer 都可针對固定国庫 token 初始化確定性 Registry；Region owner 簽署登记和端點變更，operator 簽署 proof，結算无需許可。",
+        "evidence": "GuardianRegistry 與 GuardianRegion V1 記錄，包括 owner、operator、端點、proof 時間與數量、剩餘質押、懲罰和更新 slot。",
+        "live": "扫描 guardian-registry 與 256 位元組 guardian-region 帳戶，並核對 PDA、角色、端點、proof 週期、剩餘質押和結算计數。",
+        "boundary": "沒有提取、退款、owner setter 或 operator 轮换指令；Guardian 只儲存實時服務狀態，绝不作為土地或建築驗收門檻。"
       },
       {
         "id": "backpack",
@@ -1423,7 +1611,7 @@
         "authority": "Owner 與 program-PDA 路徑可變更 slot；Backpack tag 2 也接受 BREAK_BLOCK session，後者可移除任意選定 slot index。",
         "evidence": "Backpack PDA、itemCount、80 位元組 slot payload、來源座標、material/item identity 和 durability。",
         "live": "掃描 backpack 帳戶，核對 itemCount、slot type、material IDs、item hashes 和來源座標。",
-        "boundary": "Slot 託管是明確的，但 tag 8 不校驗 BlueprintItem issuer 證據，Marketplace 也不更新所引用 BlueprintItem 的 owner。"
+        "boundary": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them."
       },
       {
         "id": "smelting",
@@ -1445,7 +1633,7 @@
         "authority": "賣家簽名掛單；market authority 託管、取消或交付同一個 slot 快照。",
         "evidence": "MarketplaceListing、seller、buyer、currency、price、escrowed slot bytes 和 settlement status。",
         "live": "掃描 market-listing 帳戶，對比原始 slot 快照、buyer、fee routing 和最終狀態。",
-        "boundary": "Listing 是 slot 位元組託管記錄，不能證明鏈下訂單簿，也不能證明所引用 BlueprintItem 帳戶的 owner 已轉移。"
+        "boundary": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them."
       },
       {
         "id": "civilization",
@@ -1511,7 +1699,7 @@
                 "label": "Session authority",
                 "badge": "帶過期時間",
                 "detail": "在呼叫者選擇的過期時間前重複執行動作遮罩允許的玩法；沒有最大時長、revoke 路徑或強制動作計數器。",
-              "evidence": "allowedActions + expiresAt；計數器僅儲存"
+                "evidence": "allowedActions + expiresAt；計數器僅儲存"
               }
             ]
           },
@@ -1788,164 +1976,10 @@
         ]
       },
       {
-        "id": "building-publication-mesh",
-        "kicker": "建築發布網格",
-        "title": "玩家建築會分階段暫存並校驗雜湊，而 Guardian 藍圖後設資料走另一條未驗證 manifest 的路徑。",
-        "body": "Building 程式把佔地所有權、上傳進度、最終 manifest hash、chunk 註冊和 Guardian blueprint 發布分開，讓每一種風險都有對應 PDA 證據。",
-        "lanes": [
-          {
-            "label": "建造者側",
-            "kind": "wallet",
-            "nodes": [
-              {
-                "id": "builder-session",
-                "kind": "wallet",
-                "label": "玩家 session",
-                "badge": "build",
-                "detail": "Building 會檢查 profile、signer 和過期時間，但所有目前分支請求的都是 BREAK_BLOCK，而非單獨的建造權限。",
-                "evidence": "session guard"
-              },
-              {
-                "id": "ncm3-payload",
-                "kind": "offchain",
-                "label": "NCM3 payload",
-                "badge": "hash",
-                "detail": "客戶端把建築 payload 分片，承諾預期 hash，並上傳有邊界的片段。",
-                "evidence": "payloadLen"
-              }
-            ]
-          },
-          {
-            "label": "Building 程式",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "building-program",
-                "kind": "program",
-                "label": "Building Program",
-                "badge": "39UM...",
-                "detail": "擁有 BuildSite v2、上傳分片、manifest finalization、resize 狀態和 legacy migration。",
-                "evidence": "program ID"
-              },
-              {
-                "id": "blueprint-authority",
-                "kind": "program",
-                "label": "Blueprint authority",
-                "badge": "PDA signer",
-                "detail": "受限的 program-derived signer，把已驗證的 blueprint 摘要發布到 Guardian regions。",
-                "evidence": "guardian-blueprint seed"
-              }
-            ]
-          },
-          {
-            "label": "建築 PDA",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "build-site",
-                "kind": "pda",
-                "label": "BuildSite",
-                "badge": "160 B",
-                "detail": "儲存 owner、footprint、active/pending revisions、暫存 resize 尺寸和 chunk 計數。",
-                "evidence": "NCKSITE1"
-              },
-              {
-                "id": "building-manifest",
-                "kind": "pda",
-                "label": "BuildingManifest",
-                "badge": "160 B",
-                "detail": "儲存預期 hash、NCM 尺寸、旋轉、偏移、shard bitmap 和 active/uploading 狀態。",
-                "evidence": "NCKBLD02"
-              },
-              {
-                "id": "building-shard",
-                "kind": "pda",
-                "label": "BuildingShard",
-                "badge": "64 + data",
-                "detail": "儲存上傳的一段有界 payload，讓 finalization 可以重組並驗證 payload hash。",
-                "evidence": "NCKBDT01"
-              }
-            ]
-          },
-          {
-            "label": "跨程式證明",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "chunk-index",
-                "kind": "proof",
-                "label": "Chunk 佔用索引",
-                "badge": "guard",
-                "detail": "建築註冊透過 chunk authority 邊界更新 chunk 佔用。",
-                "evidence": "registeredChunks"
-              },
-              {
-                "id": "guardian-region",
-                "kind": "proof",
-                "label": "GuardianRegion blueprint",
-                "badge": "288 B",
-                "detail": "Guardian regions 儲存 blueprint hash、revision 和 record count，供即時服務讀取。",
-                "evidence": "blueprintHash"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "builder-session",
-            "to": "building-program",
-            "label": "授權",
-            "kind": "guard"
-          },
-          {
-            "from": "ncm3-payload",
-            "to": "building-shard",
-            "label": "分片",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "build-site",
-            "label": "擁有",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "building-manifest",
-            "label": "定稿",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "building-shard",
-            "label": "寫入",
-            "kind": "write"
-          },
-          {
-            "from": "building-program",
-            "to": "chunk-index",
-            "label": "註冊",
-            "kind": "guard"
-          },
-          {
-            "from": "blueprint-authority",
-            "to": "guardian-region",
-            "label": "發布",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "footprint 和上傳分離",
-          "啟用前先校驗 hash",
-          "仍解碼 legacy 136 位元組 site",
-          "Guardian blueprint 寫入受限"
-        ]
-      },
-      {
         "id": "asset-custody-loop",
         "kicker": "資產託管閉環",
         "title": "背包 slot 經過熔煉和市場託管時，不會變成不可見狀態。",
-        "body": "Backpack 與 Listing 帳戶公開 slot 位元組變化，但這只是 slot 級證據：BREAK_BLOCK session 可移除任意選定 slot，Marketplace 也不會轉移所引用 BlueprintItem 的 owner 欄位。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "所有者意圖",
@@ -1994,8 +2028,8 @@
                 "kind": "program",
                 "label": "Market Program",
                 "badge": "listing",
-                "detail": "託管選中的 backpack slot，並在取消或結算時釋放。",
-                "evidence": "listing state"
+                "detail": "Escrows inventory listings and sells fixed-price treasury land contracts without Listing PDAs.",
+                "evidence": "NCKMKT01 / NCKMUS01"
               }
             ]
           },
@@ -2103,7 +2137,7 @@
           }
         ],
         "evidence": [
-          "Slot 快照保留位元組，不代表外部 BlueprintItem 所有權",
+          "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
           "recipe 狀態在鏈上",
           "鍛造產物可檢查",
           "市場託管是顯式狀態"
@@ -2132,7 +2166,7 @@
                 "kind": "wallet",
                 "label": "Citizen signer",
                 "badge": "vote",
-              "detail": "針對精確 RuleBook 和已結算 power snapshot 簽署 agree、reject、abstain 或 challenge。",
+                "detail": "針對精確 RuleBook 和已結算 power snapshot 簽署 agree、reject、abstain 或 challenge。",
                 "evidence": "signer key"
               }
             ]
@@ -2338,7 +2372,7 @@
                 "label": "FoundationChunk",
                 "badge": "index",
                 "detail": "索引某個 chunk 被哪些地基佔用，讓建築和挖礦檢查共用公開衝突證據。",
-                "evidence": "[\"foundation-chunk\", globalConfig, chunkX, chunkZ]"
+                "evidence": "[\"foundation-chunk-v3\", globalConfig, chunkX, chunkZ]"
               }
             ]
           },
@@ -2422,314 +2456,6 @@
           "不需要完整地形帳戶",
           "Chunk 衝突由 PDA 索引",
           "進度按 owner 作用域記錄"
-        ]
-      },
-      {
-        "id": "identity-inventory-seed-evidence",
-        "kicker": "身份與託管 Seed",
-        "title": "錢包身份、session、裝備和背包是彼此獨立的證據家族。",
-        "body": "Player 層記錄 profile/session 關係，Backpack 則擁有 slot 狀態。Program PDA 路徑有作用域限制，但 BREAK_BLOCK session 也可透過 tag 2 移除任意選定 Backpack slot。",
-        "lanes": [
-          {
-            "label": "所有者身份",
-            "kind": "wallet",
-            "nodes": [
-              {
-                "id": "seed-owner-wallet",
-                "kind": "wallet",
-                "label": "Owner wallet",
-                "badge": "signer",
-                "detail": "為 profile、backpack、market、equipment 和授權動作建立提供資金並簽名。",
-                "evidence": "owner key"
-              },
-              {
-                "id": "seed-session-authority",
-                "kind": "wallet",
-                "label": "Session authority",
-              "badge": "帶過期時間",
-                "detail": "在呼叫者選擇的過期時間前提交動作遮罩允許的呼叫；不強制最大時長、revoke 或已消耗計數器。",
-                "evidence": "session signer"
-              }
-            ]
-          },
-          {
-            "label": "Player PDA",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "seed-player-profile",
-                "kind": "pda",
-                "label": "PlayerProfile",
-                "badge": "NCKPLY01",
-                "detail": "儲存 owner、位置、裝備指針、已裝備背包和更新 slot。",
-                "evidence": "[\"player-v7\", owner]"
-              },
-              {
-                "id": "seed-player-session",
-                "kind": "pda",
-                "label": "PlayerSession",
-                "badge": "NCKSES01",
-                "detail": "把 owner 與 session authority 繫結到動作遮罩、過期時間，以及目前消費者不強制執行的 maxActions/actionCount 欄位。",
-                "evidence": "[\"session\", owner, sessionAuthority]"
-              },
-              {
-                "id": "seed-appearance-equipment",
-                "kind": "pda",
-                "label": "Appearance / Equipment",
-                "badge": "avatar",
-                "detail": "把外觀代碼和裝備 slot 狀態從 profile 帳戶中拆開。",
-                "evidence": "[\"appearance-v1\"], [\"player-equipment-v1\"]"
-              }
-            ]
-          },
-          {
-            "label": "Inventory PDA",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "seed-backpack",
-                "kind": "pda",
-                "label": "Backpack",
-                "badge": "NCKBPK01",
-                "detail": "儲存 80 位元組固定 slot，用於方塊資源、材料、鍛造物品和託管返還路徑。",
-                "evidence": "[\"backpack\", creator, backpackId]"
-              },
-              {
-                "id": "seed-blueprint-item",
-                "kind": "proof",
-                "label": "BlueprintItem",
-                "badge": "unique",
-                "detail": "記錄唯一發行和初始 recipient。Marketplace 會移動 Backpack slot，但不更新該帳戶的 owner 欄位。",
-                "evidence": "[\"blueprint-item\", itemId]"
-              }
-            ]
-          },
-          {
-            "label": "簽名邊界",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "seed-equipment-transfer",
-                "kind": "program",
-                "label": "Equipment transfer authority",
-                "badge": "PDA signer",
-                "detail": "允許 Player 與 Backpack 移動託管裝備 slot，但不授予任意寫權限。",
-                "evidence": "[\"equipment-transfer-v1\"]"
-              },
-              {
-                "id": "seed-name-indexes",
-                "kind": "proof",
-                "label": "Name / invite indexes",
-                "badge": "index",
-                "detail": "保留規範玩家名和邀請頁，不把索引職責塞進 profile PDA。",
-                "evidence": "[\"player-name-v1\"], [\"invite-index-v1\"]"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "seed-owner-wallet",
-            "to": "seed-player-profile",
-            "label": "擁有",
-            "kind": "write"
-          },
-          {
-            "from": "seed-owner-wallet",
-            "to": "seed-backpack",
-            "label": "建立",
-            "kind": "write"
-          },
-          {
-            "from": "seed-session-authority",
-            "to": "seed-player-session",
-            "label": "受限於",
-            "kind": "guard"
-          },
-          {
-            "from": "seed-player-profile",
-            "to": "seed-appearance-equipment",
-            "label": "指向",
-            "kind": "read"
-          },
-          {
-            "from": "seed-equipment-transfer",
-            "to": "seed-backpack",
-            "label": "移動 slot",
-            "kind": "guard"
-          },
-          {
-            "from": "seed-blueprint-item",
-            "to": "seed-backpack",
-            "label": "item slot",
-            "kind": "proof"
-          },
-          {
-            "from": "seed-name-indexes",
-            "to": "seed-player-profile",
-            "label": "索引",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "Profile 不儲存庫存",
-          "Session 不替代 owner 託管權",
-          "裝備轉移由 PDA gating",
-          "藍圖物品身份唯一"
-        ]
-      },
-      {
-        "id": "settlement-governance-seed-evidence",
-        "kicker": "發布與結算 Seed",
-        "title": "跨程式變更使用顯式簽名 PDA 和公開 receipt 記錄。",
-        "body": "建築、冶煉、市場、Guardian 和 Civilization 路徑，都能透過“哪個 PDA 籤 CPI、哪個帳戶留下持久證據”來審計。",
-        "lanes": [
-          {
-            "label": "建築產物",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "seed-build-site",
-                "kind": "pda",
-                "label": "BuildSite",
-                "badge": "NCKSITE1",
-                "detail": "儲存地基所有權、佔地、待調整尺寸，以及 active/pending revision。",
-                "evidence": "[\"build-site-v1\", globalConfig, foundationId]"
-              },
-              {
-                "id": "seed-building-manifest",
-                "kind": "pda",
-                "label": "BuildingManifest / Shard",
-                "badge": "NCM3",
-                "detail": "提交預期 payload hash、shard bitmap、尺寸、偏移和有邊界的上傳載荷。",
-                "evidence": "[\"building-v2\"], [\"building-data-v1\"]"
-              }
-            ]
-          },
-          {
-            "label": "程式簽名者",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "seed-chunk-authority",
-                "kind": "program",
-                "label": "Chunk authority",
-                "badge": "PDA signer",
-                "detail": "Building 簽名登記 chunk 佔用，但不成為 Chunk 程式所有者。",
-                "evidence": "[\"chunk-authority-v1\", globalConfig]"
-              },
-              {
-                "id": "seed-guardian-blueprint",
-                "kind": "program",
-                "label": "Guardian blueprint authority",
-                "badge": "PDA signer",
-                "detail": "Building 透過受限 signer 把驗證後的藍圖摘要發布到 Guardian region。",
-                "evidence": "[\"guardian-blueprint\", globalConfig]"
-              },
-              {
-                "id": "seed-smelt-market-authorities",
-                "kind": "program",
-                "label": "Smelting / Market authorities",
-                "badge": "PDA signers",
-                "detail": "製造和結算只能透過各自 signer PDA 追加或恢復 Backpack slot。",
-                "evidence": "[\"smelting-authority\"], [\"market-authority\"]"
-              }
-            ]
-          },
-          {
-            "label": "結算記錄",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "seed-recipe-table",
-                "kind": "proof",
-                "label": "RecipeTable",
-                "badge": "NCKSMR01",
-                "detail": "儲存配方，以及由任意 signer 用任意未使用 table ID 初始化後取得的 authority；seed 並不標識 canonical table。",
-                "evidence": "[\"smelting-recipes\", tableId]"
-              },
-              {
-                "id": "seed-listing",
-                "kind": "pda",
-                "label": "MarketplaceListing",
-                "badge": "NCKMKT01",
-                "detail": "託管完整 Backpack slot 快照，並記錄 seller、buyer、currency、fee 和最終狀態。",
-                "evidence": "[\"listing\", seller, listingId]"
-              }
-            ]
-          },
-          {
-            "label": "治理證明",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "seed-guardian-region",
-                "kind": "pda",
-                "label": "GuardianRegistry / Region",
-                "badge": "live",
-                "detail": "儲存 registry、treasury signer、region owner/operator、endpoint、stake、藍圖後設資料和休眠 proof 欄位；沒有 live proof 或 settlement 指令更新這些欄位。",
-                "evidence": "[\"guardian-registry\"], [\"guardian-region\"]"
-              },
-              {
-                "id": "seed-civilization",
-                "kind": "proof",
-                "label": "Civilization rule records",
-                "badge": "gated",
-                "detail": "把提案、簽名、呼叫者提供的 tally、執行 receipt、power snapshot 和 citizen power 拆成獨立 PDA；目前客戶端配置不決定鏈上是否可呼叫。",
-                "evidence": "rule-book / rule-signature / rule-tally"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "seed-build-site",
-            "to": "seed-building-manifest",
-            "label": "revision",
-            "kind": "write"
-          },
-          {
-            "from": "seed-chunk-authority",
-            "to": "seed-build-site",
-            "label": "索引",
-            "kind": "guard"
-          },
-          {
-            "from": "seed-guardian-blueprint",
-            "to": "seed-guardian-region",
-            "label": "發布",
-            "kind": "proof"
-          },
-          {
-            "from": "seed-smelt-market-authorities",
-            "to": "seed-recipe-table",
-            "label": "recipes",
-            "kind": "read"
-          },
-          {
-            "from": "seed-smelt-market-authorities",
-            "to": "seed-listing",
-            "label": "結算",
-            "kind": "guard"
-          },
-          {
-            "from": "seed-civilization",
-            "to": "seed-recipe-table",
-            "label": "adapter patch",
-            "kind": "proof"
-          },
-          {
-            "from": "seed-civilization",
-            "to": "seed-guardian-region",
-            "label": "receipt path",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "CPI authority 始終顯式",
-          "Listing 儲存完整 slot 快照",
-          "藍圖發布按 region 作用域",
-          "Civilization adapter 綁定目標"
         ]
       }
     ]
@@ -3008,7 +2734,7 @@
                 "kind": "wallet",
                 "label": "Player [1,4,5,6]",
                 "badge": "session",
-              "detail": "位置、session 重新整理、已裝備背包和鍛造 XP 都有 signer 門控；目前 validator 不會消耗 session 計數器。",
+                "detail": "位置、session 重新整理、已裝備背包和鍛造 XP 都有 signer 門控；目前 validator 不會消耗 session 計數器。",
                 "evidence": "PlayerSession 校驗"
               }
             ]
@@ -3036,7 +2762,7 @@
                 "kind": "pda",
                 "label": "Profile / Session",
                 "badge": "NCKPLY01",
-              "detail": "Profile 證明 owner 身分，Session 證明 signer、動作遮罩和過期時間委託；它不強制執行儲存的動作計數器。",
+                "detail": "Profile 證明 owner 身分，Session 證明 signer、動作遮罩和過期時間委託；它不強制執行儲存的動作計數器。",
                 "evidence": "[\"player-v7\"], [\"session\"]"
               },
               {
@@ -3084,150 +2810,10 @@
         ]
       },
       {
-        "id": "world-building-dispatch",
-        "kicker": "Chunk / Building",
-        "title": "世界變更必須經過生成地形校驗和建築 manifest 門檻。",
-        "body": "Chunk 的目前 tag 從挖礦和規則表面開始；Building 負責地基、NCM3 shard 上傳、佔用 chunk 登記和 Guardian 藍圖發布。",
-        "lanes": [
-          {
-            "label": "挖礦 tag",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "chunk-mining-tags",
-                "kind": "program",
-                "label": "Chunk [5,8,9,20,21]",
-                "badge": "挖礦",
-                "detail": "單塊、獎勵、砍樹、批量和範圍挖礦都會重新計算生成方塊，並寫入稀疏 broken-block 證據。",
-                "evidence": "ChunkBrokenState 記錄"
-              },
-              {
-                "id": "chunk-init-tags",
-                "kind": "program",
-                "label": "Chunk [6,15]",
-                "badge": "索引",
-                "detail": "初始化 chunk-broken 儲存，並允許 Building 透過受限 authority 登記被建築佔用的 chunk。",
-                "evidence": "chunk-broken + foundation 索引"
-              }
-            ]
-          },
-          {
-            "label": "規則 tag",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "chunk-rule-tags",
-                "kind": "proof",
-                "label": "Chunk [7,10,11,12,13]",
-                "badge": "規則",
-                "detail": "資源掉落、表面裝飾、驗證器檢查和 Civilization receipt 都是獨立的規則或 adapter 分支。",
-                "evidence": "drop / decor / receipt PDA"
-              },
-              {
-                "id": "chunk-retired-tags",
-                "kind": "disabled",
-                "label": "Chunk [0-4]",
-                "badge": "無效",
-                "detail": "舊版 chunk 初始化、delegation 和 generated-block verifier tag 已不被目前 dispatcher 接受。",
-                "evidence": "落入 InvalidInstruction"
-              }
-            ]
-          },
-          {
-            "label": "建築 tag",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "building-site-tags",
-                "kind": "program",
-                "label": "Building [0,1,6,7]",
-                "badge": "地基",
-              "detail": "在 footprint 與 PlayerSession 校驗後建立、索引、遷移和調整 BuildSite；session 檢查目前對每個分支都請求 BREAK_BLOCK。",
-                "evidence": "BuildSite v2 + legacy decode"
-              },
-              {
-                "id": "building-upload-tags",
-                "kind": "program",
-                "label": "Building [2,3,4,5,8]",
-                "badge": "NCM3",
-              "detail": "暫存上傳 shard、最終化經過 hash 校驗的 manifest、取消上傳，並透過獨立路徑轉發受限錢包提供的藍圖後設資料，而不驗證 manifest。",
-                "evidence": "Manifest、Shard、BlueprintAuthority"
-              }
-            ]
-          },
-          {
-            "label": "世界證據",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "world-evidence-pdas",
-                "kind": "pda",
-                "label": "Chunk / Build PDAs",
-                "badge": "公開",
-                "detail": "broken block、佔用 chunk、BuildSite、Manifest 和 Shard 都是公開 PDA 證據，不是私有世界狀態。",
-                "evidence": "GlobalConfig-scoped seeds"
-              },
-              {
-                "id": "guardian-blueprint-evidence",
-                "kind": "proof",
-                "label": "Guardian Blueprint",
-                "badge": "CPI",
-                "detail": "Building PDA signer 只能透過 Guardian 程式門檻更新 GuardianRegion 的藍圖元資料。",
-                "evidence": "[\"guardian-blueprint\", globalConfig]"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "chunk-mining-tags",
-            "to": "world-evidence-pdas",
-            "label": "記錄",
-            "kind": "write"
-          },
-          {
-            "from": "chunk-init-tags",
-            "to": "world-evidence-pdas",
-            "label": "索引",
-            "kind": "guard"
-          },
-          {
-            "from": "chunk-rule-tags",
-            "to": "world-evidence-pdas",
-            "label": "證明",
-            "kind": "proof"
-          },
-          {
-            "from": "chunk-retired-tags",
-            "to": "world-evidence-pdas",
-            "label": "拒絕",
-            "kind": "disabled"
-          },
-          {
-            "from": "building-site-tags",
-            "to": "world-evidence-pdas",
-            "label": "擁有",
-            "kind": "write"
-          },
-          {
-            "from": "building-upload-tags",
-            "to": "guardian-blueprint-evidence",
-            "label": "發布",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "覆蓋 Chunk tag 5,6,7,8,9,10,11,12,13,15,20,21",
-          "覆蓋 Building tag 0-8",
-          "舊 Chunk 0-4 被拒絕",
-          "Blueprint CPI authority 是顯式 PDA"
-        ]
-      },
-      {
         "id": "custody-settlement-dispatch",
         "kicker": "Backpack / Smelting / Market",
         "title": "Backpack slot 變更包含 owner、session 和 program-PDA 分支。",
-        "body": "Smelting 與 Market 使用 authority PDA，但 Backpack tag 2 也允許 BREAK_BLOCK session 移除任意選定 slot。Smelting 校驗所選表而非 canonical 來源；tag 8 校驗 NCF1/材料，而非 BlueprintItem issuer 證據。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "Backpack tag",
@@ -3238,15 +2824,15 @@
                 "kind": "program",
                 "label": "Backpack [0-6]",
                 "badge": "slots",
-              "detail": "初始化背包並變更 slot；tag 2 允許 owner 或 BREAK_BLOCK session 移除任意選定 slot index。",
-                "evidence": "BackpackAccount v3"
+                "detail": "初始化背包並變更 slot；tag 2 允許 owner 或 BREAK_BLOCK session 移除任意選定 slot index。",
+                "evidence": "BackpackAccount v4"
               },
               {
                 "id": "backpack-forge-tags",
                 "kind": "program",
                 "label": "Backpack [8-11]",
                 "badge": "items",
-              "detail": "Tag 8 校驗 NCF1/材料要求，但不校驗 BlueprintItem 或 issuer 記錄。Tag 9 使用固定 issuer；Marketplace 隨後移動其 slot 時不會更新 BlueprintItem.owner。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "材料校驗 + equipment transfer PDA"
               },
               {
@@ -3266,9 +2852,9 @@
               {
                 "id": "smelting-tags",
                 "kind": "proof",
-                "label": "Smelting [0-4]",
+                "label": "Smelting [0,1,2,4]",
                 "badge": "recipes",
-                "detail": "配方表初始化、更新、執行、authority 轉移和 Civilization receipt 應用都是可接受分支。",
+                "detail": "Recipe table init, treasury upsert, owner execution, and Civilization receipt application are accepted; authority transfer is not.",
                 "evidence": "RecipeTable + smelting-authority"
               }
             ]
@@ -3304,7 +2890,7 @@
                 "kind": "pda",
                 "label": "Backpack / Recipe / Listing",
                 "badge": "公開",
-              "detail": "Slot 位元組和結算狀態是公開的，但 RecipeTable 來源需外部核驗，Marketplace 交付後 BlueprintItem.owner 也可能過時。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "backpack, recipe, listing seeds"
               },
               {
@@ -3365,79 +2951,63 @@
       },
       {
         "id": "guardian-civilization-dispatch",
-        "kicker": "Guardian / Civilization",
-        "title": "Guardian dispatcher 與 Civilization 記錄保持可解碼；客戶端配置與鏈上可用性是兩回事。",
-        "body": "Guardian 目前接受 registry、註冊、endpoint、blueprint 和 operator 分支，proof settlement tag 3 與 4 會被拒絕。Civilization 實作 tag 0-5，但目前 mainnet.json 缺少其 program ID；這是客戶端配置事實，不是鏈上門禁。",
+        "kicker": "Guardian V1 指令",
+        "title": "Guardian tag 0 至 5 只管理實時中继登记與存活狀態。",
+        "body": "tag 0-2 初始化 Registry 並登记 Region，tag 3 記錄 operator proof，tag 4 結算完整错过的 proof 小時，tag 5 由 owner 更新端點；更高 tag 全部无效。",
         "lanes": [
           {
-            "label": "Guardian 可接受 tag",
+            "label": "Registration",
             "kind": "program",
             "nodes": [
               {
                 "id": "guardian-registration-tags",
                 "kind": "program",
-                "label": "Guardian [0,1,2]",
-                "badge": "註冊",
-                "detail": "初始化 registry，並在 treasury 和 GlobalConfig 校驗下註冊 genesis 或標準 Guardian region。",
-                "evidence": "GuardianRegistry + treasury authority"
-              },
-              {
-                "id": "guardian-maintenance-tags",
-                "kind": "program",
-                "label": "Guardian [5,6,8]",
-                "badge": "維護",
-                "detail": "透過已儲存的角色邊界更新 endpoint、blueprint 元資料和 operator 分配。",
-                "evidence": "GuardianRegion 角色校驗"
+                "label": "Guardian [0-2]",
+                "badge": "registry + regions",
+                "detail": "Initializes the Registry and registers genesis or adjacent 100x100-Chunk Regions.",
+                "evidence": "initialize_registry / register_guardian"
               }
             ]
           },
           {
-            "label": "退役 tag",
-            "kind": "disabled",
-            "nodes": [
-              {
-                "id": "guardian-retired-tags",
-                "kind": "disabled",
-                "label": "Guardian [3,4]",
-                "badge": "拒絕",
-                "detail": "submit_guardian_proof 和 settle_guardian 已從 dispatcher 退役，並由拒絕測試覆蓋。",
-                "evidence": "InvalidInstruction 測試"
-              }
-            ]
-          },
-          {
-            "label": "Civilization tag",
+            "label": "Liveness",
             "kind": "proof",
             "nodes": [
               {
-                "id": "civilization-tags",
+                "id": "guardian-proof-tags",
                 "kind": "proof",
-                "label": "Civilization [0-5]",
-                "badge": "門控",
-                "detail": "發布 rule book、signature、tally、execution receipt、power snapshot 和 citizen power settlement。",
-                "evidence": "執行時尚未開啟"
+                "label": "Guardian [3-4]",
+                "badge": "proof + settle",
+                "detail": "The operator submits proofs; any caller can settle missed one-hour intervals and reduce recorded stake.",
+                "evidence": "submit_guardian_proof / settle_guardian"
               }
             ]
           },
           {
-            "label": "證明記錄",
+            "label": "Endpoint",
+            "kind": "program",
+            "nodes": [
+              {
+                "id": "guardian-endpoint-tag",
+                "kind": "program",
+                "label": "Guardian [5]",
+                "badge": "owner only",
+                "detail": "The stored Region owner updates host, port, and TLS; the operator has no endpoint write unless it is also the owner.",
+                "evidence": "update_guardian_endpoint"
+              }
+            ]
+          },
+          {
+            "label": "Public state",
             "kind": "pda",
             "nodes": [
               {
-                "id": "guardian-proof-pdas",
+                "id": "guardian-v1-pdas",
                 "kind": "pda",
-                "label": "GuardianRegistry / Region",
-                "badge": "公開",
-              "detail": "儲存 endpoint、owner、operator、stake、休眠 proof/penalty 欄位和藍圖後設資料；proof 與 settlement tag 已退役。",
+                "label": "Registry / Region V1",
+                "badge": "160 / 256 bytes",
+                "detail": "Stores relay registration, endpoint, role, proof, remaining-stake, penalty, and settlement fields only.",
                 "evidence": "guardian-registry / guardian-region seeds"
-              },
-              {
-                "id": "civilization-proof-pdas",
-                "kind": "pda",
-                "label": "Rule / Power PDAs",
-                "badge": "回執",
-                "detail": "RuleBook、signature、tally、execution receipt、power snapshot 和 citizen power 都可以獨立解碼。",
-                "evidence": "rule-book + power seeds"
               }
             ]
           }
@@ -3445,34 +3015,28 @@
         "links": [
           {
             "from": "guardian-registration-tags",
-            "to": "guardian-proof-pdas",
-            "label": "建立",
+            "to": "guardian-v1-pdas",
+            "label": "creates",
             "kind": "write"
           },
           {
-            "from": "guardian-maintenance-tags",
-            "to": "guardian-proof-pdas",
-            "label": "更新",
-            "kind": "guard"
-          },
-          {
-            "from": "guardian-retired-tags",
-            "to": "guardian-proof-pdas",
-            "label": "拒絕",
-            "kind": "disabled"
-          },
-          {
-            "from": "civilization-tags",
-            "to": "civilization-proof-pdas",
-            "label": "記錄",
+            "from": "guardian-proof-tags",
+            "to": "guardian-v1-pdas",
+            "label": "updates",
             "kind": "proof"
+          },
+          {
+            "from": "guardian-endpoint-tag",
+            "to": "guardian-v1-pdas",
+            "label": "updates",
+            "kind": "guard"
           }
         ],
         "evidence": [
-          "覆蓋 Guardian tag 0,1,2,5,6,8",
-          "Guardian 3/4 被拒絕",
-          "覆蓋 Civilization 0-5",
-          "Live governance 仍由執行時門控"
+          "Guardian dispatcher accepts exactly tags 0-5",
+          "GuardianRegion::LEN = 256",
+          "owner updates endpoint; operator submits proof",
+          "settlement is permissionless and reduces recorded stake"
         ]
       }
     ]
@@ -3505,200 +3069,10 @@
     ],
     "diagrams": [
       {
-        "id": "world-service-cpi-ledger",
-        "kicker": "世界與服務 CPI",
-        "title": "Building 和 Chunk 只能透過受限 PDA signer 跨程式寫入。",
-        "body": "世界層有三條敏感 CPI：Building 把佔用 chunk 寫入 Chunk；Building 把受限錢包提供的藍圖後設資料轉發到 Guardian，而不驗證 manifest；Chunk 在生成地形校驗後交付挖礦資源。",
-        "lanes": [
-          {
-            "label": "Caller branch",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "cpi-building-register",
-                "kind": "program",
-                "label": "Building [1]",
-                "badge": "register_build_site_chunks",
-              "detail": "校驗 BuildSite 與 CPI 帳戶；其 PlayerSession 檢查目前請求 BREAK_BLOCK，而非單獨的建造權限。",
-                "evidence": "programs/nicechunk_building/src/lib.rs"
-              },
-              {
-                "id": "cpi-building-blueprint",
-                "kind": "program",
-                "label": "Building [8]",
-                "badge": "publish_guardian_blueprint",
-              "detail": "限制 publisher 錢包、校驗 GlobalConfig，並用 blueprint authority PDA 簽署 Guardian 更新；不會讀取 BuildingManifest。",
-                "evidence": "GUARDIAN_UPDATE_BLUEPRINT_INSTRUCTION = 6"
-              },
-              {
-                "id": "cpi-chunk-reward",
-                "kind": "program",
-                "label": "Chunk [8/9/20/21]",
-                "badge": "mining rewards",
-                "detail": "這些獎勵分支會重新計算生成方塊、寫入 broken-block 證據，再向 Backpack 追加一個或多個資源槽位。Tag 5 只記錄挖除狀態，不執行 Backpack CPI。",
-                "evidence": "append_backpack_block_resource(s)"
-              }
-            ]
-          },
-          {
-            "label": "Callee tag",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "cpi-chunk-tag15",
-                "kind": "program",
-                "label": "Chunk [15]",
-                "badge": "register_build_site_chunk",
-                "detail": "Accepts only the Building chunk-authority signer and writes FoundationChunk occupancy records.",
-                "evidence": "building_authority signer"
-              },
-              {
-                "id": "cpi-guardian-tag6",
-                "kind": "program",
-                "label": "Guardian [6]",
-                "badge": "update_guardian_blueprint",
-                "detail": "Updates blueprint hash, revision, and record count on a GuardianRegion through the Building PDA signer.",
-                "evidence": "GuardianRegion writable"
-              },
-              {
-                "id": "cpi-backpack-tag1-6",
-                "kind": "program",
-                "label": "Backpack [1/6]",
-                "badge": "append mined resources",
-                "detail": "Accepts ChunkBrokenState as signer evidence for single or batched mined resource delivery.",
-                "evidence": "chunk-broken signer"
-              }
-            ]
-          },
-          {
-            "label": "Signer PDA",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "cpi-chunk-authority",
-                "kind": "pda",
-                "label": "ChunkAuthority",
-                "badge": "PDA signer",
-                "detail": "Derived by Building as [\"chunk-authority-v1\", globalConfig] and re-derived by Chunk under the Building program ID.",
-                "evidence": "[\"chunk-authority-v1\", globalConfig]"
-              },
-              {
-                "id": "cpi-blueprint-authority",
-                "kind": "pda",
-                "label": "GuardianBlueprintAuthority",
-                "badge": "PDA signer",
-                "detail": "Derived by Building as [\"guardian-blueprint\", globalConfig] and accepted by Guardian for blueprint-only mutation.",
-                "evidence": "[\"guardian-blueprint\", globalConfig]"
-              },
-              {
-                "id": "cpi-chunk-broken-signer",
-                "kind": "pda",
-                "label": "ChunkBrokenState",
-                "badge": "PDA signer",
-                "detail": "The same account that records broken blocks signs Backpack delivery for the exact chunk coordinates.",
-                "evidence": "[\"chunk-broken\", globalConfig, chunkX, chunkZ]"
-              }
-            ]
-          },
-          {
-            "label": "Public evidence",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "cpi-foundation-evidence",
-                "kind": "proof",
-                "label": "FoundationChunk",
-                "badge": "occupancy",
-                "detail": "Chunk-scoped public index proving which foundation occupies each affected chunk.",
-                "evidence": "[\"foundation-chunk\", globalConfig, chunkX, chunkZ]"
-              },
-              {
-                "id": "cpi-guardian-evidence",
-                "kind": "proof",
-                "label": "GuardianRegion blueprint fields",
-                "badge": "service proof",
-                "detail": "Region endpoint records expose blueprint hash, revision, and record count for realtime service discovery.",
-                "evidence": "NCKGRG01"
-              },
-              {
-                "id": "cpi-backpack-resource-evidence",
-                "kind": "proof",
-                "label": "Backpack resource slots",
-                "badge": "inventory proof",
-                "detail": "Backpack v3 slots store block coordinates, volume, metadata, and item identity after rewarded mining.",
-                "evidence": "80-byte slot records"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "cpi-building-register",
-            "to": "cpi-chunk-authority",
-            "label": "signs",
-            "kind": "guard"
-          },
-          {
-            "from": "cpi-chunk-authority",
-            "to": "cpi-chunk-tag15",
-            "label": "calls tag 15",
-            "kind": "write"
-          },
-          {
-            "from": "cpi-chunk-tag15",
-            "to": "cpi-foundation-evidence",
-            "label": "writes",
-            "kind": "proof"
-          },
-          {
-            "from": "cpi-building-blueprint",
-            "to": "cpi-blueprint-authority",
-            "label": "signs",
-            "kind": "guard"
-          },
-          {
-            "from": "cpi-blueprint-authority",
-            "to": "cpi-guardian-tag6",
-            "label": "calls tag 6",
-            "kind": "write"
-          },
-          {
-            "from": "cpi-guardian-tag6",
-            "to": "cpi-guardian-evidence",
-            "label": "writes",
-            "kind": "proof"
-          },
-          {
-            "from": "cpi-chunk-reward",
-            "to": "cpi-chunk-broken-signer",
-            "label": "signs",
-            "kind": "guard"
-          },
-          {
-            "from": "cpi-chunk-broken-signer",
-            "to": "cpi-backpack-tag1-6",
-            "label": "calls tag 1/6",
-            "kind": "write"
-          },
-          {
-            "from": "cpi-backpack-tag1-6",
-            "to": "cpi-backpack-resource-evidence",
-            "label": "writes",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "Building cannot write Chunk directly without chunk-authority PDA",
-          "Guardian blueprint updates are tag-6 only",
-          "Mining delivery is tied to ChunkBrokenState signer",
-          "Backpack receives coordinates and volume from verified mining branches"
-        ]
-      },
-      {
         "id": "inventory-settlement-cpi-ledger",
         "kicker": "庫存與結算 CPI",
         "title": "Backpack 同時存在 owner、session 和 program-PDA 變更路徑。",
-        "body": "裝備、熔煉和市場 CPI 使用明確 tag 與 PDA signer，但直接呼叫 Backpack tag 2 也接受 BREAK_BLOCK session 來破壞性移除任意選定 slot。Listing 證據追蹤的是 slot 位元組，而非 BlueprintItem.owner。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "Caller branch",
@@ -3717,7 +3091,7 @@
                 "kind": "program",
                 "label": "Smelting [2]",
                 "badge": "execute_smelting",
-              "detail": "移除與呼叫者所選 RecipeTable 匹配的輸入，再追加表內定義的產物；table ID 與 authority 均未 canonical 化。",
+                "detail": "移除與呼叫者所選 RecipeTable 匹配的輸入，再追加表內定義的產物；table ID 與 authority 均未 canonical 化。",
                 "evidence": "input indexes + fuel indexes + batch"
               },
               {
@@ -3785,7 +3159,7 @@
                 "kind": "pda",
                 "label": "SmeltingAuthority",
                 "badge": "PDA signer",
-              "detail": "在 Smelting 下由 [\"smelting-authority\"] 衍生，只能呼叫 append_smelting_item；該門禁只證明與所選程式自有 RecipeTable 匹配，不證明來源可信。",
+                "detail": "在 Smelting 下由 [\"smelting-authority\"] 衍生，只能呼叫 append_smelting_item；該門禁只證明與所選程式自有 RecipeTable 匹配，不證明來源可信。",
                 "evidence": "[\"smelting-authority\"]"
               },
               {
@@ -3801,7 +3175,7 @@
                 "kind": "wallet",
                 "label": "Owner / seller signer",
                 "badge": "wallet",
-              "detail": "圖示的 smelting 與 market 分支仍要求 owner signer；直接 Backpack tag 2 則也接受 BREAK_BLOCK session 進行破壞性移除。",
+                "detail": "圖示的 smelting 與 market 分支仍要求 owner signer；直接 Backpack tag 2 則也接受 BREAK_BLOCK session 進行破壞性移除。",
                 "evidence": "seller or owner AccountMeta signer"
               }
             ]
@@ -3913,7 +3287,7 @@
         ],
         "evidence": [
           "直接 Backpack 移除也接受 BREAK_BLOCK session",
-          "Program signer 只執行路徑專用校驗，不證明 RecipeTable 或 BlueprintItem 來源",
+          "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
           "Marketplace listings store the full slot snapshot",
           "Equipment transfer cannot mint arbitrary Backpack slots"
         ]
@@ -3941,7 +3315,7 @@
                 "kind": "program",
                 "label": "Smelting [4]",
                 "badge": "recipe receipt",
-                "detail": "Applies a Civilization recipe receipt before updating recipe authority-controlled state.",
+                "detail": "Applies a Civilization recipe receipt before updating the exact identity-valid treasury RecipeTable target.",
                 "evidence": "apply_civilization_recipe_receipt"
               }
             ]
@@ -3999,7 +3373,7 @@
                 "kind": "proof",
                 "label": "ExecutionReceipt",
                 "badge": "public proof",
-              "detail": "在基於子集的已儲存閾值結果通過且 adapter 簽名後，為精確 RuleBook 記錄執行；它不是完整投票證明。",
+                "detail": "在基於子集的已儲存閾值結果通過且 adapter 簽名後，為精確 RuleBook 記錄執行；它不是完整投票證明。",
                 "evidence": "[\"rule-execution\", ruleBook]"
               },
               {
@@ -4252,166 +3626,6 @@
         ]
       },
       {
-        "id": "growth-and-migration-ledger",
-        "kicker": "擴容與遷移帳本",
-        "title": "擴容帳戶會先保留舊證據，再暴露更大的目前佈局。",
-        "body": "目前程式碼裡有多處非平凡遷移：ChunkBroken 按容量成長，FoundationChunk 從 v1 遷到 v2，Player 帳戶升級到目前長度，Building 把舊 Chunk-owned build site 遷入 BuildSite v2。",
-        "lanes": [
-          {
-            "label": "Existing state",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "lifecycle-chunk-broken-old",
-                "kind": "pda",
-                "label": "ChunkBrokenState",
-                "badge": "capacity",
-                "detail": "Starts with an initial record capacity and grows when single, batch, or range mining needs more room.",
-                "evidence": "CHUNK_BROKEN_INITIAL_CAPACITY / GROW_BY"
-              },
-              {
-                "id": "lifecycle-foundation-v1",
-                "kind": "pda",
-                "label": "FoundationChunk v1",
-                "badge": "legacy index",
-                "detail": "Older chunk occupancy records are decoded, converted to v2, and filtered when a replacement supersedes them.",
-                "evidence": "FoundationRecordV2::from_legacy"
-              },
-              {
-                "id": "lifecycle-player-legacy",
-                "kind": "pda",
-                "label": "Player layout drift",
-                "badge": "profile/equipment/appearance",
-                "detail": "Player profile, equipment, and appearance accounts can be topped up and reallocated to current lengths.",
-                "evidence": "ensure_*_current helpers"
-              },
-              {
-                "id": "lifecycle-buildsite-legacy",
-                "kind": "offchain",
-                "label": "Legacy BuildSite",
-                "badge": "136 bytes",
-                "detail": "A Chunk-owned legacy build site is decoded and re-packed into the Building program BuildSite v2 PDA.",
-                "evidence": "migrate_legacy_build_site"
-              }
-            ]
-          },
-          {
-            "label": "Growth action",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "lifecycle-rent-realloc",
-                "kind": "program",
-                "label": "fund_account_to_rent_exempt + realloc",
-                "badge": "grow",
-                "detail": "The payer funds the rent delta before reallocation so the larger account remains rent-exempt.",
-                "evidence": "minimum_balance(next_len)"
-              },
-              {
-                "id": "lifecycle-preserve-records",
-                "kind": "program",
-                "label": "Convert and preserve records",
-                "badge": "migration",
-                "detail": "Legacy records are migrated into the larger layout instead of being dropped during the version change.",
-                "evidence": "pack_empty then append migrated records"
-              },
-              {
-                "id": "lifecycle-building-resize",
-                "kind": "program",
-                "label": "BuildSite resize staging",
-                "badge": "staged",
-                "detail": "Resize checks active building fit, stores staged dimensions, then chunk indexing catches up through Building tag 1.",
-                "evidence": "begin_build_site_resize + registeredChunks"
-              }
-            ]
-          },
-          {
-            "label": "Compatibility gate",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "lifecycle-fit-proof",
-                "kind": "proof",
-                "label": "Fit and version proof",
-                "badge": "bounds",
-                "detail": "Growth is bounded by max capacity, world height, footprint, active revision, and matching GlobalConfig.",
-                "evidence": "capacity caps + building_axis_fits + validate_global_config"
-              }
-            ]
-          },
-          {
-            "label": "Current state",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "lifecycle-current-state",
-                "kind": "pda",
-                "label": "Current PDA layout",
-                "badge": "decodable",
-                "detail": "The resulting state is still public and decodable as ChunkBroken, FoundationChunk v2, Player current layout, or BuildSite v2.",
-                "evidence": "RPC decoder + magic/version bytes"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "lifecycle-chunk-broken-old",
-            "to": "lifecycle-rent-realloc",
-            "label": "grows",
-            "kind": "write"
-          },
-          {
-            "from": "lifecycle-foundation-v1",
-            "to": "lifecycle-preserve-records",
-            "label": "migrates",
-            "kind": "proof"
-          },
-          {
-            "from": "lifecycle-player-legacy",
-            "to": "lifecycle-rent-realloc",
-            "label": "upgrades",
-            "kind": "guard"
-          },
-          {
-            "from": "lifecycle-buildsite-legacy",
-            "to": "lifecycle-preserve-records",
-            "label": "re-packs",
-            "kind": "proof"
-          },
-          {
-            "from": "lifecycle-building-resize",
-            "to": "lifecycle-fit-proof",
-            "label": "checks",
-            "kind": "guard"
-          },
-          {
-            "from": "lifecycle-rent-realloc",
-            "to": "lifecycle-fit-proof",
-            "label": "bounded by",
-            "kind": "read"
-          },
-          {
-            "from": "lifecycle-preserve-records",
-            "to": "lifecycle-current-state",
-            "label": "writes",
-            "kind": "write"
-          },
-          {
-            "from": "lifecycle-fit-proof",
-            "to": "lifecycle-current-state",
-            "label": "permits",
-            "kind": "proof"
-          }
-        ],
-        "evidence": [
-          "ChunkBroken growth is capacity capped",
-          "FoundationChunk v1 records survive v2 migration",
-          "Player current layout upgrades are rent-funded",
-          "BuildSite resize is staged, not an unchecked overwrite"
-        ]
-      },
-      {
         "id": "closure-and-settlement-ledger",
         "kicker": "關閉與結算帳本",
         "title": "臨時帳戶取消時返還租金；已成交狀態則保留為持久結算證據。",
@@ -4450,7 +3664,7 @@
                 "kind": "program",
                 "label": "Market [2]",
                 "badge": "buy_listing",
-                "detail": "轉移付款、把 slot 位元組交付給 buyer，並將 listing 標記為 sold 而不關閉；所引用 BlueprintItem.owner 保持不變。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "ListingAccount::mark_sold"
               }
             ]
@@ -4510,7 +3724,7 @@
                 "kind": "proof",
                 "label": "Restored or delivered Backpack slot",
                 "badge": "custody proof",
-                "detail": "取消會把 slot 位元組恢復到 seller Backpack；購買則透過 market-authority 交付到 buyer Backpack。兩條路徑都不會更新所引用 BlueprintItem.owner。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "Backpack [3] via MarketAuthority"
               }
             ]
@@ -4644,7 +3858,7 @@
         "id": "inventory-listing-payload-truth",
         "kicker": "庫存上架 Payload 真實性",
         "title": "市場上架只把 19 位元組當作意圖，真正託管的是 Backpack 槽位快照。",
-        "body": "物品欄位來自 seller 的 Backpack slot，而不是 listing payload。這只能證明 slot 位元組來源；購買不會更新所引用 BlueprintItem 帳戶中儲存的 owner。",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "上架意圖",
@@ -4721,7 +3935,7 @@
                 "kind": "program",
                 "label": "取消或購買",
                 "badge": "結算",
-                "detail": "取消或購買會恢復/交付同一 slot 位元組並記錄結算；取消後 listing 被清零並關閉，不留下持久取消證據，購買則不會改變所引用 BlueprintItem.owner。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "append_market_slot_to_backpack"
               }
             ]
@@ -5057,138 +4271,6 @@
           "nicechunk_civilization/src/state.rs",
           "RuleTallyAccount::validate_threshold_met"
         ]
-      },
-      {
-        "id": "identity-service-payload-truth",
-        "kicker": "身分與服務 Payload 真實性",
-        "title": "Player 欄位與 Guardian 後設資料通過不同門禁；Guardian 藍圖摘要不會與 BuildingManifest 對照校驗。",
-        "body": "Player 名稱與 model code 有各自限制，Guardian endpoint 寫入也有角色與格式校驗。藍圖後設資料雖由 authority 門控，但 Building tag 8 會轉發所提供摘要，不讀取或驗證已最終化的 BuildingManifest。",
-        "lanes": [
-          {
-            "label": "人類輸入",
-            "kind": "offchain",
-            "nodes": [
-              {
-                "id": "player-name-appearance",
-                "kind": "offchain",
-                "label": "名稱與外觀 payload",
-                "badge": "bounded text/code",
-                "detail": "Player 名稱有長度上限，並會規範化為 username PDA hash；appearance title 和 NCM model code 長度會被檢查。",
-                "evidence": "PLAYER_NAME_MAX_CHARS / APPEARANCE_MODEL_CODE_MAX_BYTES"
-              },
-              {
-                "id": "guardian-endpoint-input",
-                "kind": "offchain",
-                "label": "Guardian endpoint payload",
-                "badge": "host + port + TLS",
-                "detail": "endpoint 更新解析 host length、port 和 TLS flag，並拒絕空 host、超长 host、非法字元和 port 0。",
-                "evidence": "MAX_HOST_LEN = 64"
-              }
-            ]
-          },
-          {
-            "label": "權限閘門",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "player-canonical-gate",
-                "kind": "program",
-                "label": "Player 規範化閘門",
-                "badge": "owner + PDA",
-                "detail": "profile 寫入要求 player authority，以及預期的 PlayerProfile、UsernameIndex、Appearance 或 Equipment PDA。",
-                "evidence": "canonical_player_name_hash"
-              },
-              {
-                "id": "guardian-role-gate",
-                "kind": "program",
-                "label": "Guardian 角色閘門",
-                "badge": "operator or PDA",
-                "detail": "Endpoint 變更要求 region operator 簽名；blueprint 變更要求 Building 衍生的 guardian-blueprint PDA authority，但該 authority 檢查不會把摘要繫結到 BuildingManifest。",
-                "evidence": "validate_blueprint_authority"
-              }
-            ]
-          },
-          {
-            "label": "推導公開狀態",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "player-public-state",
-                "kind": "pda",
-                "label": "Player public records",
-                "badge": "hash + model + slot",
-                "detail": "UsernameIndex 保存規範化名稱 hash，Appearance 保存展示中繼資料，PlayerEquipment 嵌入已校驗 Backpack 記錄和模型雜湊。",
-                "evidence": "UsernameIndex / PlayerAppearance / PlayerEquipment"
-              },
-              {
-                "id": "guardian-region-state",
-                "kind": "pda",
-                "label": "GuardianRegion",
-                "badge": "endpoint + blueprint",
-                "detail": "GuardianRegion 保存 region 座標、operator、endpoint、blueprint hash、revision、record count 和 update slots。",
-                "evidence": "GuardianRegion::LEN = 288"
-              }
-            ]
-          },
-          {
-            "label": "審計證據",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "identity-service-review",
-                "kind": "proof",
-                "label": "Metadata 真實性檢查",
-                "badge": "RPC decodable",
-                "detail": "審查者可比對 payload 限制、authority signer、PDA seed、儲存 hash 和解碼後的 record owner，但不得把 Guardian 藍圖後設資料視為已通過 manifest 驗證。",
-                "evidence": "contracts RPC decoders"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "player-name-appearance",
-            "to": "player-canonical-gate",
-            "label": "規範化",
-            "kind": "guard"
-          },
-          {
-            "from": "player-canonical-gate",
-            "to": "player-public-state",
-            "label": "寫入狀態",
-            "kind": "write"
-          },
-          {
-            "from": "player-public-state",
-            "to": "identity-service-review",
-            "label": "解碼",
-            "kind": "read"
-          },
-          {
-            "from": "guardian-endpoint-input",
-            "to": "guardian-role-gate",
-            "label": "角色檢查",
-            "kind": "guard"
-          },
-          {
-            "from": "guardian-role-gate",
-            "to": "guardian-region-state",
-            "label": "更新",
-            "kind": "write"
-          },
-          {
-            "from": "guardian-region-state",
-            "to": "identity-service-review",
-            "label": "解碼",
-            "kind": "read"
-          }
-        ],
-        "evidence": [
-          "nicechunk_player/src/lib.rs",
-          "PlayerEquipment::validate_model_code",
-          "nicechunk_guardian/src/lib.rs",
-          "GuardianRegion::update_endpoint"
-        ]
       }
     ]
   },
@@ -5222,8 +4304,8 @@
       {
         "id": "market-dual-currency-settlement",
         "kicker": "Marketplace 雙幣種結算",
-        "title": "購買會移動 SOL 或 NCK、交付託管的 Backpack slot 位元組，並把 listing 標記為 sold，但不改變 BlueprintItem.owner。",
-        "body": "Market purchase 是目前玩家側唯一帶直接付款結算的銷售路徑。它校驗 active listing、seller、currency、price 和 source slot，再拆分付款並交付託管 slot 快照；這是 slot 位元組移動，不是單獨 BlueprintItem owner 欄位的轉移。",
+        "title": "Retired construction item",
+        "body": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
         "lanes": [
           {
             "label": "銷售狀態",
@@ -5300,7 +4382,7 @@
                 "kind": "program",
                 "label": "MarketAuthority 交付",
                 "badge": "Backpack CPI",
-                "detail": "付款完成後，MarketAuthority 把儲存的 slot 快照追加到 buyer Backpack；所引用 BlueprintItem.owner 保持不變。",
+                "detail": "Historical construction-item records are ignored and compacted by Backpack v4; no active issuance, equipment, marketplace, or land-registration path uses them.",
                 "evidence": "append_market_slot_to_backpack"
               },
               {
@@ -5519,20 +4601,20 @@
       },
       {
         "id": "guardian-treasury-stake-boundary",
-        "kicker": "Guardian Treasury 質押邊界",
-        "title": "Guardian V2 註冊會把 NCK 轉入 treasury 託管，但沒有註銷、提取、退款、取回或 slash 路徑。",
-        "body": "Registry 初始化會固定 treasury wallet、treasury authority PDA、treasury NCK token、NCK mint 和 SPL Token program。註冊把配置金額轉入 treasury 託管；固定 treasury 可一步更換 operator，V2 也不發出結構化生命週期事件。",
+        "kicker": "Guardian V1 質押邊界",
+        "title": "Region owner 向国庫转入 100,000 NCK；错过 proof 會减少記錄的服務質押。",
+        "body": "Registry 固定国庫 authority PDA、国庫 NCK token、NCK mint 和質押策略。登记從 owner token 扣款；permissionless settlement 每個完整错过小時計入 10,000 NCK，記錄質押归零時移除 Region。",
         "lanes": [
           {
-            "label": "治理設定",
-            "kind": "wallet",
+            "label": "Registry setup",
+            "kind": "program",
             "nodes": [
               {
-                "id": "guardian-treasury-wallet",
+                "id": "guardian-registry-payer",
                 "kind": "wallet",
-                "label": "Treasury wallet signer",
-                "badge": "governance",
-                "detail": "Registry 初始化要求 GUARDIAN_TREASURY_WALLET 作為 signer 和 writable payer。",
+                "label": "Any payer",
+                "badge": "rent funder",
+                "detail": "Any signer may fund the one deterministic uninitialized Registry; the supplied treasury token must belong to the derived treasury-authority PDA.",
                 "evidence": "initialize_registry"
               },
               {
@@ -5540,128 +4622,141 @@
                 "kind": "pda",
                 "label": "GuardianRegistry",
                 "badge": "160 bytes",
-                "detail": "Registry 儲存 GlobalConfig、NCK mint、treasury token、active count、stake amount、休眠的 slash 值和 genesis 狀態。",
+                "detail": "Pins GlobalConfig, NCK mint, treasury token, Region size, stake and slash amounts, counters, and genesis state.",
                 "evidence": "GuardianRegistry::pack"
               }
             ]
           },
           {
-            "label": "質押轉移",
+            "label": "Registration payment",
             "kind": "proof",
             "nodes": [
               {
-                "id": "guardian-operator-token",
+                "id": "guardian-owner-token",
                 "kind": "wallet",
-                "label": "Operator NCK token",
-                "badge": "operator owner",
-                "detail": "註冊會校驗 operator token account owner、NCK mint、operator signer、endpoint payload 和 adjacency rule。",
-                "evidence": "validate_token_account(operator)"
+                "label": "Owner NCK token",
+                "badge": "owner signer",
+                "detail": "Registration validates the owner token account, NCK mint, owner signature, endpoint payload, operator public key, and adjacency rule.",
+                "evidence": "validate_token_account(owner)"
               },
               {
                 "id": "guardian-treasury-token",
                 "kind": "pda",
-                "label": "Treasury authority token",
+                "label": "Treasury-authority token",
                 "badge": "guardian-treasury PDA",
-                "detail": "treasury token 必須是 registry 記錄的 token account，owner 是衍生的 guardian-treasury PDA authority。",
+                "detail": "The destination token account is pinned in GuardianRegistry and owned by the derived treasury authority.",
                 "evidence": "derive_treasury_authority_pda"
               },
               {
                 "id": "guardian-stake-transfer",
                 "kind": "proof",
                 "label": "Stake transfer_checked",
-                "badge": "100,000,000,000 units",
-                "detail": "SPL Token checked transfer 把 GUARDIAN_STAKE_AMOUNT 从 operator token account 转到 treasury token account。",
+                "badge": "100,000 NCK",
+                "detail": "SPL Token transfer_checked moves GUARDIAN_STAKE_AMOUNT from the owner token account to the treasury token account.",
                 "evidence": "transfer_stake_to_treasury"
               }
             ]
           },
           {
-            "label": "Region 證據",
+            "label": "Proof settlement",
             "kind": "pda",
             "nodes": [
               {
-                "id": "guardian-region",
+                "id": "guardian-region-state",
                 "kind": "pda",
-                "label": "GuardianRegion",
+                "label": "GuardianRegion V1",
                 "badge": "active",
-                "detail": "region PDA 只有在 stake transfer、registry 校驗、operator signer 和 endpoint bounds 透過后才會建立或重新啟用。",
+                "detail": "The Region becomes active after stake transfer and stores separate owner and operator roles.",
                 "evidence": "GuardianRegion::pack"
               },
               {
-                "id": "guardian-no-slash",
-                "kind": "disabled",
-                "label": "V2 沒有 stake 退出或 slash 路徑",
-                "badge": "retired",
-                "detail": "Slash amount 仍被編碼，但目前 V2 dispatch 沒有註銷、提取、退款、取回或 slash 指令。",
-                "evidence": "proof/settlement tag 已退役；沒有 stake 生命週期退出路徑"
+                "id": "guardian-settlement",
+                "kind": "program",
+                "label": "Permissionless settlement",
+                "badge": "10,000 NCK / missed hour",
+                "detail": "Each complete missed proof hour reduces recorded stake; zero stake marks the Region removed and decrements the Registry active count.",
+                "evidence": "GuardianRegion::settle"
               }
             ]
           },
           {
-            "label": "角色分離",
+            "label": "Role separation",
             "kind": "program",
             "nodes": [
               {
-                "id": "guardian-operator-only",
-                "kind": "program",
-                "label": "Endpoint/operator updates",
-                "badge": "no funds",
-                "detail": "儲存的 operator 可更新 endpoint，固定 treasury 則能在舊或新 operator 均不接受的情況下單筆交易更換 operator；兩條路徑都不移動 NCK 或 lamports。",
-                "evidence": "update_guardian_endpoint / update_guardian_operator"
+                "id": "guardian-owner-role",
+                "kind": "wallet",
+                "label": "Region owner",
+                "badge": "endpoint",
+                "detail": "Signs registration, funds the stake, and updates host, port, and TLS.",
+                "evidence": "update_guardian_endpoint"
+              },
+              {
+                "id": "guardian-operator-role",
+                "kind": "wallet",
+                "label": "Region operator",
+                "badge": "proof",
+                "detail": "Signs liveness proofs only; the current program has no operator-rotation instruction.",
+                "evidence": "submit_guardian_proof"
               }
             ]
           }
         ],
         "links": [
           {
-            "from": "guardian-treasury-wallet",
+            "from": "guardian-registry-payer",
             "to": "guardian-registry-state",
-            "label": "初始化",
+            "label": "funds",
             "kind": "write"
           },
           {
             "from": "guardian-registry-state",
             "to": "guardian-treasury-token",
-            "label": "pin token",
+            "label": "pins",
             "kind": "guard"
           },
           {
-            "from": "guardian-operator-token",
+            "from": "guardian-owner-token",
             "to": "guardian-stake-transfer",
-            "label": "來源",
+            "label": "source",
             "kind": "write"
           },
           {
             "from": "guardian-treasury-token",
             "to": "guardian-stake-transfer",
-            "label": "目標",
+            "label": "destination",
             "kind": "write"
           },
           {
             "from": "guardian-stake-transfer",
-            "to": "guardian-region",
-            "label": "質押后註冊",
+            "to": "guardian-region-state",
+            "label": "registers",
             "kind": "guard"
           },
           {
-            "from": "guardian-region",
-            "to": "guardian-operator-only",
-            "label": "metadata updates",
-            "kind": "read"
+            "from": "guardian-region-state",
+            "to": "guardian-settlement",
+            "label": "settles",
+            "kind": "proof"
           },
           {
-            "from": "guardian-no-slash",
-            "to": "guardian-operator-only",
-            "label": "不是資金路徑",
-            "kind": "disabled"
+            "from": "guardian-owner-role",
+            "to": "guardian-region-state",
+            "label": "updates endpoint",
+            "kind": "guard"
+          },
+          {
+            "from": "guardian-operator-role",
+            "to": "guardian-region-state",
+            "label": "submits proof",
+            "kind": "proof"
           }
         ],
         "evidence": [
-          "nicechunk_guardian/src/state.rs",
-          "GUARDIAN_STAKE_AMOUNT = 100,000,000,000",
-          "GUARDIAN_TREASURY_AUTHORITY_SEED",
-          "retired settlement tags rejected",
-          "Guardian 沒有結構化生命週期事件"
+          "GUARDIAN_STAKE_AMOUNT = 100,000,000,000 base units",
+          "GUARDIAN_SLASH_AMOUNT = 10% of initial stake",
+          "PROOF_INTERVAL_SECONDS = 3,600",
+          "no withdrawal, refund, owner-setter, or operator-rotation tag"
         ]
       },
       {
@@ -5842,194 +4937,6 @@
     ],
     "diagrams": [
       {
-        "id": "authority-immutable-roots",
-        "kicker": "編譯期根",
-        "title": "Core 內部沒有管理員或更新路徑，但固定的 treasury 角色仍依賴兩個外部錢包。",
-        "body": "Core 標籤 0 從常數寫入一次性 GlobalConfig，並拒絕其他所有標籤。其餘程式在原始碼中固定 program ID、mint 和角色錢包，但僅憑原始碼檢查無法確認每個已部署程式的 upgrade authority 是否已關閉。",
-        "lanes": [
-          {
-            "label": "程式碼根",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "authority-root-core",
-                "kind": "program",
-                "label": "Core [0]",
-                "badge": "單一指令",
-                "detail": "僅接受 initialize_global_config。Core 的指令分派中不存在管理員帳戶、暫停、提款或 update-config 指令。",
-                "evidence": "programs/nicechunk_core/src/lib.rs"
-              },
-              {
-                "id": "authority-root-program-set",
-                "kind": "program",
-                "label": "十個程式二進位",
-                "badge": "編譯期綁定",
-                "detail": "Core、Player、Chunk、Unified Game、Backpack、Smelting、Market、Guardian、Civilization 和 Building 透過原始碼與編譯期常數綁定分派根、受信任的 program ID 或角色金鑰。",
-                "evidence": "programs/nicechunk_*/src/lib.rs + cluster_config.rs"
-              }
-            ]
-          },
-          {
-            "label": "一次性狀態",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "authority-root-global-config",
-                "kind": "pda",
-                "label": "GlobalConfig",
-                "badge": "[\"global-config\"]",
-                "detail": "確定性的 Core PDA 僅建立一次，並儲存固定的世界、費用、供應量、錢包與規則雜湊欄位；Core 未公開可重寫這些欄位的指令。",
-                "evidence": "NCKCFG01 · 293 位元組"
-              },
-              {
-                "id": "authority-root-nck-mint",
-                "kind": "proof",
-                "label": "叢集 NCK mint",
-                "badge": "mint 不變條件",
-                "detail": "初始化會固定叢集 mint，並檢查 SPL Token 擁有權、6 位小數、固定的創世供應量，以及 mint authority 和 freeze authority 均不存在。",
-                "evidence": "validate_nck_mint"
-              }
-            ]
-          },
-          {
-            "label": "固定外部錢包",
-            "kind": "wallet",
-            "nodes": [
-              {
-                "id": "authority-root-ctpv-wallet",
-                "kind": "wallet",
-                "label": "CtPV…7WvF",
-                "badge": "固定錢包 A",
-                "detail": "CtPV2vmqNNwUSfMu5nz58ZtMPy6ZvxL4LyNdPHVW7WvF 以三個不同角色編譯進 Core、Player 和 Market。",
-                "evidence": "DEVELOPMENT_WALLET / NICECHUNK_TREASURY_AUTHORITY / MARKET_TREASURY"
-              },
-              {
-                "id": "authority-root-9xuo-wallet",
-                "kind": "wallet",
-                "label": "9Xuo…KVud",
-                "badge": "固定錢包 B",
-                "detail": "9XuoVVwqP2jipt3jpJVXCSS2N2jr9vDuV3d6K73FKVud 被編譯進 Guardian、Backpack、Civilization 和 Building 的角色檢查。",
-                "evidence": "treasury / 發行方 / power authority / 發布者"
-              }
-            ]
-          },
-          {
-            "label": "角色效果與證據",
-            "kind": "proof",
-            "nodes": [
-              {
-                "id": "authority-root-ctpv-roles",
-                "kind": "program",
-                "label": "CtPV 角色群組",
-                "badge": "儲存 / 接收 / 關閉",
-                "detail": "Core 將其存為 development wallet，Player 要求它接收 appearance 關閉後的 lamports，Market 則把固定手續費目的地路由到它。",
-                "evidence": "Core 狀態 · Player [9] · Market 結算"
-              },
-              {
-                "id": "authority-root-9xuo-roles",
-                "kind": "program",
-                "label": "9Xuo 角色群組",
-                "badge": "治理角色",
-                "detail": "它同時是 Guardian treasury、Backpack 藍圖發行方、Civilization power authority，以及 Building 接受的兩個 Guardian 藍圖發布者之一。",
-                "evidence": "Guardian [0/8] · Backpack [9] · Civilization [4/5] · Building [8]"
-              },
-              {
-                "id": "authority-root-guardian-stake-exit",
-                "kind": "disabled",
-                "label": "Guardian stake 退出路徑",
-                "badge": "V2 目前無對應分支",
-                "detail": "註冊會把固定 NCK stake 轉入 registry 固定的 treasury token 託管帳戶；目前 V2 指令分派未公開提款、退款或 slash 結算指令。",
-                "evidence": "transfer_stake_to_treasury · 已停用標籤 3/4"
-              },
-              {
-                "id": "authority-root-upgrade-proof",
-                "kind": "disabled",
-                "label": "Loader 不可變性證據",
-                "badge": "此處未證實",
-                "detail": "程式碼註明 upgrade authority 應在外部關閉，但這十個程式的原始碼都不能證明已部署 ProgramData 的 upgrade-authority 狀態。",
-                "evidence": "請另行驗證已部署的 loader 帳戶"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "authority-root-core",
-            "to": "authority-root-global-config",
-            "label": "僅初始化一次"
-          },
-          {
-            "from": "authority-root-core",
-            "to": "authority-root-nck-mint",
-            "label": "驗證",
-            "kind": "proof"
-          },
-          {
-            "from": "authority-root-global-config",
-            "to": "authority-root-nck-mint",
-            "label": "固定",
-            "kind": "proof"
-          },
-          {
-            "from": "authority-root-ctpv-wallet",
-            "to": "authority-root-ctpv-roles",
-            "label": "被儲存 / 接收"
-          },
-          {
-            "from": "authority-root-global-config",
-            "to": "authority-root-ctpv-roles",
-            "label": "儲存錢包",
-            "kind": "proof"
-          },
-          {
-            "from": "authority-root-9xuo-wallet",
-            "to": "authority-root-9xuo-roles",
-            "label": "授權"
-          },
-          {
-            "from": "authority-root-program-set",
-            "to": "authority-root-ctpv-roles",
-            "label": "編譯期綁定"
-          },
-          {
-            "from": "authority-root-program-set",
-            "to": "authority-root-9xuo-roles",
-            "label": "編譯期綁定"
-          },
-          {
-            "from": "authority-root-9xuo-roles",
-            "to": "authority-root-guardian-stake-exit",
-            "label": "固定 treasury 託管",
-            "kind": "disabled"
-          },
-          {
-            "from": "authority-root-nck-mint",
-            "to": "authority-root-guardian-stake-exit",
-            "label": "stake 使用的 mint",
-            "kind": "proof"
-          },
-          {
-            "from": "authority-root-core",
-            "to": "authority-root-upgrade-proof",
-            "label": "需要 loader 證據",
-            "kind": "disabled"
-          },
-          {
-            "from": "authority-root-program-set",
-            "to": "authority-root-upgrade-proof",
-            "label": "需要 loader 證據",
-            "kind": "disabled"
-          }
-        ],
-        "evidence": [
-          "Core 指令分派僅接受標籤 0",
-          "GlobalConfig 未儲存管理員，也沒有更新分支",
-          "CtPV… 與 9Xuo… 是承擔多個角色的編譯期 Pubkey",
-          "Guardian V2 stake 在目前指令面中只能轉入",
-          "程式是否不可變仍取決於外部 ProgramData 事實"
-        ]
-      },
-      {
         "id": "authority-session-effective",
         "kicker": "Session Authority — 實際強制邊界",
         "title": "Session 實際強制身分、動作位與到期時間；儲存的動作預算並未生效。",
@@ -6199,178 +5106,6 @@
           "max_actions 與 action_count 不會限制目前呼叫",
           "Building 請求動作索引 1，而不是 PLACE_BLOCK 的索引 2",
           "不存在僅由 owner 發起的撤銷、關閉或最長有效期限制"
-        ]
-      },
-      {
-        "id": "authority-mutable-human-roles",
-        "kicker": "可變與開放的人為角色",
-        "title": "配方、Guardian operator 與藍圖路徑採用三種不同的信任模型。",
-        "body": "Smelting 配方表允許按 table ID 進行首次開放初始化，Guardian operator 由 treasury 輪替，藍圖發布或發行則使用固定錢包與 Building PDA。目前 Backpack 鍛造路徑與已發行的 BlueprintItem 證據彼此獨立。",
-        "lanes": [
-          {
-            "label": "人為簽名者",
-            "kind": "wallet",
-            "nodes": [
-              {
-                "id": "authority-roles-open-signer",
-                "kind": "wallet",
-                "label": "開放的外部簽名者",
-                "badge": "付款者或 owner",
-                "detail": "任意簽名者都可初始化尚未使用的 Smelting table_id 並成為其 authority；Backpack owner 還可另行呼叫已驗證的鍛造標籤 8。",
-                "evidence": "Smelting [0] / Backpack [8]"
-              },
-              {
-                "id": "authority-roles-guardian-treasury",
-                "kind": "wallet",
-                "label": "Guardian treasury",
-                "badge": "9Xuo…KVud",
-                "detail": "固定 treasury 簽署 Guardian 標籤 8，並可在一筆交易中取代區域內儲存的 operator。",
-                "evidence": "update_guardian_operator"
-              },
-              {
-                "id": "authority-roles-guardian-operator",
-                "kind": "wallet",
-                "label": "目前區域 operator",
-                "badge": "可變角色",
-                "detail": "已儲存的 operator 簽署 endpoint 更新。輪替 operator 時，舊 operator 與預定新 operator 都無需簽名。",
-                "evidence": "update_guardian_endpoint / set_operator"
-              },
-              {
-                "id": "authority-roles-blueprint-keys",
-                "kind": "wallet",
-                "label": "藍圖發布者金鑰",
-                "badge": "9Xuo… 或 2nRd…",
-                "detail": "Building 接受 treasury 或已設定的發布者來更新 Guardian 元資料；Backpack 標籤 9 僅接受 9Xuo… 作為 BlueprintItem 發行方。",
-                "evidence": "validate_guardian_blueprint_publisher / validate_blueprint_issuer"
-              }
-            ]
-          },
-          {
-            "label": "可變記錄",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "authority-roles-recipe-table",
-                "kind": "pda",
-                "label": "RecipeTable",
-                "badge": "[\"smelting-recipes\", tableId]",
-                "detail": "初始化付款者會成為 authority。標籤 1 允許該 authority upsert 配方；標籤 3 無需新 authority 接受即可寫入新金鑰，並允許使用預設金鑰。",
-                "evidence": "initialize_recipe_table / set_recipe_table_authority"
-              },
-              {
-                "id": "authority-roles-guardian-region",
-                "kind": "pda",
-                "label": "GuardianRegion",
-                "badge": "treasury owner，可變 operator",
-                "detail": "owner 欄位始終是固定 treasury，而 operator、endpoint 與 Guardian 藍圖元資料分別由不同更新分支處理。",
-                "evidence": "NCKGRG01"
-              }
-            ]
-          },
-          {
-            "label": "限定作用域的程式簽名者",
-            "kind": "pda",
-            "nodes": [
-              {
-                "id": "authority-roles-blueprint-pda",
-                "kind": "pda",
-                "label": "GuardianBlueprintAuthority",
-                "badge": "Building PDA",
-                "detail": "Building 衍生 [\"guardian-blueprint\", GlobalConfig]，並且只為 Guardian 標籤 6 的藍圖元資料 CPI 簽名。",
-                "evidence": "publish_guardian_blueprint"
-              }
-            ]
-          },
-          {
-            "label": "使用端分支",
-            "kind": "program",
-            "nodes": [
-              {
-                "id": "authority-roles-smelting-execute",
-                "kind": "program",
-                "label": "Smelting [2]",
-                "badge": "接受非 canonical 表",
-                "detail": "執行要求 RecipeTable 有效且歸 Smelting 所有，但不會重新衍生其 table_id PDA，也不會限定 canonical 表。其 smelting-authority PDA 會向 Backpack 附加輸出。",
-                "evidence": "execute_smelting / [\"smelting-authority\"]"
-              },
-              {
-                "id": "authority-roles-backpack-issue",
-                "kind": "program",
-                "label": "Backpack [9]",
-                "badge": "固定發行方",
-                "detail": "9Xuo… 發行方建立唯一的 BlueprintItem PDA，並把其物品引用附加到接收者的 Backpack。",
-                "evidence": "issue_blueprint"
-              },
-              {
-                "id": "authority-roles-backpack-forge",
-                "kind": "program",
-                "label": "Backpack [8]",
-                "badge": "無 BlueprintItem 門控",
-                "detail": "已驗證的鍛造會檢查 owner、由 NCF1 衍生的設計要求與材料輸入，但不接收 BlueprintItem 或固定發行方帳戶。",
-                "evidence": "forge_equipment_with_material_verification"
-              }
-            ]
-          }
-        ],
-        "links": [
-          {
-            "from": "authority-roles-open-signer",
-            "to": "authority-roles-recipe-table",
-            "label": "建立 / 成為 authority"
-          },
-          {
-            "from": "authority-roles-recipe-table",
-            "to": "authority-roles-smelting-execute",
-            "label": "提供已啟用配方"
-          },
-          {
-            "from": "authority-roles-open-signer",
-            "to": "authority-roles-smelting-execute",
-            "label": "owner 執行"
-          },
-          {
-            "from": "authority-roles-guardian-treasury",
-            "to": "authority-roles-guardian-region",
-            "label": "輪替 operator"
-          },
-          {
-            "from": "authority-roles-guardian-operator",
-            "to": "authority-roles-guardian-region",
-            "label": "更新 endpoint"
-          },
-          {
-            "from": "authority-roles-blueprint-keys",
-            "to": "authority-roles-blueprint-pda",
-            "label": "請求發布"
-          },
-          {
-            "from": "authority-roles-blueprint-pda",
-            "to": "authority-roles-guardian-region",
-            "label": "寫入元資料"
-          },
-          {
-            "from": "authority-roles-blueprint-keys",
-            "to": "authority-roles-backpack-issue",
-            "label": "9Xuo 發行"
-          },
-          {
-            "from": "authority-roles-open-signer",
-            "to": "authority-roles-backpack-forge",
-            "label": "owner 鍛造"
-          },
-          {
-            "from": "authority-roles-backpack-issue",
-            "to": "authority-roles-backpack-forge",
-            "label": "鍛造不要求此證據",
-            "kind": "disabled"
-          }
-        ],
-        "evidence": [
-          "任意未使用的 recipe table_id 都可由其付款者初始化",
-          "Recipe authority 轉移為單步操作，並接受未簽名的新金鑰",
-          "Guardian operator 輪替僅由 treasury 執行，且為單步操作",
-          "Guardian 發布受 PDA 作用域限制；Backpack 發行使用固定發行方",
-          "鍛造標籤 8 不會消耗或驗證 BlueprintItem 證據"
         ]
       },
       {

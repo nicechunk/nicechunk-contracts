@@ -20,6 +20,7 @@ import {
   derivePlayerEquipmentPda,
   deriveEquipmentTransferAuthorityPda,
   derivePlayerProfilePda,
+  deriveUsernameIndexPda,
   APPEARANCE_EQUIPMENT_SLOT_COUNT,
   APPEARANCE_EQUIPMENT_SLOT_LEN,
   APPEARANCE_MODEL_CODE_MAX_BYTES,
@@ -79,13 +80,10 @@ import {
   CHUNK_BROKEN_MAGIC,
   CHUNK_BROKEN_RECORD_LEN,
   FOUNDATION_CHUNK_HEADER_LEN,
-  FOUNDATION_CHUNK_LEN,
+  FOUNDATION_CHUNK_INITIAL_CAPACITY,
   FOUNDATION_CHUNK_MAGIC,
   FOUNDATION_CHUNK_RECORD_LEN,
   FOUNDATION_CHUNK_VERSION,
-  FOUNDATION_LEN,
-  FOUNDATION_MAGIC,
-  FOUNDATION_VERSION,
   RESOURCE_DROP_RULE_LEN,
   SURFACE_DECORATION_RULE_LEN,
   SURFACE_DECORATION_TABLE_HEADER_LEN,
@@ -96,23 +94,21 @@ import {
   createApplyCivilizationResourceDropRulesInstruction,
   createInitializeSurfaceDecorationTableInstruction,
   createInitializeResourceDropTableInstruction,
-  createFoundationInstruction,
   createMineBlockInstruction,
   createMineBlockWithRewardsInstruction,
   createBatchMineWithRewardsInstruction,
   createRangeMineWithRewardsInstruction,
   decodeChunkBrokenState,
   decodeFoundationChunkState,
-  decodeFoundationState,
   decodeSurfaceDecorationTable,
   deriveChunkBrokenPda,
   deriveFoundationChunkPda,
-  deriveFoundationPda,
   derivePlayerProgressPda,
   deriveResourceDropTablePda,
   deriveSurfaceDecorationTablePda,
   encodeSurfaceDecorationRules,
   encodeCivilizationResourceDropRulesPatch,
+  foundationChunkAccountLength,
   generatedBlockIdAt,
   NICECHUNK_CHUNK_PROGRAM_ID,
   resolveSurfaceDecorationAt,
@@ -145,12 +141,6 @@ describe("nicechunk player and mining SDK", () => {
       owner,
       programId: NICECHUNK_CHUNK_PROGRAM_ID,
     });
-    const [foundation] = deriveFoundationPda({
-      globalConfig,
-      owner,
-      foundationId: 7n,
-      programId: NICECHUNK_CHUNK_PROGRAM_ID,
-    });
     const [foundationChunk] = deriveFoundationChunkPda({
       globalConfig,
       chunkX: -1,
@@ -162,12 +152,6 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(playerAppearance.toBase58(), "85qpt8zVqoT7nHY9RxWfdQz12wdzoovsBvLqQ5N42a87");
     assert.equal(chunkBroken.toBase58(), "JCaDriShc3cnJGn4weuVsU266BLBjfFNzsw2z6GykKMY");
     assert.equal(playerProgress.toBase58(), "4aJHz4oKaydDYiVUu16y8u3HF3qFAjwnPT3y5TvzkH2t");
-    assert.equal(foundation.toBase58(), deriveFoundationPda({
-      globalConfig,
-      owner,
-      foundationId: "7",
-      programId: NICECHUNK_CHUNK_PROGRAM_ID,
-    })[0].toBase58());
     assert.equal(foundationChunk.toBase58(), deriveFoundationChunkPda({
       globalConfig,
       chunkX: -1,
@@ -176,9 +160,14 @@ describe("nicechunk player and mining SDK", () => {
     })[0].toBase58());
   });
 
-  it("builds initialize player account order", () => {
+  it("builds initialize player account order", async () => {
     const [playerProfile] = derivePlayerProfilePda(owner, NICECHUNK_PLAYER_PROGRAM_ID);
-    const ix = createInitializePlayerInstruction({ payer: owner, playerName: "Jerry_Miner" });
+    const [usernameIndex] = await deriveUsernameIndexPda({ playerName: "Jerry_Miner" });
+    const ix = createInitializePlayerInstruction({
+      payer: owner,
+      playerName: "Jerry_Miner",
+      usernameIndex,
+    });
 
     assert.equal(ix.programId.toBase58(), NICECHUNK_PLAYER_PROGRAM_ID.toBase58());
     assert.equal(ix.data.readUInt8(0), 0);
@@ -190,17 +179,20 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(ix.keys[1].isWritable, true);
     assert.equal(ix.keys[2].pubkey.toBase58(), globalConfig.toBase58());
     assert.equal(ix.keys[3].pubkey.toBase58(), SystemProgram.programId.toBase58());
+    assert.equal(ix.keys[4].pubkey.toBase58(), usernameIndex.toBase58());
   });
 
-  it("builds upsert player appearance instruction", () => {
+  it("builds upsert player appearance instruction", async () => {
     const [playerProfile] = derivePlayerProfilePda(owner, NICECHUNK_PLAYER_PROGRAM_ID);
     const [appearance] = derivePlayerAppearancePda(owner, NICECHUNK_PLAYER_PROGRAM_ID);
+    const [usernameIndex] = await deriveUsernameIndexPda({ playerName: "Jerry_Miner" });
     const ix = createUpsertPlayerAppearanceInstruction({
       authority: owner,
       displayName: "Jerry_Miner",
       title: "Genesis Miner",
       modelKind: 1,
       modelCode: "NCM2:test-model",
+      usernameIndex,
     });
 
     assert.equal(ix.programId.toBase58(), NICECHUNK_PLAYER_PROGRAM_ID.toBase58());
@@ -218,6 +210,7 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(ix.keys[2].isWritable, true);
     assert.equal(ix.keys[3].pubkey.toBase58(), globalConfig.toBase58());
     assert.equal(ix.keys[4].pubkey.toBase58(), SystemProgram.programId.toBase58());
+    assert.equal(ix.keys[5].pubkey.toBase58(), usernameIndex.toBase58());
   });
 
   it("builds initialize backpack with player profile guard", () => {
@@ -351,9 +344,9 @@ describe("nicechunk player and mining SDK", () => {
       modelCode,
     });
     assert.equal(transferEquipment.data.readUInt8(0), 13);
-    assert.equal(transferEquipment.keys[5].pubkey.toBase58(), equipmentBackpack.toBase58());
+    assert.equal(transferEquipment.keys[6].pubkey.toBase58(), equipmentBackpack.toBase58());
     assert.equal(
-      transferEquipment.keys[7].pubkey.toBase58(),
+      transferEquipment.keys[8].pubkey.toBase58(),
       deriveEquipmentTransferAuthorityPda()[0].toBase58(),
     );
     const swapEquipment = createSwapPlayerEquipmentSlotsInstruction({
@@ -373,12 +366,18 @@ describe("nicechunk player and mining SDK", () => {
     assert.equal(bindBackpack.keys[2].pubkey.toBase58(), backpack.toBase58());
     assert.equal(bindBackpack.keys[3].pubkey.toBase58(), SystemProgram.programId.toBase58());
 
-    const setName = createSetPlayerNameInstruction({ authority: owner, playerName: "New_Name_100" });
+    const usernameIndex = PublicKey.unique();
+    const setName = createSetPlayerNameInstruction({
+      authority: owner,
+      playerName: "New_Name_100",
+      usernameIndex,
+    });
     assert.equal(setName.data.readUInt8(0), 7);
     assert.equal(setName.data.subarray(1).toString("utf8"), "New_Name_100");
     assert.equal(setName.keys[0].pubkey.toBase58(), owner.toBase58());
     assert.equal(setName.keys[1].pubkey.toBase58(), derivePlayerProfilePda(owner, NICECHUNK_PLAYER_PROGRAM_ID)[0].toBase58());
     assert.equal(setName.keys[2].pubkey.toBase58(), globalConfig.toBase58());
+    assert.equal(setName.keys[4].pubkey.toBase58(), usernameIndex.toBase58());
   });
 
   it("decodes a player profile buffer", () => {
@@ -619,10 +618,12 @@ describe("nicechunk player and mining SDK", () => {
       owner,
       sessionAuthority,
       backpack,
+      actionId: 101n,
       block: { worldX: 1, worldY: 0, worldZ: 2, expectedBlockId: BLOCK_STONE },
     });
     assert.equal(rewardMineIx.data.readUInt8(0), 8);
-    assert.equal(rewardMineIx.keys.length, 12);
+    assert.equal(rewardMineIx.data.readBigUInt64LE(1), 101n);
+    assert.equal(rewardMineIx.keys.length, 14);
     assert.equal(rewardMineIx.keys[0].pubkey.toBase58(), sessionAuthority.toBase58());
     assert.equal(rewardMineIx.keys[1].pubkey.toBase58(), playerProfile.toBase58());
     assert.equal(rewardMineIx.keys[2].pubkey.toBase58(), playerSession.toBase58());
@@ -636,24 +637,26 @@ describe("nicechunk player and mining SDK", () => {
       programId: NICECHUNK_CHUNK_PROGRAM_ID,
     })[0].toBase58());
     assert.equal(rewardMineIx.keys[10].pubkey.toBase58(), backpack.toBase58());
-    assert.equal(rewardMineIx.keys[11].pubkey.toBase58(), SystemProgram.programId.toBase58());
+    assert.equal(rewardMineIx.keys[13].pubkey.toBase58(), SystemProgram.programId.toBase58());
 
     const batchMineIx = createBatchMineWithRewardsInstruction({
       payer: sessionAuthority,
       owner,
       sessionAuthority,
       backpack,
+      actionId: 102n,
       blocks: [
         { worldX: 1, worldY: 0, worldZ: 2, expectedBlockId: BLOCK_STONE },
         { worldX: 2, worldY: 0, worldZ: 2, expectedBlockId: BLOCK_STONE },
       ],
     });
     assert.equal(batchMineIx.data.readUInt8(0), 20);
-    assert.equal(batchMineIx.data.readUInt8(1), BATCH_MINE_MODE_DEBUG);
-    assert.equal(batchMineIx.data.readUInt8(2), 2);
-    assert.equal(batchMineIx.data.readInt32LE(3), 1);
-    assert.equal(batchMineIx.data.readInt32LE(15), 2);
-    assert.equal(batchMineIx.keys.length, 12);
+    assert.equal(batchMineIx.data.readBigUInt64LE(1), 102n);
+    assert.equal(batchMineIx.data.readUInt8(9), BATCH_MINE_MODE_DEBUG);
+    assert.equal(batchMineIx.data.readUInt8(10), 2);
+    assert.equal(batchMineIx.data.readInt32LE(11), 1);
+    assert.equal(batchMineIx.data.readInt32LE(23), 2);
+    assert.equal(batchMineIx.keys.length, 14);
     assert.equal(batchMineIx.keys[4].pubkey.toBase58(), chunkBroken.toBase58());
     assert.equal(batchMineIx.keys[10].pubkey.toBase58(), backpack.toBase58());
 
@@ -668,15 +671,17 @@ describe("nicechunk player and mining SDK", () => {
       owner,
       sessionAuthority,
       backpack,
+      actionId: 103n,
       blocks: rangeBlocks,
     });
     assert.equal(rangeMineIx.data.readUInt8(0), 21);
-    assert.equal(rangeMineIx.data.readUInt8(1), RANGE_MINE_MODE_DEBUG);
-    assert.equal(rangeMineIx.data.readUInt8(12), 16);
-    assert.equal(rangeMineIx.data.readUInt16LE(13), 5);
-    assert.equal(rangeMineIx.data.readUInt8(15), 8);
-    assert.equal(rangeMineIx.data.length, 1 + 15 + 80 + 480);
-    assert.equal(rangeMineIx.keys.length, 12);
+    assert.equal(rangeMineIx.data.readBigUInt64LE(1), 103n);
+    assert.equal(rangeMineIx.data.readUInt8(9), RANGE_MINE_MODE_DEBUG);
+    assert.equal(rangeMineIx.data.readUInt8(20), 16);
+    assert.equal(rangeMineIx.data.readUInt16LE(21), 5);
+    assert.equal(rangeMineIx.data.readUInt8(23), 8);
+    assert.equal(rangeMineIx.data.length, 24 + 80 + 1 + 1);
+    assert.equal(rangeMineIx.keys.length, 14);
     assert.equal(rangeMineIx.keys[4].pubkey.toBase58(), chunkBroken.toBase58());
     const maxRangeTransaction = new Transaction({
       feePayer: sessionAuthority,
@@ -691,87 +696,34 @@ describe("nicechunk player and mining SDK", () => {
     );
   });
 
-  it("builds and decodes foundation instructions and PDA state", () => {
+  it("decodes v3 FoundationChunk indexing state", () => {
     const foundationId = 42n;
-    const foundation = { minX: -1, minZ: 15, surfaceY: 101, width: 16, depth: 2 };
-    const instruction = createFoundationInstruction({
-      payer: sessionAuthority,
-      owner,
-      sessionAuthority,
-      foundationId,
-      foundation,
-    });
-    const [foundationPda] = deriveFoundationPda({
-      globalConfig,
-      owner,
-      foundationId,
-      programId: NICECHUNK_CHUNK_PROGRAM_ID,
-    });
-    assert.equal(instruction.data.length, 21);
-    assert.equal(instruction.data.readUInt8(0), 14);
-    assert.equal(instruction.data.readBigUInt64LE(1), foundationId);
-    assert.equal(instruction.data.readInt32LE(9), foundation.minX);
-    assert.equal(instruction.data.readInt16LE(13), foundation.surfaceY);
-    assert.equal(instruction.data.readInt32LE(15), foundation.minZ);
-    assert.equal(instruction.data.readUInt8(19), foundation.width);
-    assert.equal(instruction.data.readUInt8(20), foundation.depth);
-    assert.equal(instruction.keys.length, 10);
-    assert.equal(instruction.keys[3].pubkey.toBase58(), foundationPda.toBase58());
-    assert.equal(instruction.keys[6].pubkey.toBase58(), deriveFoundationChunkPda({
-      globalConfig,
-      chunkX: -1,
-      chunkZ: 0,
-      programId: NICECHUNK_CHUNK_PROGRAM_ID,
-    })[0].toBase58());
-    assert.equal(instruction.keys[9].pubkey.toBase58(), deriveFoundationChunkPda({
-      globalConfig,
-      chunkX: 0,
-      chunkZ: 1,
-      programId: NICECHUNK_CHUNK_PROGRAM_ID,
-    })[0].toBase58());
-
-    const stateData = Buffer.alloc(FOUNDATION_LEN);
-    stateData.write(FOUNDATION_MAGIC, 0, "utf8");
-    stateData.writeUInt8(FOUNDATION_VERSION, 8);
-    stateData.writeUInt8(221, 9);
-    stateData.writeUInt8(1, 10);
-    stateData.writeUInt8(4, 11);
-    owner.toBuffer().copy(stateData, 12);
-    globalConfig.toBuffer().copy(stateData, 44);
-    stateData.writeBigUInt64LE(foundationId, 76);
-    stateData.writeInt32LE(foundation.minX, 84);
-    stateData.writeInt32LE(foundation.minZ, 88);
-    stateData.writeInt16LE(foundation.surfaceY, 92);
-    stateData.writeUInt8(foundation.width, 94);
-    stateData.writeUInt8(foundation.depth, 95);
-    stateData.writeBigUInt64LE(999n, 96);
-    const decodedState = decodeFoundationState(stateData);
-    assert.equal(decodedState.owner.toBase58(), owner.toBase58());
-    assert.equal(decodedState.globalConfig.toBase58(), globalConfig.toBase58());
-    assert.equal(decodedState.foundationId, foundationId);
-    assert.equal(decodedState.createdSlot, 999n);
-
-    const chunkData = Buffer.alloc(FOUNDATION_CHUNK_LEN);
+    const foundation = { minX: -16, minZ: 0, surfaceY: 101, width: 16, depth: 16 };
+    const chunkData = Buffer.alloc(foundationChunkAccountLength(FOUNDATION_CHUNK_INITIAL_CAPACITY));
     chunkData.write(FOUNDATION_CHUNK_MAGIC, 0, "utf8");
     chunkData.writeUInt8(FOUNDATION_CHUNK_VERSION, 8);
     chunkData.writeUInt8(17, 9);
     chunkData.writeUInt16LE(1, 10);
-    globalConfig.toBuffer().copy(chunkData, 12);
-    chunkData.writeInt32LE(-1, 44);
-    chunkData.writeInt32LE(0, 48);
+    chunkData.writeUInt16LE(FOUNDATION_CHUNK_INITIAL_CAPACITY, 12);
+    globalConfig.toBuffer().copy(chunkData, 16);
+    chunkData.writeInt32LE(-1, 48);
+    chunkData.writeInt32LE(0, 52);
     const recordOffset = FOUNDATION_CHUNK_HEADER_LEN;
     owner.toBuffer().copy(chunkData, recordOffset);
     chunkData.writeBigUInt64LE(foundationId, recordOffset + 32);
     chunkData.writeInt32LE(foundation.minX, recordOffset + 40);
     chunkData.writeInt32LE(foundation.minZ, recordOffset + 44);
     chunkData.writeInt16LE(foundation.surfaceY, recordOffset + 48);
-    chunkData.writeUInt8(foundation.width, recordOffset + 50);
-    chunkData.writeUInt8(foundation.depth, recordOffset + 51);
-    assert.equal(chunkData.length, FOUNDATION_CHUNK_HEADER_LEN + 32 * FOUNDATION_CHUNK_RECORD_LEN);
+    chunkData.writeUInt32LE(foundation.width, recordOffset + 50);
+    chunkData.writeUInt32LE(foundation.depth, recordOffset + 54);
+    assert.equal(
+      chunkData.length,
+      FOUNDATION_CHUNK_HEADER_LEN + FOUNDATION_CHUNK_INITIAL_CAPACITY * FOUNDATION_CHUNK_RECORD_LEN,
+    );
     const decodedChunk = decodeFoundationChunkState(chunkData, { globalConfig, chunkX: -1, chunkZ: 0 });
     assert.equal(decodedChunk.count, 1);
     assert.equal(decodedChunk.records[0].foundationId, foundationId);
-    assert.equal(decodedChunk.records[0].minX, -1);
+    assert.equal(decodedChunk.records[0].minX, -16);
   });
 
   it("builds resource drop table and civilization adapter instructions", () => {

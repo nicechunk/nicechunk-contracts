@@ -144,6 +144,25 @@ export function createUpsertSmeltingRecipeInstruction({
   });
 }
 
+export function createDisableSmeltingRecipeInstruction({
+  authority,
+  recipeTable,
+  recipe,
+  smeltingProgramId = NICECHUNK_SMELTING_PROGRAM_ID,
+}: {
+  authority: PublicKey;
+  recipeTable: PublicKey;
+  recipe: SmeltingRecipeInput;
+  smeltingProgramId?: PublicKey;
+}): TransactionInstruction {
+  return createUpsertSmeltingRecipeInstruction({
+    authority,
+    recipeTable,
+    recipe: { ...recipe, enabled: false },
+    smeltingProgramId,
+  });
+}
+
 export function createExecuteSmeltingInstruction({
   owner,
   recipeTable,

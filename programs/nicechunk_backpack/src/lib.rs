@@ -6,7 +6,7 @@ use solana_program::{
     declare_id,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
-    program::invoke_signed,
+    program::{invoke_signed, set_return_data},
     pubkey::Pubkey,
     rent::Rent,
     system_instruction, system_program,
@@ -21,18 +21,16 @@ pub mod errors;
 pub mod state;
 
 use cluster_config::{
-    NICECHUNK_BLUEPRINT_ISSUER, NICECHUNK_BOOTSTRAP_AUTHORITY, NICECHUNK_CHUNK_PROGRAM_ID,
-    NICECHUNK_CORE_PROGRAM_ID, NICECHUNK_MARKET_PROGRAM_ID, NICECHUNK_PLAYER_PROGRAM_ID,
-    NICECHUNK_SKILLS_PROGRAM_ID, NICECHUNK_SMELTING_PROGRAM_ID,
+    NICECHUNK_BOOTSTRAP_AUTHORITY, NICECHUNK_CHUNK_PROGRAM_ID, NICECHUNK_CORE_PROGRAM_ID,
+    NICECHUNK_MARKET_PROGRAM_ID, NICECHUNK_PLAYER_PROGRAM_ID, NICECHUNK_SKILLS_PROGRAM_ID,
+    NICECHUNK_SMELTING_PROGRAM_ID,
 };
 use errors::{require_key_eq, NicechunkBackpackError};
 use state::{
     verified_forge_design, BackpackAccount, BackpackInitArgs, BackpackResourceRecord,
-    BackpackSlotRecord, BlueprintItemAccount, ForgeMaterialRequirements, ForgedItemAccount,
-    ForgedItemInitArgs, MaterialPhysicsTableState, MaterialPhysicsTableView, PlayerEquipmentView,
-    PlayerProfileView, PlayerSessionView, BACKPACK_BLUEPRINT_ITEM_CODE, BACKPACK_DEFAULT_CAPACITY,
-    BACKPACK_ITEM_CATEGORY_BLUEPRINT, BACKPACK_ITEM_FLAG_UNIQUE, BACKPACK_SEED,
-    BACKPACK_SLOT_KIND_ITEM, BLUEPRINT_ITEM_SEED, EQUIPMENT_TRANSFER_AUTHORITY_SEED,
+    BackpackSlotRecord, ForgeMaterialRequirements, ForgedItemAccount, ForgedItemInitArgs,
+    MaterialPhysicsTableState, MaterialPhysicsTableView, PlayerEquipmentView, PlayerProfileView,
+    PlayerSessionView, BACKPACK_DEFAULT_CAPACITY, BACKPACK_SEED, EQUIPMENT_TRANSFER_AUTHORITY_SEED,
     FORGED_ITEM_SEED, MATERIAL_PHYSICS_SEED, MAX_VERIFIED_FORGE_CODE_BYTES,
     SESSION_ACTION_BREAK_BLOCK,
 };
@@ -42,14 +40,20 @@ declare_id!("FwTrMDGyRg653L9svvt5aoGii9ZjX1WekSFWcwByjxqt");
 const CHUNK_BROKEN_MAGIC: [u8; 4] = *b"NCBK";
 const CHUNK_BROKEN_VERSION: u8 = 1;
 const CHUNK_BROKEN_SEED: &[u8] = b"chunk-broken";
+const CHUNK_PLACED_MAGIC: [u8; 4] = *b"NCPB";
+const CHUNK_PLACED_VERSION: u8 = 1;
+const CHUNK_PLACED_SEED: &[u8] = b"chunk-placed";
+const CHUNK_PLACED_HEADER_LEN: usize = 16;
+const CHUNK_PLACED_RECORD_LEN: usize = 9;
+const CHUNK_PLACED_MAX_CAPACITY: u16 = 2048;
 const GLOBAL_CONFIG_MAGIC: [u8; 8] = *b"NCKCFG01";
 const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
 const GLOBAL_CONFIG_DEVELOPMENT_WALLET_OFFSET: usize = 53;
 const GLOBAL_CONFIG_CHUNK_SIZE_OFFSET: usize = 259;
 const GLOBAL_CONFIG_LEN: usize = 293;
-const PLAYER_SKILLS_SEED: &[u8] = b"player-skills-v1";
-const PLAYER_SKILLS_MAGIC: [u8; 8] = *b"NCKSKL01";
-const PLAYER_SKILLS_VERSION: u16 = 1;
+const PLAYER_SKILLS_SEED: &[u8] = b"player-skills-v2";
+const PLAYER_SKILLS_MAGIC: [u8; 8] = *b"NCKSKL02";
+const PLAYER_SKILLS_VERSION: u16 = 2;
 const PLAYER_SKILLS_LEN: usize = 480;
 const PLAYER_SKILLS_OWNER_OFFSET: usize = 12;
 const PLAYER_SKILLS_GLOBAL_CONFIG_OFFSET: usize = 44;
@@ -79,12 +83,14 @@ pub fn process_instruction(
         6 => append_mined_resources_batch(program_id, accounts, payload),
         7 => Err(NicechunkBackpackError::UnverifiedForgeInstructionDisabled.into()),
         8 => forge_equipment_with_material_verification(program_id, accounts, payload),
-        9 => issue_blueprint(program_id, accounts, payload),
+        9 => Err(NicechunkBackpackError::InvalidInstruction.into()),
         10 => transfer_backpack_item_to_equipment(program_id, accounts, payload),
         11 => transfer_equipment_item_to_backpack(program_id, accounts, payload),
         12 => configure_material_physics(program_id, accounts, payload),
         13 => record_mining_action(program_id, accounts, payload),
         14 => consume_smelting_resources(program_id, accounts, payload),
+        15 => consume_placement_resource(program_id, accounts, payload),
+        16 => append_placed_resource(program_id, accounts, payload),
         _ => Err(NicechunkBackpackError::InvalidInstruction.into()),
     }
 }
@@ -173,6 +179,119 @@ fn consume_smelting_resources(
         &input_quantities,
         &fuel_indexes,
         &physics,
+        clock.slot,
+    )
+}
+
+fn consume_placement_resource(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    payload: &[u8],
+) -> ProgramResult {
+    const PAYLOAD_LEN: usize = 4 + 4 + 1 + state::BACKPACK_SLOT_RECORD_LEN;
+    if accounts.len() != 5 || payload.len() != PAYLOAD_LEN {
+        return Err(NicechunkBackpackError::InvalidInstruction.into());
+    }
+    let chunk_x = i32::from_le_bytes(
+        payload[0..4]
+            .try_into()
+            .map_err(|_| NicechunkBackpackError::InvalidInstruction)?,
+    );
+    let chunk_z = i32::from_le_bytes(
+        payload[4..8]
+            .try_into()
+            .map_err(|_| NicechunkBackpackError::InvalidInstruction)?,
+    );
+    let source_index = payload[8];
+    let expected_slot: [u8; state::BACKPACK_SLOT_RECORD_LEN] = payload[9..]
+        .try_into()
+        .map_err(|_| NicechunkBackpackError::InvalidInstruction)?;
+
+    let account_info_iter = &mut accounts.iter();
+    let chunk_placed = next_account_info(account_info_iter)?;
+    let global_config = next_account_info(account_info_iter)?;
+    let player_profile = next_account_info(account_info_iter)?;
+    let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let owner = validate_chunk_placed_authority(
+        program_id,
+        chunk_placed,
+        global_config,
+        player_profile,
+        backpack,
+        chunk_x,
+        chunk_z,
+    )?;
+    validate_material_physics_pda(program_id, material_physics)?;
+
+    let physics_data = material_physics.try_borrow_data()?;
+    let physics = MaterialPhysicsTableView::new(&physics_data)?;
+    let clock = Clock::get()?;
+    let mut backpack_data = backpack.try_borrow_mut_data()?;
+    let (block_id, volume_mm3) = BackpackAccount::consume_placement_resource(
+        &mut backpack_data,
+        &owner,
+        source_index,
+        &expected_slot,
+        &physics,
+        clock.slot,
+    )?;
+    let mut return_data = [0_u8; 6];
+    return_data[0..2].copy_from_slice(&block_id.to_le_bytes());
+    return_data[2..6].copy_from_slice(&volume_mm3.to_le_bytes());
+    set_return_data(&return_data);
+    Ok(())
+}
+
+fn append_placed_resource(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    payload: &[u8],
+) -> ProgramResult {
+    const PAYLOAD_LEN: usize = BackpackResourceRecord::LEN + 4 + 8;
+    if accounts.len() != 5 || payload.len() != PAYLOAD_LEN {
+        return Err(NicechunkBackpackError::InvalidInstruction.into());
+    }
+    let record = BackpackResourceRecord::unpack(&payload[..BackpackResourceRecord::LEN])?;
+    let volume_mm3 = read_u32(payload, BackpackResourceRecord::LEN);
+    let action_id = read_u64(payload, BackpackResourceRecord::LEN + 4);
+    if volume_mm3 == 0 || action_id == 0 {
+        return Err(NicechunkBackpackError::InvalidPlacementConsumption.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let chunk_placed = next_account_info(account_info_iter)?;
+    let global_config = next_account_info(account_info_iter)?;
+    let player_profile = next_account_info(account_info_iter)?;
+    let backpack = next_account_info(account_info_iter)?;
+    let material_physics = next_account_info(account_info_iter)?;
+    let (chunk_x, chunk_z) = chunk_coordinates_for_record(global_config, &record)?;
+    let owner = validate_chunk_placed_authority(
+        program_id,
+        chunk_placed,
+        global_config,
+        player_profile,
+        backpack,
+        chunk_x,
+        chunk_z,
+    )?;
+    validate_material_physics_pda(program_id, material_physics)?;
+
+    let physics_data = material_physics.try_borrow_data()?;
+    let physics = MaterialPhysicsTableView::new(&physics_data)?;
+    let slot = BackpackSlotRecord::from_block_resource_with_volume(record, volume_mm3);
+    let mass_grams = physics.block_mass_grams(slot.block_id()?, volume_mm3)?;
+    drop(physics_data);
+
+    let clock = Clock::get()?;
+    let mut backpack_data = backpack.try_borrow_mut_data()?;
+    BackpackAccount::record_mining_action(&mut backpack_data, &owner, action_id, clock.slot)?;
+    BackpackAccount::append_resource_with_volume(
+        &mut backpack_data,
+        &owner,
+        &record,
+        volume_mm3,
+        mass_grams,
         clock.slot,
     )
 }
@@ -349,6 +468,9 @@ fn transfer_backpack_item_to_equipment(
     };
     let clock = Clock::get()?;
     let mut backpack_data = backpack.try_borrow_mut_data()?;
+    if BackpackAccount::slot_at(&backpack_data, backpack_index)?.is_retired_blueprint() {
+        return Err(NicechunkBackpackError::InvalidInventoryItem.into());
+    }
     if let Some(previous) = previous_equipment {
         let physics_data = material_physics.try_borrow_data()?;
         MaterialPhysicsTableView::new(&physics_data)?.validate_mass(&previous)?;
@@ -443,108 +565,6 @@ fn validate_equipment_transfer_accounts(
     let equipment_data = player_equipment.try_borrow_data()?;
     PlayerEquipmentView::validate(&equipment_data, player_equipment.key, owner.key)
         .map_err(Into::into)
-}
-
-fn issue_blueprint(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
-    if accounts.len() != 5 || payload.len() != 8 {
-        return Err(NicechunkBackpackError::InvalidInstruction.into());
-    }
-    let item_id = read_u64(payload, 0);
-    if item_id == 0 {
-        return Err(NicechunkBackpackError::InvalidBlueprintItem.into());
-    }
-
-    let account_info_iter = &mut accounts.iter();
-    let issuer = next_account_info(account_info_iter)?;
-    let recipient = next_account_info(account_info_iter)?;
-    let backpack = next_account_info(account_info_iter)?;
-    let blueprint_item = next_account_info(account_info_iter)?;
-    let system_program_account = next_account_info(account_info_iter)?;
-
-    validate_blueprint_issuer(issuer)?;
-    if !backpack.is_writable || !blueprint_item.is_writable {
-        return Err(NicechunkBackpackError::InvalidWritableAccount.into());
-    }
-    require_key_eq(
-        system_program_account.key,
-        &system_program::ID,
-        NicechunkBackpackError::InvalidSystemProgram,
-    )?;
-    require_key_eq(
-        backpack.owner,
-        program_id,
-        NicechunkBackpackError::InvalidBackpackOwner,
-    )?;
-    validate_existing_backpack_pda(program_id, backpack, recipient.key)?;
-
-    let item_id_bytes = item_id.to_le_bytes();
-    let (expected_blueprint, bump) =
-        Pubkey::find_program_address(&[BLUEPRINT_ITEM_SEED, &item_id_bytes], program_id);
-    require_key_eq(
-        blueprint_item.key,
-        &expected_blueprint,
-        NicechunkBackpackError::InvalidBlueprintPda,
-    )?;
-    if blueprint_item.owner == program_id {
-        return Err(NicechunkBackpackError::BlueprintAlreadyIssued.into());
-    }
-    if blueprint_item.owner != &system_program::ID || blueprint_item.data_len() != 0 {
-        return Err(NicechunkBackpackError::InvalidSystemAccount.into());
-    }
-
-    create_blueprint_item_pda(
-        issuer,
-        blueprint_item,
-        system_program_account,
-        program_id,
-        item_id,
-        bump,
-    )?;
-
-    let clock = Clock::get()?;
-    {
-        let mut data = blueprint_item.try_borrow_mut_data()?;
-        BlueprintItemAccount::pack(
-            &mut data,
-            bump,
-            item_id,
-            recipient.key,
-            issuer.key,
-            clock.slot,
-        )?;
-    }
-
-    let mut record = BackpackSlotRecord {
-        kind: BACKPACK_SLOT_KIND_ITEM,
-        category: BACKPACK_ITEM_CATEGORY_BLUEPRINT,
-        flags: BACKPACK_ITEM_FLAG_UNIQUE,
-        quantity: 1,
-        resource: BackpackResourceRecord::default(),
-        item_code: BACKPACK_BLUEPRINT_ITEM_CODE,
-        item_id,
-        item_pda: *blueprint_item.key,
-        volume_mm3: 1,
-        durability_current: 1,
-        durability_max: 1,
-        grade: 1,
-        item_level: 1,
-        quality_bps: 10_000,
-        metadata: 0,
-    };
-    record.set_mass_grams(0)?;
-    let mut backpack_data = backpack.try_borrow_mut_data()?;
-    BackpackAccount::append_issued_item(&mut backpack_data, recipient.key, &record, clock.slot)
-}
-
-fn validate_blueprint_issuer(issuer: &AccountInfo) -> ProgramResult {
-    if !issuer.is_signer || !issuer.is_writable {
-        return Err(NicechunkBackpackError::InvalidBlueprintIssuer.into());
-    }
-    require_key_eq(
-        issuer.key,
-        &NICECHUNK_BLUEPRINT_ISSUER,
-        NicechunkBackpackError::InvalidBlueprintIssuer,
-    )
 }
 
 fn initialize_backpack(
@@ -1365,6 +1385,103 @@ fn validate_chunk_reward_authority(
     Ok(owner)
 }
 
+fn chunk_coordinates_for_record(
+    global_config: &AccountInfo,
+    record: &BackpackResourceRecord,
+) -> Result<(i32, i32), solana_program::program_error::ProgramError> {
+    let data = global_config.try_borrow_data()?;
+    if data.len() != GLOBAL_CONFIG_LEN || data[0..8] != GLOBAL_CONFIG_MAGIC {
+        return Err(NicechunkBackpackError::InvalidGlobalConfig.into());
+    }
+    let chunk_size = i32::from(read_u16(&data, GLOBAL_CONFIG_CHUNK_SIZE_OFFSET));
+    if chunk_size <= 0 {
+        return Err(NicechunkBackpackError::InvalidGlobalConfig.into());
+    }
+    Ok((
+        record.world_x.div_euclid(chunk_size),
+        record.world_z.div_euclid(chunk_size),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_chunk_placed_authority(
+    program_id: &Pubkey,
+    chunk_placed: &AccountInfo,
+    global_config: &AccountInfo,
+    player_profile: &AccountInfo,
+    backpack: &AccountInfo,
+    chunk_x: i32,
+    chunk_z: i32,
+) -> Result<Pubkey, solana_program::program_error::ProgramError> {
+    if !chunk_placed.is_signer {
+        return Err(NicechunkBackpackError::InvalidChunkPlacedAuthority.into());
+    }
+    if !backpack.is_writable {
+        return Err(NicechunkBackpackError::InvalidWritableAccount.into());
+    }
+    require_key_eq(
+        chunk_placed.owner,
+        &NICECHUNK_CHUNK_PROGRAM_ID,
+        NicechunkBackpackError::InvalidChunkPlacedAuthority,
+    )?;
+    require_key_eq(
+        player_profile.owner,
+        &NICECHUNK_PLAYER_PROGRAM_ID,
+        NicechunkBackpackError::InvalidPlayerProgram,
+    )?;
+    require_key_eq(
+        backpack.owner,
+        program_id,
+        NicechunkBackpackError::InvalidBackpackOwner,
+    )?;
+    validate_global_config(global_config)?;
+
+    let profile_data = player_profile.try_borrow_data()?;
+    let (owner, profile_global_config) = PlayerProfileView::owner_and_global_config(&profile_data)?;
+    drop(profile_data);
+    require_key_eq(
+        global_config.key,
+        &profile_global_config,
+        NicechunkBackpackError::InvalidGlobalConfig,
+    )?;
+    validate_existing_backpack_pda(program_id, backpack, &owner)?;
+
+    let chunk_x_bytes = chunk_x.to_le_bytes();
+    let chunk_z_bytes = chunk_z.to_le_bytes();
+    let (expected, bump) = Pubkey::find_program_address(
+        &[
+            CHUNK_PLACED_SEED,
+            global_config.key.as_ref(),
+            &chunk_x_bytes,
+            &chunk_z_bytes,
+        ],
+        &NICECHUNK_CHUNK_PROGRAM_ID,
+    );
+    require_key_eq(
+        chunk_placed.key,
+        &expected,
+        NicechunkBackpackError::InvalidChunkPlacedAuthority,
+    )?;
+    let data = chunk_placed.try_borrow_data()?;
+    if data.len() < CHUNK_PLACED_HEADER_LEN
+        || data[0..4] != CHUNK_PLACED_MAGIC
+        || data[4] != CHUNK_PLACED_VERSION
+        || data[5] != bump
+    {
+        return Err(NicechunkBackpackError::InvalidChunkPlacedAuthority.into());
+    }
+    let count = read_u16(&data, 6);
+    let capacity = read_u16(&data, 8);
+    if capacity == 0
+        || capacity > CHUNK_PLACED_MAX_CAPACITY
+        || count > capacity
+        || data.len() != CHUNK_PLACED_HEADER_LEN + capacity as usize * CHUNK_PLACED_RECORD_LEN
+    {
+        return Err(NicechunkBackpackError::InvalidChunkPlacedAuthority.into());
+    }
+    Ok(owner)
+}
+
 fn validate_existing_backpack_pda(
     program_id: &Pubkey,
     backpack: &AccountInfo,
@@ -1481,35 +1598,6 @@ fn create_material_physics_pda<'a>(
         &[
             authority.clone(),
             material_physics.clone(),
-            system_program_account.clone(),
-        ],
-        &[seeds],
-    )
-}
-
-fn create_blueprint_item_pda<'a>(
-    issuer: &AccountInfo<'a>,
-    blueprint_item: &AccountInfo<'a>,
-    system_program_account: &AccountInfo<'a>,
-    program_id: &Pubkey,
-    item_id: u64,
-    bump: u8,
-) -> ProgramResult {
-    let item_id_bytes = item_id.to_le_bytes();
-    let seeds = &[BLUEPRINT_ITEM_SEED, &item_id_bytes, &[bump]];
-    let rent = Rent::get()?;
-    let create = system_instruction::create_account(
-        issuer.key,
-        blueprint_item.key,
-        rent.minimum_balance(BlueprintItemAccount::LEN),
-        BlueprintItemAccount::LEN as u64,
-        program_id,
-    );
-    invoke_signed(
-        &create,
-        &[
-            issuer.clone(),
-            blueprint_item.clone(),
             system_program_account.clone(),
         ],
         &[seeds],

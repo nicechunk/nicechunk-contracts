@@ -22,8 +22,6 @@ pub enum NicechunkBuildingError {
     BuildSiteIndexingIncomplete = 6516,
     InvalidChunkProgram = 6517,
     InvalidChunkAuthority = 6518,
-    InvalidLegacyBuildSite = 6519,
-    LegacyBuildingMigrationRequired = 6520,
     InvalidBuildingPda = 6521,
     InvalidBuildingData = 6522,
     BuildingAlreadyExists = 6523,
@@ -36,9 +34,11 @@ pub enum NicechunkBuildingError {
     InvalidBuildingShardData = 6530,
     BuildingRevisionConflict = 6531,
     InvalidNcm3 = 6532,
-    InvalidGuardianProgram = 6533,
-    InvalidGuardianBlueprintAuthority = 6534,
-    InvalidGuardianBlueprintPublisher = 6535,
+    InvalidMarketProgram = 6536,
+    InvalidLandContractAuthority = 6537,
+    InvalidMarketUser = 6538,
+    InvalidLandContractCount = 6539,
+    BuildSiteNotCancelable = 6540,
 }
 
 impl From<NicechunkBuildingError> for ProgramError {

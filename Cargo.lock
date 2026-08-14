@@ -899,13 +899,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nicechunk_civilization"
-version = "0.1.0"
-dependencies = [
- "solana-program",
-]
-
-[[package]]
 name = "nicechunk_core"
 version = "0.1.0"
 dependencies = [
@@ -941,6 +934,13 @@ dependencies = [
 
 [[package]]
 name = "nicechunk_player"
+version = "0.1.0"
+dependencies = [
+ "solana-program",
+]
+
+[[package]]
+name = "nicechunk_skills"
 version = "0.1.0"
 dependencies = [
  "solana-program",

@@ -20,20 +20,20 @@ pub const TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9S
 
 pub const WORLD_ID: u16 = 1;
 pub const WORLD_SEED: [u8; 32] = [
-    110, 105, 99, 101, 99, 104, 117, 110, 107, 45, 109, 97, 105, 110, 110, 101, 116, 45, 48, 48,
-    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    186, 26, 157, 68, 97, 87, 197, 55, 175, 88, 252, 95, 245, 58, 40, 66, 44, 220, 106, 179, 221,
+    136, 218, 162, 64, 149, 219, 59, 217, 192, 240, 65,
 ];
 pub const TERRAIN_CONFIG_HASH: [u8; 32] = [
-    248, 133, 157, 0, 205, 174, 93, 47, 12, 124, 62, 38, 161, 173, 59, 238, 167, 27, 19, 109, 236,
-    32, 155, 21, 230, 212, 116, 128, 64, 163, 55, 212,
+    102, 240, 59, 92, 247, 50, 206, 249, 91, 222, 69, 201, 190, 239, 114, 112, 248, 133, 161, 145,
+    71, 20, 137, 22, 235, 49, 191, 32, 169, 2, 33, 8,
 ];
 pub const RESOURCE_RULE_HASH: [u8; 32] = [
     114, 32, 67, 125, 241, 70, 69, 189, 12, 27, 75, 84, 43, 146, 26, 69, 123, 216, 81, 6, 205, 35,
     117, 239, 235, 11, 204, 133, 127, 202, 138, 58,
 ];
 pub const CLIENT_WORLD_CONFIG_HASH: [u8; 32] = [
-    207, 189, 190, 186, 215, 6, 48, 61, 108, 3, 194, 126, 254, 6, 139, 220, 197, 20, 49, 16, 148,
-    38, 116, 3, 231, 86, 247, 141, 65, 188, 180, 72,
+    21, 60, 4, 234, 74, 63, 221, 241, 141, 253, 96, 238, 7, 2, 131, 11, 204, 59, 93, 146, 197, 179,
+    203, 18, 147, 45, 225, 110, 211, 254, 159, 135,
 ];
 
 pub const STARTER_PACK_MAX_PER_WALLET: u8 = 1;
@@ -52,22 +52,20 @@ pub const SOL_TO_DEVELOPMENT_BPS: u16 = 2000;
 pub const CHUNK_SIZE: u16 = 16;
 pub const SECTION_HEIGHT: u16 = 16;
 pub const MIN_BUILD_Y: i16 = -32;
-pub const MAX_BUILD_Y: i16 = 320;
-pub const MAX_TERRAIN_HEIGHT: i16 = 240;
-pub const SEA_LEVEL: i16 = 96;
+pub const MAX_BUILD_Y: i16 = 256;
+pub const MAX_TERRAIN_HEIGHT: i16 = 160;
+pub const SEA_LEVEL: i16 = 2;
 
 pub const GUARDIAN_REGION_SIZE_CHUNKS: u16 = 64;
 pub const GUARDIAN_REALTIME_RADIUS_CHUNKS: u16 = 16;
 pub const MINE_COOLDOWN_SLOTS: u16 = 2;
 
-/// Minimal one-time genesis account under the current program logic.
+/// Minimal immutable genesis account.
 ///
 /// There is no admin key, no mutable config authority, no pause flag, and no
 /// update instruction. The account stores only fixed public rules and hashes.
 /// The native program writes these values from constants compiled into the
-/// program, so the initializer cannot choose or alter genesis parameters. This
-/// source-level boundary does not prove the deployed ProgramData upgrade
-/// authority has been closed.
+/// program, so the initializer cannot choose or alter genesis parameters.
 pub struct GlobalConfig;
 
 impl GlobalConfig {

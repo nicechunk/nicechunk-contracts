@@ -11,7 +11,6 @@ import {
   decodeGuardianRegistry,
   deriveGuardianRegistryPda,
   deriveGuardianTreasuryAuthorityPda,
-  GUARDIAN_TREASURY_WALLET,
 } from "../sdk/nicechunk-guardian.ts";
 import { deriveGlobalConfigPda } from "../sdk/nicechunk-core.ts";
 import {
@@ -23,10 +22,7 @@ import {
 } from "./core-script-utils.ts";
 
 const conn = connection();
-const treasury = readPayerKeypair();
-if (!treasury.publicKey.equals(GUARDIAN_TREASURY_WALLET)) {
-  throw new Error(`Guardian registry initialization requires treasury ${GUARDIAN_TREASURY_WALLET.toBase58()}`);
-}
+const payer = readPayerKeypair();
 const selectedCoreProgramId = coreProgramId();
 const selectedGuardianProgramId = guardianProgramId();
 const selectedNckMint = nckMint();
@@ -44,7 +40,7 @@ const treasuryNckToken = getAssociatedTokenAddressSync(selectedNckMint, treasury
 if (process.env.DRY_RUN === "1") {
   console.log(JSON.stringify({
     status: "dry-run",
-    treasury: treasury.publicKey.toBase58(),
+    payer: payer.publicKey.toBase58(),
     coreProgramId: selectedCoreProgramId.toBase58(),
     guardianProgramId: selectedGuardianProgramId.toBase58(),
     globalConfig: globalConfig.toBase58(),
@@ -72,21 +68,21 @@ const tx = new Transaction();
 const treasuryTokenInfo = await conn.getAccountInfo(treasuryNckToken, "confirmed");
 if (!treasuryTokenInfo) {
   tx.add(createAssociatedTokenAccountInstruction(
-    treasury.publicKey,
+    payer.publicKey,
     treasuryNckToken,
     treasuryAuthority,
     selectedNckMint,
   ));
 }
 tx.add(createInitializeGuardianRegistryInstruction({
-  treasury: treasury.publicKey,
+  payer: payer.publicKey,
   treasuryNckToken,
   guardianProgramId: selectedGuardianProgramId,
   coreProgramId: selectedCoreProgramId,
   nckMint: selectedNckMint,
 }));
 
-const signature = await sendAndConfirmTransaction(conn, tx, [treasury], {
+const signature = await sendAndConfirmTransaction(conn, tx, [payer], {
   commitment: "confirmed",
   preflightCommitment: "confirmed",
 });
