@@ -952,13 +952,13 @@
       "sdk": "src/chain/nicechunkChain.js",
       "magic": "NCKMKT01",
       "accountSize": "ListingAccount: 216 bytes; MarketUser: 64 bytes",
-      "summary": "The unified Game/Market program settles item listings and maintains MarketUser v1 membership. A treasury purchase transfers exactly 1 NCK per blank land contract and credits the buyer's available contract balance without creating a Listing PDA.",
+      "summary": "The unified Game/Market program settles item listings and maintains MarketUser v1 membership. A treasury purchase transfers exactly 10 NCK per blank land contract and credits the buyer's available contract balance without creating a Listing PDA.",
       "instructions": [
         "0 create_listing",
         "1 cancel_listing",
         "2 buy_listing",
         "3 join_market",
-        "4 buy_treasury_contract at exactly 1 NCK per blank land contract",
+        "4 buy_treasury_contract at exactly 10 NCK per blank land contract",
         "5 reserve_blank_land_contracts for Building CPI",
         "6 consume_reserved_blank_land_contracts for Building CPI",
         "7 release_reserved_blank_land_contracts for Building CPI",
@@ -977,7 +977,7 @@
       ],
       "notes": [
         "Each wallet may have at most 50 active listings.",
-        "Each treasury purchase may buy 1 to 4,096 blank land contracts at a fixed price of 1 NCK each.",
+        "Each treasury purchase may buy 1 to 4,096 blank land contracts at a fixed price of 10 NCK each.",
         "Only the Building program's land-contract authority can reserve, consume, or release contract balances.",
         "Historical construction-item records are discarded and cannot be transferred or used to register land."
       ],

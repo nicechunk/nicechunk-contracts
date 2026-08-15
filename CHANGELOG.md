@@ -26,6 +26,7 @@ NiceChunk contract directory and source browser.
 
 ### Changed
 
+- Blank land contracts now cost a protocol-fixed `10 NCK` each across the Market program and contract explorer.
 - Runtime program selection now prefers aliases in `public/mainnet.json` and describes those values as client routing configuration rather than proof of deployed binaries or upgrade authority.
 - Contract navigation, responsive diagrams, program-detail wrapping, keyboard listbox behavior, mobile menu focus restoration, locale fallback, and stale-request protection were tightened across the directory UI.
 - The Game crate forwards exactly one selected cluster feature to each routed child crate and rejects missing or conflicting cluster features at compile time.

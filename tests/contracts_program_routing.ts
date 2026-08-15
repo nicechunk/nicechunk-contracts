@@ -105,8 +105,8 @@ describe("contract browser program routing", () => {
     const backpack = runtimeDictionary.programs.find((program: { id: string }) => program.id === "nicechunk-backpack");
 
     assert.deepStrictEqual(market.instructions.slice(0, 8).map((entry: string) => Number(entry.split(" ")[0])), [0, 1, 2, 3, 4, 5, 6, 7]);
-    assert.match(market.instructions[4], /exactly 1 NCK per blank land contract/);
-    assert.match(marketSource, /pub const BLANK_LAND_CONTRACT_PRICE_BASE_UNITS: u64 = 1_000_000;/);
+    assert.match(market.instructions[4], /exactly 10 NCK per blank land contract/);
+    assert.match(marketSource, /pub const BLANK_LAND_CONTRACT_PRICE_BASE_UNITS: u64 = 10_000_000;/);
     assert.match(marketSource, /4 => buy_treasury_contract/);
     assert.match(marketSource, /5 => update_land_contract_reservation/);
     assert.match(marketSource, /6 => update_land_contract_reservation/);

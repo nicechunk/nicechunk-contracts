@@ -90,7 +90,7 @@ External review should tie each contract claim to an authority gate, a public ev
 | Guardian Registry | Any payer may initialize the deterministic registry against the pinned treasury token account; region owners register NCK-staked services, operators submit proofs, and owners update endpoints. | `GuardianRegistry` and `GuardianRegion` owner, operator, endpoint, stake, proof, penalty, and settlement fields. | Guardian state is realtime-service evidence only. It neither gates land registration nor stores or proves building state. |
 | Backpack Inventory | Owner and authorized program signers control slot creation, removal, and delivery; direct tag `2` also accepts a `BREAK_BLOCK` session. | `Backpack` item count, fixed slot payloads, coordinates, material or forged-item identity, durability. | Construction-item issuance tag `9` is retired and always rejected; land contracts never occupy Backpack slots. |
 | Smelting Recipes | Any signer may first-initialize an unused table ID and become its authority; smelting authority mutates Backpack slots after selected-table validation. | `RecipeTable`, stored authority, recipe IDs, heat tiers, input/output volumes, disabled recipe flags. | Execution accepts any Smelting-owned table and has no canonical-table allowlist; verify table provenance independently. |
-| Marketplace | Seller signatures gate listings; treasury purchases debit exactly `1 NCK` per blank land contract; Building alone may reserve, consume, or release balances. | `MarketplaceListing` plus the owner's 64-byte `MarketUser` account. | Treasury contracts create no Listing PDA and consume no Backpack slot. Each wallet remains capped at 50 active listings. |
+| Marketplace | Seller signatures gate listings; treasury purchases debit exactly `10 NCK` per blank land contract; Building alone may reserve, consume, or release balances. | `MarketplaceListing` plus the owner's 64-byte `MarketUser` account. | Treasury contracts create no Listing PDA and consume no Backpack slot. Each wallet remains capped at 50 active listings. |
 | Civilization Rules | Rule targets, citizen signatures, power snapshots, caller-supplied tallies, and receipts are separate records. | `RuleBook`, `RuleSignature`, `RuleTally`, `ExecutionReceipt`, `PowerSnapshot`, `CitizenPower`. | `mainnet.json` omits Civilization, but that is not an on-chain disable switch. No voting window is enforced, threshold may be 1 bps, and the finalizer can omit available signatures. |
 
 ## PDA Seed Evidence
@@ -121,7 +121,7 @@ The contract directory now includes an `Instruction Surface Map` generated from 
 | `nicechunk_guardian` | `0-5` | Any tag above `5` | Tags `0-2` initialize and register services, `3` submits a proof, `4` settles a proof window, and `5` updates the realtime endpoint. |
 | `nicechunk_backpack` | `0-6`, `8`, `10-16` | `7` is disabled and retired construction-item tag `9` is invalid | Inventory, forging, material physics, skill recording, smelting, and placement remain active; land contracts are not Backpack items. |
 | `nicechunk_smelting` | `0-4` | Any tag above `4` | Recipe authority, execution, authority transfer, and Civilization recipe receipt application are all present. |
-| `nicechunk_market` | `0-7` | Any tag above `7` | Tag `3` joins the market, tag `4` buys treasury contracts for exactly `1 NCK` each, and tags `5-7` are Building-authority-only reserve/consume/release operations. |
+| `nicechunk_market` | `0-7` | Any tag above `7` | Tag `3` joins the market, tag `4` buys treasury contracts for exactly `10 NCK` each, and tags `5-7` are Building-authority-only reserve/consume/release operations. |
 | `nicechunk_civilization` | `0-5` | Any tag above `5` | The dispatcher is live source code; omission from `mainnet.json` describes current client routing, not an on-chain disable control. |
 
 ## CPI Authority Ledger
@@ -213,7 +213,7 @@ flowchart TB
     table -->|any valid Smelting-owned table| smelt["execute_smelting<br/>no canonical allowlist"]
     owner -->|update endpoint| region[(GuardianRegion PDA)]
     operator["Guardian region operator"] -->|submit proof| region
-    owner -->|Market tag 4<br/>1 NCK each| marketUser[(MarketUser PDA)]
+    owner -->|Market tag 4<br/>10 NCK each| marketUser[(MarketUser PDA)]
     landPda["Building land-contract PDA"] -->|reserve / consume / release| marketUser
   end
 
