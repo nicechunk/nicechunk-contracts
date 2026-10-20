@@ -17,6 +17,7 @@ use solana_program::{
 use solana_program::entrypoint;
 
 pub mod building;
+pub mod damage;
 pub mod cluster_config;
 pub mod errors;
 pub mod state;
@@ -66,6 +67,7 @@ pub fn process_instruction(
         4 => finalize_building(program_id, accounts, payload),
         5 => cancel_building_upload(program_id, accounts, payload),
         6 => cancel_build_site_indexing(program_id, accounts, payload),
+        7 => damage::demolish(program_id, accounts, payload),
         _ => Err(NicechunkBuildingError::InvalidInstruction.into()),
     }
 }

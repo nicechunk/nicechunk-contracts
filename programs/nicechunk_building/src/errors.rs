@@ -39,6 +39,9 @@ pub enum NicechunkBuildingError {
     InvalidMarketUser = 6538,
     InvalidLandContractCount = 6539,
     BuildSiteNotCancelable = 6540,
+    InvalidBuildingDamage = 6541,
+    BuildingVoxelAlreadyRemoved = 6542,
+    InvalidDemolitionTool = 6543,
 }
 
 impl From<NicechunkBuildingError> for ProgramError {
