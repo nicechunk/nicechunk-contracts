@@ -1,10 +1,10 @@
-//! Revision-scoped demolition masks. Debug NCM geometry has no resource payout.
+//! Revision-scoped air overrides with atomic material recovery.
 use solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult,
-    instruction::{AccountMeta, Instruction}, program::invoke, pubkey::Pubkey,
+    instruction::{AccountMeta, Instruction}, program::{invoke, invoke_signed}, pubkey::Pubkey,
 };
 use crate::{building::{BuildSiteState, BuildingManifestState, BUILD_SITE_STATUS_ACTIVE},
-    cluster_config::NICECHUNK_PLAYER_PROGRAM_ID, errors::{require_key_eq, NicechunkBuildingError as E}};
+    cluster_config::{NICECHUNK_PLAYER_PROGRAM_ID,NICECHUNK_MARKET_PROGRAM_ID}, errors::{require_key_eq, NicechunkBuildingError as E}};
 
 pub const DAMAGE_SEED: &[u8] = b"building-damage-v1";
 pub const DAMAGE_MAGIC: [u8; 8] = *b"NCKBDM01";
@@ -42,9 +42,9 @@ pub fn validate_mask(data: &[u8], global: &Pubkey, args: DamageArgs, height: u16
 }
 
 pub fn demolish(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
-    if accounts.len() != 11 { return Err(E::InvalidAccountCount.into()); }
+    if accounts.len() < 16 { return Err(E::InvalidAccountCount.into()); }
     let args = DamageArgs::unpack(payload)?;
-    let [authority, profile, session, site_account, manifest_account, mask, global, system, owner, equipment, player_program] = accounts else {
+    let [authority, profile, session, site_account, manifest_account, mask, global, system, owner, equipment, player_program] = &accounts[..11] else {
         return Err(E::InvalidAccountCount.into());
     };
     if !site_account.is_writable || !manifest_account.is_writable || !mask.is_writable || !equipment.is_writable {
@@ -71,6 +71,26 @@ pub fn demolish(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -
     require_key_eq(equipment.owner, &NICECHUNK_PLAYER_PROGRAM_ID, E::InvalidDemolitionTool)?;
     if !player_program.executable { return Err(E::InvalidPlayerProgram.into()); }
     validate_tool_identity(&equipment.try_borrow_data()?, &context.owner, profile.key, global.key, args)?;
+    let reward_authority=&accounts[11];let backpack=&accounts[12];let physics=&accounts[13];let game=&accounts[14];
+    require_key_eq(game.key, &NICECHUNK_MARKET_PROGRAM_ID, E::InvalidDemolitionReward)?;
+    if !game.executable || !backpack.is_writable { return Err(E::InvalidDemolitionReward.into()); }
+    let (expected_reward, reward_bump)=Pubkey::find_program_address(&[b"building-reward-v1",global.key.as_ref()],program_id);
+    require_key_eq(reward_authority.key,&expected_reward,E::InvalidDemolitionReward)?;
+    let material=verified_material(program_id,&accounts[15..],global.key,args,manifest)?;
+    if material==0 { return Err(E::InvalidDemolitionReward.into()); }
+    let (width,depth)=if manifest.quarter_turns%2==0 {(manifest.size_x,manifest.size_z)}else{(manifest.size_z,manifest.size_x)};
+    let (rx,rz)=match manifest.quarter_turns {
+        1=>(i64::from(manifest.size_z)-1-i64::from(args.z),i64::from(args.x)),
+        2=>(i64::from(manifest.size_x)-1-i64::from(args.x),i64::from(manifest.size_z)-1-i64::from(args.z)),
+        3=>(i64::from(args.z),i64::from(manifest.size_x)-1-i64::from(args.x)),
+        _=>(i64::from(args.x),i64::from(args.z)),
+    };
+    let wx=i32::try_from(i64::from(site.min_x)+(i64::from(site.width)-i64::from(width)).div_euclid(2)+i64::from(manifest.offset_x)+rx).map_err(|_|E::InvalidDemolitionReward)?;
+    let wz=i32::try_from(i64::from(site.min_z)+(i64::from(site.depth)-i64::from(depth)).div_euclid(2)+i64::from(manifest.offset_z)+rz).map_err(|_|E::InvalidDemolitionReward)?;
+    let y=i32::from(site.surface_y)+i32::from(args.y)-i32::from(context.config.min_build_y);
+    if !(0..512).contains(&y) {return Err(E::InvalidDemolitionReward.into());}
+    let resource=resource_block(material).ok_or(E::InvalidDemolitionReward)?;
+    let packed_y=((resource<<9)|(y as u16)) as i16;
     let id = args.foundation.to_le_bytes(); let revision = args.revision.to_le_bytes(); let section = args.section();
     let seeds = [DAMAGE_SEED, global.key.as_ref(), id.as_ref(), revision.as_ref(), section.as_ref()];
     let (expected, bump) = Pubkey::find_program_address(&seeds, program_id);
@@ -103,6 +123,14 @@ pub fn demolish(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -
         AccountMeta::new_readonly(*profile.key, false), AccountMeta::new_readonly(*session.key, false),
         AccountMeta::new(*equipment.key, false), AccountMeta::new_readonly(*global.key, false),
     ]}, &[authority.clone(), owner.clone(), profile.clone(), session.clone(), equipment.clone(), global.clone(), player_program.clone()])?;
+    // The air override, resource credit and tool wear commit together. A full
+    // backpack or failed credit rolls back every change, including a new mask.
+    let mut reward=vec![1,23];reward.extend_from_slice(&wx.to_le_bytes());reward.extend_from_slice(&packed_y.to_le_bytes());reward.extend_from_slice(&wz.to_le_bytes());
+    let bump=[reward_bump];let reward_seeds=[b"building-reward-v1".as_ref(),global.key.as_ref(),bump.as_ref()];
+    invoke_signed(&Instruction {program_id:*game.key,data:reward,accounts:vec![
+        AccountMeta::new_readonly(*reward_authority.key,true),AccountMeta::new_readonly(*global.key,false),
+        AccountMeta::new_readonly(*profile.key,false),AccountMeta::new(*backpack.key,false),AccountMeta::new_readonly(*physics.key,false),
+    ]},&[reward_authority.clone(),global.clone(),profile.clone(),backpack.clone(),physics.clone(),game.clone()],&[&reward_seeds])?;
     // A monotonic counter avoids missing two edits in the same slot. The spare
     // manifest bytes 134..136 identify damage; the original NCM hash is immutable.
     {
@@ -114,6 +142,26 @@ pub fn demolish(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -
     }
     site_account.try_borrow_mut_data()?[124..132].copy_from_slice(&context.clock.slot.to_le_bytes());
     Ok(())
+}
+
+fn verified_material(program_id:&Pubkey,accounts:&[AccountInfo],global:&Pubkey,args:DamageArgs,manifest:crate::building::BuildingManifestView)->Result<u16,solana_program::program_error::ProgramError>{
+    use crate::building::{BuildingShardState,BUILDING_SHARD_HEADER_LEN,building_shard_payload_len,hash_payload_slices,ncm3_material_at};
+    if accounts.len()!=usize::from(manifest.shard_count){return Err(E::InvalidAccountCount.into());}
+    for (i,a) in accounts.iter().enumerate(){
+        require_key_eq(a.owner,program_id,E::InvalidBuildingShardData)?;
+        crate::validate_building_shard_pda(program_id,a.key,global,args.foundation,args.revision,i as u8)?;
+    }
+    let data=accounts.iter().map(AccountInfo::try_borrow_data).collect::<Result<Vec<_>,_>>()?;
+    let mut slices=Vec::with_capacity(data.len());
+    for (i,d) in data.iter().enumerate(){
+        let shard=BuildingShardState::validate(d)?;
+        if shard.global_config!=*global||shard.foundation_id!=args.foundation||shard.revision!=args.revision
+            ||usize::from(shard.shard_index)!=i||shard.uploaded_len!=shard.payload_len
+            ||usize::from(shard.payload_len)!=building_shard_payload_len(manifest.payload_len,i as u8)?{return Err(E::InvalidBuildingShardData.into());}
+        slices.push(&d[BUILDING_SHARD_HEADER_LEN..]);
+    }
+    if hash_payload_slices(&slices)!=manifest.expected_hash{return Err(E::BuildingHashMismatch.into());}
+    Ok(ncm3_material_at(&slices,[args.x,args.y,args.z])?)
 }
 
 pub fn validate_tool_identity(data: &[u8], owner: &Pubkey, profile: &Pubkey, global: &Pubkey, args: DamageArgs) -> ProgramResult {
@@ -153,5 +201,46 @@ mod tests {
         bytes.extend_from_slice(&a.revision.to_le_bytes()); bytes.extend_from_slice(&[a.x,a.y,a.z,a.tool_slot]);
         bytes.extend_from_slice(a.item.as_ref()); assert_eq!(DamageArgs::unpack(&bytes).unwrap(),a);
         bytes[15]=9; assert!(DamageArgs::unpack(&bytes).is_err());
+    }
+}
+
+/// Canonical resource ids, matching chunk.js construction/building-resource.js.
+/// NCM processed finishes are appearances, not distinct inventory resources.
+pub fn resource_block(material:u16)->Option<u16>{
+    Some(match material {
+        16=>3,1..=47=>material,48..=52=>material+1,55..=57=>22,58..=61=>5,
+        62|63|71|74|75|96=>7,64|69|70=>3,65=>4,66=>14,67|97=>5,68=>6,72=>2,
+        73|98=>46,76|100=>15,77=>10,99=>47,101=>40,_=>return None,
+    })
+}
+
+#[cfg(test)]
+mod material_query_regression {
+    use super::*;
+    #[test]
+    fn query_matches_all_voxels_from_the_client_codec() {
+        let data=include_bytes!("../fixtures/ncm-point-query.bin");let mut o=0;
+        let u16_at=|o:usize|u16::from_le_bytes(data[o..o+2].try_into().unwrap()) as usize;
+        let models=u16_at(o);o+=2;
+        for _ in 0..models {
+            let len=u16_at(o);o+=2;let payload=&data[o..o+len];o+=len;
+            crate::building::validate_ncm3_payload(&[payload]).unwrap();
+            let points=u32::from_le_bytes(data[o..o+4].try_into().unwrap());o+=4;
+            for _ in 0..points {
+                let p=[data[o],data[o+1],data[o+2]];let expected=u16_at(o+3) as u16;o+=5;
+                assert_eq!(crate::building::ncm3_material_at(&[payload],p).unwrap(),expected,"point {:?}",p);
+            }
+        }
+        assert_eq!(o,data.len());
+    }
+    #[test]
+    fn inventory_mapping_matches_client_and_never_confuses_planks_with_pebbles() {
+        let bytes=include_bytes!("../fixtures/ncm-resource-map.bin");
+        for pair in bytes.chunks_exact(4) {
+            let m=u16::from_le_bytes(pair[..2].try_into().unwrap());let r=u16::from_le_bytes(pair[2..].try_into().unwrap());
+            assert_eq!(resource_block(m),Some(r));assert!((1..=55).contains(&r));
+        }
+        assert_eq!(resource_block(55),Some(22));assert_eq!(resource_block(64),Some(3));
+        assert_eq!(resource_block(58),Some(5));assert_eq!(resource_block(0),None);
     }
 }

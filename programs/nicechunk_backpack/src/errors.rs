@@ -54,6 +54,10 @@ pub enum NicechunkBackpackError {
     InvalidChunkPlacedAuthority = 6452,
     InvalidPlacementConsumption = 6453,
     PlacementSlotMismatch = 6454,
+    InvalidContainerGeometry = 6455,
+    ContainerTooComplex = 6456,
+    ContainerMaterialMismatch = 6457,
+    InvalidBuildingRewardAuthority = 6458,
 }
 
 impl From<NicechunkBackpackError> for ProgramError {

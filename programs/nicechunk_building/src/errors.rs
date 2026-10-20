@@ -42,6 +42,7 @@ pub enum NicechunkBuildingError {
     InvalidBuildingDamage = 6541,
     BuildingVoxelAlreadyRemoved = 6542,
     InvalidDemolitionTool = 6543,
+    InvalidDemolitionReward = 6544,
 }
 
 impl From<NicechunkBuildingError> for ProgramError {

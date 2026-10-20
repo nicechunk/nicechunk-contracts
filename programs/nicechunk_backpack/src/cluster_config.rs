@@ -28,3 +28,5 @@ pub const NICECHUNK_MARKET_PROGRAM_ID: Pubkey =
 #[cfg(not(feature = "unified-game"))]
 pub const NICECHUNK_SMELTING_PROGRAM_ID: Pubkey =
     pubkey!("7imEiNtpiN487HRwrftdLrMFs8TcAnjLE94vKsDgU6L7");
+
+pub const NICECHUNK_BUILDING_PROGRAM_ID: Pubkey = pubkey!("39UMTUWXQkuomkFNbDPF5NGZnJmG6pDkJHVSkZyqVwWx");

@@ -1042,6 +1042,64 @@ pub fn validate_ncm3_payload(slices: &[&[u8]]) -> Result<Ncm3Dimensions, Nicechu
     Ok(dimensions)
 }
 
+/// Query only one voxel from the authenticated paint stack. This avoids
+/// expanding an entire model merely to verify a demolition payout.
+pub fn ncm3_material_at(slices: &[&[u8]], point: [u8; 3]) -> Result<u16, NicechunkBuildingError> {
+    let mut reader = PayloadReader::new(slices);
+    if reader.read_byte()? != 1 { return Err(NicechunkBuildingError::InvalidNcm3); }
+    let size = read_vars::<3>(&mut reader)?;
+    if point.iter().zip(size).any(|(p, s)| u32::from(*p) >= s) { return Err(NicechunkBuildingError::InvalidBuildingDamage); }
+    let count = reader.read_var()?;
+    if count > NCM3_MAX_COMMANDS { return Err(NicechunkBuildingError::InvalidNcm3); }
+    let [px, py, pz] = point.map(i32::from);
+    let mut material = 0;
+    let mut paint = |m: u32, x: i32, y: i32, z: i32, w: i32, h: i32, d: i32| {
+        if px >= x && px < x+w && py >= y && py < y+h && pz >= z && pz < z+d { material = m as u16; }
+    };
+    for _ in 0..count {
+        let op = reader.read_byte()?;
+        let m = read_material(&mut reader)?;
+        match op {
+            1 => { let v = read_vars::<6>(&mut reader)?.map(|v| v as i32); paint(m,v[0],v[1],v[2],v[3]+1,v[4]+1,v[5]+1); }
+            2 => {
+                let v = read_vars::<10>(&mut reader)?;
+                for i in 0..=v[6] { let i=i as i32; paint(m,v[0] as i32+decode_signed_var(v[7])*i,v[1] as i32+decode_signed_var(v[8])*i,v[2] as i32+decode_signed_var(v[9])*i,(v[3]+1) as i32,(v[4]+1) as i32,(v[5]+1) as i32); }
+            }
+            3 | 6 | 7 | 8 | 9 | 10 => {
+                let v = read_vars::<5>(&mut reader)?.map(|v| v as i32);
+                let [x,y,z,w,d]=[v[0],v[1],v[2],v[3]+1,v[4]+1];
+                let layers=if op >= 8 {(d+1)/2} else {(w+1)/2};
+                for l in 0..layers {
+                    match op {
+                        3 => {paint(m,x+l,y+l,z,1,1,d);paint(m,x+w-1-l,y+l,z,1,1,d);}
+                        6 => {for a in [x+l,x+w-1-l] {for b in [z,z+d-1] {paint(m,a,y+l,b,1,1,1);}}}
+                        7 => paint(m,x+l,y+l,z,w-2*l,1,d),
+                        8 => {paint(m,x,y+l,z+l,w,1,1);paint(m,x,y+l,z+d-1-l,w,1,1);}
+                        9 => {for a in [x,x+w-1] {for b in [z+l,z+d-1-l] {paint(m,a,y+l,b,1,1,1);}}}
+                        _ => paint(m,x,y+l,z+l,w,1,d-2*l),
+                    }
+                }
+            }
+            4 => {
+                let leaves=read_material(&mut reader)?;
+                let v=read_vars::<5>(&mut reader)?.map(|v| v as i32);let [x,y,z,height,crown]=v;
+                let trunk=(height-crown).max(2);paint(m,x,y,z,2,trunk,2);
+                for l in 0..crown {let radius=(crown-l/2).max(1);paint(leaves,x-radius,y+trunk-1+l,z-1,radius*2+2,1,4);paint(leaves,x-1,y+trunk-1+l,z-radius,4,1,radius*2+2);}
+                paint(leaves,x,y+height-1,z,2,1,2);
+            }
+            5 => {
+                let v=read_vars::<6>(&mut reader)?.map(|v| v as i32);let [x,y,z,len,axis,spacing]=v;let len=len+1;
+                let (w,d)=if axis==0 {(len,1)} else {(1,len)};paint(m,x,y+1,z,w,1,d);paint(m,x,y+3,z,w,1,d);
+                for i in (0..len).step_by(spacing.max(1) as usize) {paint(m,x+if axis==0{i}else{0},y,z+if axis==1{i}else{0},1,5,1);}
+                paint(m,x+if axis==0{len-1}else{0},y,z+if axis==1{len-1}else{0},1,5,1);
+            }
+            _ => return Err(NicechunkBuildingError::InvalidNcm3),
+        }
+    }
+    if !reader.done() { return Err(NicechunkBuildingError::InvalidNcm3); }
+    Ok(material)
+}
+
 struct PayloadReader<'a> {
     slices: &'a [&'a [u8]],
     slice_index: usize,

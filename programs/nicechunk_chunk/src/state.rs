@@ -62,6 +62,23 @@ pub const CANONICAL_WORLD_SEED: [u8; 32] = [
     110, 105, 99, 101, 99, 104, 117, 110, 107, 45, 109, 97, 105, 110, 110, 101, 116, 45, 48, 48,
     49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
+const CANONICAL_PREHASHED_SALTS: [u32; 602] = canonical_prehashed_salts();
+
+const fn canonical_prehashed_salts() -> [u32; 602] {
+    let mut hashes = [0_u32; 602];
+    let mut salt = 0;
+    while salt < hashes.len() {
+        let mut hash = 0x811c_9dc5_u32 ^ salt as u32;
+        let mut i = 0;
+        while i < CANONICAL_WORLD_SEED.len() {
+            hash = (hash ^ CANONICAL_WORLD_SEED[i] as u32).wrapping_mul(0x0100_0193);
+            i += 1;
+        }
+        hashes[salt] = hash;
+        salt += 1;
+    }
+    hashes
+}
 pub const CANONICAL_CHUNK_SIZE: u16 = 16;
 pub const CANONICAL_MIN_BUILD_Y: i16 = -32;
 pub const CANONICAL_MAX_BUILD_Y: i16 = 320;
@@ -117,8 +134,11 @@ pub const BATCH_MINE_EXTRA_DROP_CHANCE_BPS: u16 = 5_000;
 pub const RANGE_MINE_MAX_BLOCKS: usize = 640;
 pub const RANGE_MINE_MAX_PALETTE_SIZE: usize = 8;
 pub const RANGE_MINE_MODE_DEBUG: u8 = 1;
-pub const RANGE_MINE_MODE_EXPLOSIVE: u8 = 2;
+pub const RANGE_MINE_MODE_SUPPORT_PRIMARY: u8 = 2;
+pub const RANGE_MINE_MODE_SUPPORT_COLLAPSE: u8 = 3;
 pub const RANGE_MINE_BASE_DROP_CHANCE_BPS: u16 = 500;
+pub const RANGE_MINE_SUPPORT_PRIMARY_DROP_CHANCE_BPS: u16 = 10_000;
+pub const RANGE_MINE_SUPPORT_COLLAPSE_DROP_CHANCE_BPS: u16 = 3_000;
 pub const RANGE_MINE_SECONDARY_CANDIDATE_CHANCE_BPS: u16 = 100;
 pub const RANGE_MINE_SECONDARY_PROOF_LIMIT: usize = 2;
 pub const RANGE_MINE_MAX_REWARDS: usize = 16;
@@ -229,6 +249,376 @@ impl GeneratedBlockArgs {
     }
 }
 
+// Instruction-local caches only contain immutable, canonically generated data.
+// No player modifications or client-provided terrain enter these caches.
+pub struct PlacementGenerationCache<'a> {
+    config: &'a GlobalConfigView,
+    surface_heights: Vec<(i32, i32, i16, GeneratedTerrainFactors)>,
+    trees: Vec<(i32, i32, Option<PlacementTreeCandidate>)>,
+    noise: Option<PlacementNoiseCache<'a>>,
+}
+
+impl<'a> PlacementGenerationCache<'a> {
+    const MAX_SURFACE_HEIGHTS: usize = 64;
+
+    pub fn new(config: &'a GlobalConfigView) -> Self {
+        Self {
+            config,
+            surface_heights: Vec::with_capacity(Self::MAX_SURFACE_HEIGHTS),
+            trees: Vec::with_capacity(Self::MAX_SURFACE_HEIGHTS),
+            // Mined targets with player-built support require no generation.
+            noise: None,
+        }
+    }
+
+    fn surface_height(&mut self, x: i32, z: i32) -> i16 {
+        if let Some((_, _, height, _)) = self
+            .surface_heights
+            .iter()
+            .find(|(cached_x, cached_z, _, _)| *cached_x == x && *cached_z == z)
+        {
+            return *height;
+        }
+        let noise = self.noise
+            .get_or_insert_with(|| PlacementNoiseCache::new(&self.config.world_seed));
+        let mut sample = |x, z, scale, salt| noise.value(x, z, scale, salt);
+        let terrain = generated_terrain_factors_with_noise(self.config, x, z, &mut sample);
+        let height = generated_surface_height_from_terrain(self.config, terrain, &mut sample);
+        if self.surface_heights.len() < Self::MAX_SURFACE_HEIGHTS {
+            self.surface_heights.push((x, z, height, terrain));
+        }
+        height
+    }
+
+    fn tree_candidate(&mut self, x: i32, z: i32, surface: i16) -> Option<PlacementTreeCandidate> {
+        if let Some((_, _, candidate)) = self
+            .trees
+            .iter()
+            .find(|(cx, cz, _)| *cx == x && *cz == z)
+        {
+            return *candidate;
+        }
+        let terrain = self
+            .surface_heights
+            .iter()
+            .find(|(cx, cz, _, _)| *cx == x && *cz == z)
+            .map(|(_, _, _, terrain)| *terrain);
+        let noise = self.noise
+            .get_or_insert_with(|| PlacementNoiseCache::new(&self.config.world_seed));
+        let mut sample = |x, z, scale, salt| noise.value(x, z, scale, salt);
+        let candidate = if generated_can_grow_tree_with_noise(self.config, x, z, surface, &mut sample) {
+            let growth = generated_tree_growth_profile_with_noise(
+                self.config, x, z, surface, terrain, &mut sample,
+            );
+            Some(PlacementTreeCandidate {
+                cell_size: growth.cell_size,
+                density: growth.density,
+                tree: generated_tree_from_profile(self.config, x, z, surface, growth.pine),
+            })
+        } else {
+            None
+        };
+        if self.trees.len() < Self::MAX_SURFACE_HEIGHTS {
+            self.trees.push((x, z, candidate));
+        }
+        candidate
+    }
+
+    fn tree_candidate_can_match(
+        &mut self,
+        x: i32,
+        z: i32,
+        y: i16,
+        cell_size: i32,
+        roll: u32,
+        query: (i32, i32),
+    ) -> bool {
+        if let Some((_, _, candidate)) = self
+            .trees
+            .iter()
+            .find(|(cx, cz, _)| *cx == x && *cz == z)
+        {
+            return candidate
+                .map(|candidate| candidate.cell_size == cell_size && roll > candidate.density)
+                .unwrap_or(false);
+        }
+        // Necessary bounds only. A tree touching this cell must be rooted within
+        // nine vertical blocks, above the shoreline. Enumerate those few possible
+        // root heights with conservative river/material adjustments, before
+        // paying for the actual terrain height. A match still needs full proof.
+        let config = self.config;
+        let max_surface = config.min_build_y.saturating_add(8).max(
+            config
+                .max_terrain_height
+                .min(config.max_build_y.saturating_sub(1)),
+        );
+        let radius = x
+            .saturating_sub(query.0)
+            .abs()
+            .max(z.saturating_sub(query.1).abs());
+        let (min_height, max_height) = match radius {
+            0 => (1, TREE_MAX_BLOCK_HEIGHT_ABOVE_SURFACE),
+            1 => (2, 8),
+            _ => (2, 7),
+        };
+        let low = y
+            .saturating_sub(max_height)
+            .max(config.sea_level.saturating_add(2))
+            .max(config.min_build_y.saturating_add(8));
+        let high = y.saturating_sub(min_height).min(max_surface);
+        if low > high {
+            return false;
+        }
+        let noise = self.noise
+            .get_or_insert_with(|| PlacementNoiseCache::new(&config.world_seed));
+        let mut sample = |x, z, scale, salt| noise.value(x, z, scale, salt);
+        let moisture = generated_moisture_at_with_noise(config, x, z, &mut sample) as i32;
+        let snow_line = generated_snow_line_at_with_noise(config, x, z, &mut sample);
+        let patch = sample(x, z, 260, 406);
+        let (patch_size, patch_density) = if patch > 204 {
+            (-1, -24)
+        } else if patch < 58 {
+            (1, 14)
+        } else {
+            (0, 0)
+        };
+        'surface: for surface in low..=high {
+            let altitude = surface.saturating_sub(config.sea_level) as i32;
+            let (mut size, mut density) = tree_base_growth(moisture, altitude);
+            if altitude <= 6 {
+                size += 2;
+                density += 22;
+            }
+            if altitude >= 36 {
+                size += 1;
+                density += 12;
+            }
+            if altitude >= 54 {
+                size += 1;
+                density += 14;
+            }
+            if surface >= snow_line.saturating_sub(10) {
+                size += 1;
+                density += 12;
+            }
+            if surface >= snow_line {
+                size += 1;
+                density += 12;
+            }
+            let river_adjustment = i32::from(altitude > 6 && altitude <= 18);
+            for river in 0..=river_adjustment {
+                for material in 0..=1 {
+                    let possible_size = (size + river + material + patch_size).clamp(6, 14);
+                    // Mud/clay reduce density by 8 without changing size;
+                    // size-changing surface types add at least 8. The optional
+                    // open-river penalty is nonnegative, so omitting it is safe.
+                    let material_density = if material == 0 { -8 } else { 8 };
+                    let min_density = (density + river * 10 + material_density + patch_density)
+                        .clamp(128, 250) as u32;
+                    if possible_size == cell_size && roll > min_density {
+                        if radius < 2 {
+                            // Inner layers rarely reject a possible root. Keep
+                            // their cheap bound instead of extra canopy hashes.
+                            return true;
+                        }
+                        // Height and canopy hashes are fully determined by each
+                        // possible root height, before reconstructing terrain.
+                        let pine =
+                            generated_tree_is_pine(config, x, z, surface, moisture, snow_line);
+                        let tree = generated_tree_from_profile(config, x, z, surface, pine);
+                        if generated_tree_volume_block(config, &tree, query.0, y, query.1)
+                            != BLOCK_AIR
+                        {
+                            return true;
+                        }
+                        continue 'surface;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    pub fn is_occupied(&mut self, args: &GeneratedBlockArgs) -> bool {
+        // Every valid cell at/below sea level contains either terrain or water.
+        // The authenticated broken-cell record is checked by the caller first.
+        args.y <= self.config.sea_level || self.cell_at(args) != PlacementCell::Air
+    }
+
+    pub fn supports_block(&mut self, args: &GeneratedBlockArgs) -> bool {
+        self.cell_at(args) == PlacementCell::Solid
+    }
+
+    fn cell_at(&mut self, args: &GeneratedBlockArgs) -> PlacementCell {
+        let config = self.config;
+        if args.y <= config.min_build_y || generated_guaranteed_deep_block_id(config, args).is_some() {
+            return PlacementCell::Solid;
+        }
+        let max_surface = config.min_build_y.saturating_add(8).max(
+            config
+                .max_terrain_height
+                .min(config.max_build_y.saturating_sub(1)),
+        );
+        if args.y > config.max_build_y
+            || args.y > max_surface.saturating_add(TREE_MAX_BLOCK_HEIGHT_ABOVE_SURFACE)
+        {
+            return PlacementCell::Air;
+        }
+        let x = args.world_x(config);
+        let z = args.world_z(config);
+        let surface = self.surface_height(x, z);
+        if args.y <= surface {
+            // All canonical terrain materials are blocking; material identity
+            // is unnecessary for support/occupancy validation.
+            return PlacementCell::Solid;
+        }
+        if generated_water_level(config, x, z, surface)
+            .map(|y| args.y <= y)
+            .unwrap_or(false)
+        {
+            return PlacementCell::Water;
+        }
+        if generated_tree_block_id_at_with_cache(config, x, args.y, z, Some(self), true) != BLOCK_AIR {
+            PlacementCell::Solid
+        } else {
+            PlacementCell::Air
+        }
+    }
+
+    #[cfg(test)]
+    pub fn block_id_at(&mut self, args: &GeneratedBlockArgs) -> u16 {
+        let config = self.config;
+        if let Some(block_id) = generated_guaranteed_deep_block_id(config, args) {
+            return block_id;
+        }
+        let surface = self.surface_height(args.world_x(config), args.world_z(config));
+        generated_block_id_at_surface_with_cache(config, args, surface, Some(self))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlacementCell {
+    Air,
+    Water,
+    Solid,
+}
+
+#[derive(Clone, Copy)]
+struct PlacementTreeCandidate {
+    cell_size: i32,
+    density: u32,
+    tree: GeneratedTree,
+}
+
+#[derive(Clone, Copy)]
+struct NoiseLattice {
+    cell_x: i32,
+    cell_z: i32,
+    scale: i32,
+    salt: u32,
+    corners: [u32; 4],
+}
+
+impl NoiseLattice {
+    const EMPTY: Self = Self {
+        cell_x: 0,
+        cell_z: 0,
+        scale: 0,
+        salt: 0,
+        corners: [0; 4],
+    };
+}
+
+#[derive(Clone, Copy)]
+struct NoiseSample {
+    x: i32,
+    z: i32,
+    scale: i32,
+    salt: u32,
+    value: u32,
+}
+
+impl NoiseSample {
+    const EMPTY: Self = Self { x: 0, z: 0, scale: 0, salt: 0, value: 0 };
+}
+
+// Nearby columns usually interpolate the same four lattice hashes. Cache them
+// directly instead of rehashing the seed and all corners for every column.
+// Collisions only evict an entry; they can never change a sampled value.
+struct PlacementNoiseCache<'a> {
+    seed: &'a [u8; 32],
+    lattices: Vec<NoiseLattice>,
+    samples: Vec<NoiseSample>,
+}
+
+impl<'a> PlacementNoiseCache<'a> {
+    const CAPACITY: usize = 256;
+
+    fn new(seed: &'a [u8; 32]) -> Self {
+        Self {
+            seed,
+            lattices: vec![NoiseLattice::EMPTY; Self::CAPACITY],
+            // Only these unwarped biome/forest bands are repeatedly sampled at
+            // identical coordinates. Terrain bands retain the lattice cache.
+            samples: vec![NoiseSample::EMPTY; 14],
+        }
+    }
+
+    fn value(&mut self, x: i32, z: i32, scale: i32, salt: u32) -> u32 {
+        let index = match salt {
+            201..=213 => (salt - 201) as usize,
+            406 => 13,
+            _ => return self.lattice_value(x, z, scale, salt),
+        };
+        let sample = self.samples[index];
+        if sample.scale == scale && sample.salt == salt && sample.x == x && sample.z == z {
+            // Exact hits avoid both coordinate division and interpolation.
+            return sample.value;
+        }
+        let value = self.lattice_value(x, z, scale, salt);
+        self.samples[index] = NoiseSample { x, z, scale, salt, value };
+        value
+    }
+
+    fn lattice_value(&mut self, x: i32, z: i32, scale: i32, salt: u32) -> u32 {
+        // Canonical salts have separate four-cell banks. Neighboring columns
+        // then keep their lattice entries instead of evicting other noise bands.
+        // Full keys below still validate every hit, including fallback salts.
+        let band = match salt {
+            21..=49 => salt - 21,
+            103..=108 => salt - 74,
+            201..=213 => salt - 166,
+            406 => 48,
+            _ => salt & 63,
+        };
+        let band = if salt == 47 && scale == 176 { 49 } else { band };
+        let cell_x = div_floor_i32(x, scale);
+        let cell_z = div_floor_i32(z, scale);
+        let index = (band as usize * 4)
+            | (cell_x as usize & 1)
+            | ((cell_z as usize & 1) << 1);
+        let lattice = &mut self.lattices[index];
+        if lattice.scale != scale
+            || lattice.salt != salt
+            || lattice.cell_x != cell_x
+            || lattice.cell_z != cell_z
+        {
+            let base = seed_salt_hash(self.seed, salt);
+            *lattice = NoiseLattice {
+                cell_x,
+                cell_z,
+                scale,
+                salt,
+                corners: noise_lattice_corners(base, cell_x, cell_z),
+            };
+        }
+        let [a, b, c, d] = lattice.corners;
+        let tx = smooth_fixed(positive_mod_i32(x, scale), scale);
+        let tz = smooth_fixed(positive_mod_i32(z, scale), scale);
+        lerp_fixed(lerp_fixed(a, b, tx), lerp_fixed(c, d, tx), tz)
+    }
+}
+
 pub fn generated_block_id_at(global_config: &GlobalConfigView, args: &GeneratedBlockArgs) -> u16 {
     if let Some(block_id) = generated_guaranteed_deep_block_id(global_config, args) {
         return block_id;
@@ -267,6 +657,15 @@ pub fn generated_block_id_at_surface(
     args: &GeneratedBlockArgs,
     surface: i16,
 ) -> u16 {
+    generated_block_id_at_surface_with_cache(global_config, args, surface, None)
+}
+
+fn generated_block_id_at_surface_with_cache(
+    global_config: &GlobalConfigView,
+    args: &GeneratedBlockArgs,
+    surface: i16,
+    cache: Option<&mut PlacementGenerationCache<'_>>,
+) -> u16 {
     let world_x = args.world_x(global_config);
     let world_z = args.world_z(global_config);
 
@@ -287,7 +686,9 @@ pub fn generated_block_id_at_surface(
                 return BLOCK_WATER;
             }
         }
-        let tree_block = generated_tree_block_id_at(global_config, world_x, args.y, world_z);
+        let tree_block = generated_tree_block_id_at_with_cache(
+            global_config, world_x, args.y, world_z, cache, false,
+        );
         if tree_block != BLOCK_AIR {
             return tree_block;
         }
@@ -354,6 +755,15 @@ pub struct TreeFellBlock {
 
 pub fn is_tree_trunk_block(block_id: u16) -> bool {
     block_id == BLOCK_TRUNK || block_id == BLOCK_PINE_TRUNK
+}
+
+pub const BLOCK_TWIG:u16=54;
+pub const BLOCK_STONE_FRAGMENT:u16=55;
+pub const TWIG_VOLUME_MM3:u32=250_000;
+// Fixed coordinate roll: the same removed leaf can never be rerolled with a nonce or wallet.
+pub fn leaf_twig_drop(config:&GlobalConfigView,x:i32,y:i16,z:i32,block:u16)->Option<ResourceExtraDrop> {
+    (is_tree_leaf_block(block) && hash_coord3(&config.world_seed,x,y as i32,z,0x54574947)%10_000<3_000)
+        .then_some(ResourceExtraDrop{block_id:BLOCK_TWIG,volume_mm3:TWIG_VOLUME_MM3})
 }
 
 pub fn is_tree_leaf_block(block_id: u16) -> bool {
@@ -463,6 +873,26 @@ pub fn generated_surface_height(
     world_x: i32,
     world_z: i32,
 ) -> i16 {
+    generated_surface_height_with_noise(global_config, world_x, world_z, &mut |x, z, scale, salt| {
+        value_noise2(&global_config.world_seed, x, z, scale, salt)
+    })
+}
+
+fn generated_surface_height_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> i16 {
+    let terrain = generated_terrain_factors_with_noise(global_config, world_x, world_z, noise);
+    generated_surface_height_from_terrain(global_config, terrain, noise)
+}
+
+fn generated_surface_height_from_terrain(
+    global_config: &GlobalConfigView,
+    terrain: GeneratedTerrainFactors,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> i16 {
     let max_surface = global_config.min_build_y.saturating_add(8).max(
         global_config
             .max_terrain_height
@@ -474,30 +904,43 @@ pub fn generated_surface_height(
         .max(global_config.sea_level.saturating_sub(28));
     let min_surface = desired_min_surface.min(max_surface);
 
-    let terrain = generated_terrain_factors(global_config, world_x, world_z);
     let wx = terrain.wx;
     let wz = terrain.wz;
     let shelf = terrain.shelf;
     let inland = terrain.inland;
 
-    let ocean = global_config.sea_level as i32 - 16
-        + ((value_noise2(&global_config.world_seed, wx, wz, 96, 24) as i32 - 128) * 5) / 128
-        + ((value_noise2(&global_config.world_seed, wx, wz, 36, 25) as i32 - 128) * 2) / 128;
+    let ocean = if shelf == 1024 {
+        0
+    } else {
+        global_config.sea_level as i32 - 16
+            + ((noise(wx, wz, 96, 24) as i32 - 128) * 5) / 128
+            + ((noise(wx, wz, 36, 25) as i32 - 128) * 2) / 128
+    };
+    if shelf == 0 {
+        return ocean.clamp(min_surface as i32, max_surface as i32) as i16;
+    }
     let coast = global_config.sea_level as i32 - 3 + (shelf as i32 * 8) / 1024;
+    if inland == 0 {
+        // All plains, hill, mountain, river and lake terms carry inland as a
+        // multiplicative weight. Their exact contribution here is zero.
+        let land = coast.max(global_config.sea_level as i32 + 7);
+        return lerp_i32_fixed(ocean, land, shelf)
+            .clamp(min_surface as i32, max_surface as i32) as i16;
+    }
     let plains =
-        ((value_noise2(&global_config.world_seed, wx, wz, 120, 26) as i32 - 128) * 4) / 128;
-    let hills = ((value_noise2(&global_config.world_seed, wx, wz, 56, 27) as i32 - 128) * 7) / 128;
+        ((noise(wx, wz, 120, 26) as i32 - 128) * 4) / 128;
+    let hills = ((noise(wx, wz, 56, 27) as i32 - 128) * 7) / 128;
     let rolling =
-        ((value_noise2(&global_config.world_seed, wx, wz, 28, 28) as i32 - 128) * 2) / 128;
+        ((noise(wx, wz, 28, 28) as i32 - 128) * 2) / 128;
     let roughness = smooth_range_fixed(
-        (value_noise2(&global_config.world_seed, wx, wz, 180, 40) as i32 - 128).abs(),
+        (noise(wx, wz, 180, 40) as i32 - 128).abs(),
         54,
         122,
     );
 
     let mountain_range = scale_by_fixed(
         smooth_range_fixed(
-            value_noise2(&global_config.world_seed, wx, wz, 360, 30) as i32,
+            noise(wx, wz, 360, 30) as i32,
             136,
             226,
         ) as i32,
@@ -507,38 +950,42 @@ pub fn generated_surface_height(
         34,
         scale_by_fixed(
             smooth_range_fixed(
-                value_noise2(&global_config.world_seed, wx, wz, 620, 46) as i32,
+                noise(wx, wz, 620, 46) as i32,
                 116,
                 206,
             ) as i32,
             inland,
         ) as u32,
     );
-    let ridge_line =
-        128 - (value_noise2(&global_config.world_seed, wx, wz, 92, 29) as i32 - 128).abs();
-    let ridge_lift = smooth_range_fixed(ridge_line, 44, 126);
-    let peak_mask = scale_by_fixed(
-        smooth_range_fixed(
-            value_noise2(&global_config.world_seed, wx, wz, 176, 47) as i32,
-            176,
-            242,
-        ) as i32,
-        mountain_range,
-    ) as u32;
-    let crag = scale_by_fixed(
-        smooth_range_fixed(
-            (value_noise2(&global_config.world_seed, wx, wz, 52, 48) as i32 - 128).abs(),
-            48,
-            126,
-        ) as i32,
-        mountain_range,
-    ) as u32;
-    let mountain = highland
-        + scale_by_fixed(
-            24 + scale_by_fixed(72, ridge_lift) + scale_by_fixed(24, crag),
+    let mountain = if mountain_range == 0 {
+        highland
+    } else {
+        let ridge_line =
+            128 - (noise(wx, wz, 92, 29) as i32 - 128).abs();
+        let ridge_lift = smooth_range_fixed(ridge_line, 44, 126);
+        let peak_mask = scale_by_fixed(
+            smooth_range_fixed(
+                noise(wx, wz, 176, 47) as i32,
+                176,
+                242,
+            ) as i32,
             mountain_range,
-        )
-        + scale_by_fixed(34, peak_mask);
+        ) as u32;
+        let crag = scale_by_fixed(
+            smooth_range_fixed(
+                (noise(wx, wz, 52, 48) as i32 - 128).abs(),
+                48,
+                126,
+            ) as i32,
+            mountain_range,
+        ) as u32;
+        highland
+            + scale_by_fixed(
+                24 + scale_by_fixed(72, ridge_lift) + scale_by_fixed(24, crag),
+                mountain_range,
+            )
+            + scale_by_fixed(34, peak_mask)
+    };
 
     let land = global_config.sea_level as i32
         + 7
@@ -548,7 +995,7 @@ pub fn generated_surface_height(
     let mut shaped_land = coast.max(land);
     if terrain.floodplain_mask > 0 {
         let flat_noise =
-            (value_noise2(&global_config.world_seed, wx, wz, 54, 38) as i32 - 128) / 128;
+            (noise(wx, wz, 54, 38) as i32 - 128) / 128;
         let floodplain_lift = 2 + ((1024 - terrain.open_river as i32) * 2) / 1024;
         let floodplain_floor = global_config.sea_level as i32 + floodplain_lift + flat_noise;
         let floodplain_blend = ((terrain.floodplain_mask as i32
@@ -563,8 +1010,8 @@ pub fn generated_surface_height(
     }
     if terrain.valley_mask > 0 {
         let bed_noise =
-            ((value_noise2(&global_config.world_seed, wx, wz, 32, 39) as i32 - 128) * 2) / 128;
-        let slope_noise = value_noise2(&global_config.world_seed, wx, wz, 150, 42) as i32;
+            ((noise(wx, wz, 32, 39) as i32 - 128) * 2) / 128;
+        let slope_noise = noise(wx, wz, 150, 42) as i32;
         let open_flatten = scale_by_fixed(terrain.open_river as i32, 640);
         let canyon = scale_by_fixed(
             smooth_range_fixed(slope_noise, 190, 252) as i32,
@@ -602,43 +1049,53 @@ fn generated_surface_block_id(
     world_z: i32,
     surface: i16,
 ) -> u16 {
+    generated_surface_block_id_with_noise(global_config, world_x, world_z, surface, &mut |x, z, scale, salt| {
+        value_noise2(&global_config.world_seed, x, z, scale, salt)
+    })
+}
+
+fn generated_surface_block_id_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    surface: i16,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> u16 {
     let water_level = generated_water_level(global_config, world_x, world_z, surface);
     let underwater = water_level.map(|level| surface < level).unwrap_or(false);
-    let moisture = generated_moisture_at(global_config, world_x, world_z);
-    let desert = generated_desert_score_at(global_config, world_x, world_z);
-    let gravel_patch = value_noise2(&global_config.world_seed, world_x, world_z, 44, 103);
-    let clay_patch = value_noise2(&global_config.world_seed, world_x, world_z, 52, 104);
-
     if underwater || surface <= global_config.sea_level.saturating_add(1) {
-        if moisture > 190 && clay_patch > 148 {
+        let moisture = generated_moisture_at_with_noise(global_config, world_x, world_z, noise);
+        if moisture > 190 && noise(world_x, world_z, 52, 104) > 148 {
             return BLOCK_CLAY;
         }
-        if gravel_patch > 218 {
+        if noise(world_x, world_z, 44, 103) > 218 {
             return BLOCK_GRAVEL;
         }
-        if value_noise2(&global_config.world_seed, world_x, world_z, 96, 105) > 236 {
+        if noise(world_x, world_z, 96, 105) > 236 {
             return BLOCK_SHELL_BED;
         }
         return BLOCK_SAND;
     }
-    if generated_volcanic_at(global_config, world_x, world_z) > 246 {
-        return if value_noise2(&global_config.world_seed, world_x, world_z, 64, 106) > 180 {
+    if generated_volcanic_at_with_noise(global_config, world_x, world_z, noise) > 246 {
+        return if noise(world_x, world_z, 64, 106) > 180 {
             BLOCK_BASALT
         } else {
             BLOCK_ASH
         };
     }
-    if generated_cold_at(global_config, world_x, world_z, surface) {
+    if generated_cold_at_with_noise(global_config, world_x, world_z, surface, noise) {
         return if surface > global_config.sea_level.saturating_add(34)
-            || value_noise2(&global_config.world_seed, world_x, world_z, 72, 107) > 164
+            || noise(world_x, world_z, 72, 107) > 164
         {
             BLOCK_SNOW
         } else {
             BLOCK_FROZEN_SOIL
         };
     }
+    let moisture = generated_moisture_at_with_noise(global_config, world_x, world_z, noise);
+    let desert = (noise(world_x, world_z, 224, 213) * 3 + (255 - moisture)) / 4;
     if desert > 178 {
-        if desert > 226 && value_noise2(&global_config.world_seed, world_x, world_z, 88, 108) > 188
+        if desert > 226 && noise(world_x, world_z, 88, 108) > 188
         {
             return BLOCK_SALT_FLAT;
         }
@@ -696,6 +1153,17 @@ fn generated_tree_block_id_at(
     y: i16,
     world_z: i32,
 ) -> u16 {
+    generated_tree_block_id_at_with_cache(global_config, world_x, y, world_z, None, false)
+}
+
+fn generated_tree_block_id_at_with_cache(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    y: i16,
+    world_z: i32,
+    mut cache: Option<&mut PlacementGenerationCache<'_>>,
+    first_match: bool,
+) -> u16 {
     let mut best: Option<(i32, i32, u16)> = None;
     let tree_x_hash_base = seed_salt_hash(&global_config.world_seed, 401);
     let tree_z_hash_base = seed_salt_hash(&global_config.world_seed, 402);
@@ -722,6 +1190,8 @@ fn generated_tree_block_id_at(
                     );
                 if tree_x.saturating_sub(world_x).abs() > TREE_MAX_LEAF_RADIUS
                     || tree_z.saturating_sub(world_z).abs() > TREE_MAX_LEAF_RADIUS
+                    || tree_x.saturating_sub(world_x).abs()
+                        .saturating_add(tree_z.saturating_sub(world_z).abs()) > TREE_MAX_LEAF_RADIUS + 1
                 {
                     continue;
                 }
@@ -729,25 +1199,44 @@ fn generated_tree_block_id_at(
                 if roll <= 128 {
                     continue;
                 }
-                let surface = generated_surface_height(global_config, tree_x, tree_z);
-                if !tree_vertical_bounds_can_contain(surface, y)
-                    || !generated_can_grow_tree(global_config, tree_x, tree_z, surface)
-                {
+                if let Some(cache) = cache.as_deref_mut() {
+                    if !cache.tree_candidate_can_match(tree_x, tree_z, y, cell_size, roll, (world_x, world_z)) {
+                        continue;
+                    }
+                }
+                let surface = match cache.as_deref_mut() {
+                    Some(cache) => cache.surface_height(tree_x, tree_z),
+                    None => generated_surface_height(global_config, tree_x, tree_z),
+                };
+                if !tree_vertical_bounds_can_contain(surface, y) {
                     continue;
                 }
-                let growth = generated_tree_growth_profile(global_config, tree_x, tree_z, surface);
-                if growth.cell_size != cell_size || roll <= growth.density {
+                let candidate = match cache.as_deref_mut() {
+                    Some(cache) => cache.tree_candidate(tree_x, tree_z, surface),
+                    None if generated_can_grow_tree(global_config, tree_x, tree_z, surface) => {
+                        let growth = generated_tree_growth_profile(global_config, tree_x, tree_z, surface);
+                        Some(PlacementTreeCandidate {
+                            cell_size: growth.cell_size,
+                            density: growth.density,
+                            tree: generated_tree_from_profile(global_config, tree_x, tree_z, surface, growth.pine),
+                        })
+                    }
+                    None => None,
+                };
+                let Some(candidate) = candidate else {
+                    continue;
+                };
+                if candidate.cell_size != cell_size || roll <= candidate.density {
                     continue;
                 }
-                let tree = generated_tree_from_profile(
-                    global_config,
-                    tree_x,
-                    tree_z,
-                    surface,
-                    growth.pine,
-                );
+                let tree = candidate.tree;
                 let block = generated_tree_volume_block(global_config, &tree, world_x, y, world_z);
                 if block != BLOCK_AIR {
+                    // Placement only needs presence. Mining still resolves the
+                    // original overlap order to preserve exact block identity.
+                    if first_match {
+                        return block;
+                    }
                     match best {
                         Some((best_z, best_x, _))
                             if tree.z > best_z || (tree.z == best_z && tree.x >= best_x) => {}
@@ -787,6 +1276,18 @@ fn generated_can_grow_tree(
     world_z: i32,
     surface: i16,
 ) -> bool {
+    generated_can_grow_tree_with_noise(global_config, world_x, world_z, surface, &mut |x, z, scale, salt| {
+        value_noise2(&global_config.world_seed, x, z, scale, salt)
+    })
+}
+
+fn generated_can_grow_tree_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    surface: i16,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> bool {
     if surface <= global_config.sea_level.saturating_add(1) {
         return false;
     }
@@ -794,10 +1295,11 @@ fn generated_can_grow_tree(
     if water_level.map(|level| surface < level).unwrap_or(false) {
         return false;
     }
-    !generated_desert_at(global_config, world_x, world_z)
-        && generated_volcanic_at(global_config, world_x, world_z) <= 236
+    !generated_desert_at_with_noise(global_config, world_x, world_z, noise)
+        && generated_volcanic_at_with_noise(global_config, world_x, world_z, noise) <= 236
 }
 
+#[derive(Clone, Copy)]
 struct GeneratedTree {
     #[allow(dead_code)]
     exists: bool,
@@ -878,7 +1380,20 @@ fn generated_tree_growth_profile(
     world_z: i32,
     surface: i16,
 ) -> TreeGrowthProfile {
-    let top = generated_surface_block_id(global_config, world_x, world_z, surface);
+    generated_tree_growth_profile_with_noise(global_config, world_x, world_z, surface, None, &mut |x, z, scale, salt| {
+        value_noise2(&global_config.world_seed, x, z, scale, salt)
+    })
+}
+
+fn generated_tree_growth_profile_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    surface: i16,
+    terrain: Option<GeneratedTerrainFactors>,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> TreeGrowthProfile {
+    let top = generated_surface_block_id_with_noise(global_config, world_x, world_z, surface, noise);
     if matches!(top, BLOCK_SAND | BLOCK_SALT_FLAT | BLOCK_ASH | BLOCK_BASALT) {
         return TreeGrowthProfile {
             cell_size: 14,
@@ -886,21 +1401,11 @@ fn generated_tree_growth_profile(
             pine: false,
         };
     }
-    let moisture = generated_moisture_at(global_config, world_x, world_z) as i32;
+    let moisture = generated_moisture_at_with_noise(global_config, world_x, world_z, noise) as i32;
     let altitude = surface.saturating_sub(global_config.sea_level) as i32;
-    let snow_line = generated_snow_line_at(global_config, world_x, world_z);
-    let terrain = generated_terrain_factors(global_config, world_x, world_z);
-    let (mut cell_size, mut density) = if moisture > 214 && altitude <= 44 {
-        (6_i32, 136_i32)
-    } else if moisture > 188 && altitude <= 54 {
-        (6_i32, 154_i32)
-    } else if moisture < 116 {
-        (11_i32, 226_i32)
-    } else if moisture < 150 {
-        (9_i32, 210_i32)
-    } else {
-        (7_i32, 184_i32)
-    };
+    let snow_line = generated_snow_line_at_with_noise(global_config, world_x, world_z, noise);
+    let terrain = terrain.unwrap_or_else(|| generated_terrain_factors_with_noise(global_config, world_x, world_z, noise));
+    let (mut cell_size, mut density) = tree_base_growth(moisture, altitude);
 
     if altitude <= 6 {
         cell_size += 2;
@@ -938,7 +1443,7 @@ fn generated_tree_growth_profile(
         density -= 8;
     }
 
-    let patch = value_noise2(&global_config.world_seed, world_x, world_z, 260, 406);
+    let patch = noise(world_x, world_z, 260, 406);
     if patch > 204 {
         cell_size -= 1;
         density -= 24;
@@ -948,7 +1453,24 @@ fn generated_tree_growth_profile(
     }
     cell_size = cell_size.clamp(6, 14);
     density = density.clamp(128, 250);
-    let pine = surface >= snow_line.saturating_sub(18)
+    let pine = generated_tree_is_pine(global_config, world_x, world_z, surface, moisture, snow_line);
+    TreeGrowthProfile {
+        cell_size,
+        density: density as u32,
+        pine,
+    }
+}
+
+fn generated_tree_is_pine(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    surface: i16,
+    moisture: i32,
+    snow_line: i16,
+) -> bool {
+    let altitude = surface.saturating_sub(global_config.sea_level) as i32;
+    surface >= snow_line.saturating_sub(18)
         || altitude >= 46
         || (altitude >= 26 && moisture < 168)
         || (hash_coord3(
@@ -958,11 +1480,20 @@ fn generated_tree_growth_profile(
             world_z,
             404,
         ) & 255)
-            > 218;
-    TreeGrowthProfile {
-        cell_size,
-        density: density as u32,
-        pine,
+            > 218
+}
+
+fn tree_base_growth(moisture: i32, altitude: i32) -> (i32, i32) {
+    if moisture > 214 && altitude <= 44 {
+        (6, 136)
+    } else if moisture > 188 && altitude <= 54 {
+        (6, 154)
+    } else if moisture < 116 {
+        (11, 226)
+    } else if moisture < 150 {
+        (9, 210)
+    } else {
+        (7, 184)
     }
 }
 
@@ -1066,33 +1597,56 @@ fn leaf_layer_contains_at_y(
     roll <= density
 }
 
-fn generated_cold_at(
+fn generated_cold_at_with_noise(
     global_config: &GlobalConfigView,
     world_x: i32,
     world_z: i32,
     surface: i16,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
 ) -> bool {
-    let snow_line = generated_snow_line_at(global_config, world_x, world_z);
+    let snow_line = generated_snow_line_at_with_noise(global_config, world_x, world_z, noise);
     surface >= snow_line
         || (surface >= snow_line.saturating_sub(7)
-            && value_noise2(&global_config.world_seed, world_x, world_z, 160, 201) < 28)
+            && noise(world_x, world_z, 160, 201) < 28)
 }
 
-fn generated_snow_line_at(global_config: &GlobalConfigView, world_x: i32, world_z: i32) -> i16 {
+fn generated_snow_line_at_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> i16 {
     let offset =
-        ((value_noise2(&global_config.world_seed, world_x, world_z, 220, 202) as i32 - 128) * 8)
+        ((noise(world_x, world_z, 220, 202) as i32 - 128) * 8)
             / 128;
     (global_config.sea_level as i32 + 58 + offset).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
-fn generated_desert_at(global_config: &GlobalConfigView, world_x: i32, world_z: i32) -> bool {
-    generated_desert_score_at(global_config, world_x, world_z) > 178
+fn generated_desert_at_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> bool {
+    generated_desert_score_at_with_noise(global_config, world_x, world_z, noise) > 178
 }
 
 fn generated_volcanic_at(global_config: &GlobalConfigView, world_x: i32, world_z: i32) -> u32 {
-    value_noise2(&global_config.world_seed, world_x, world_z, 192, 205)
+    generated_volcanic_at_with_noise(global_config, world_x, world_z, &mut |x, z, scale, salt| {
+        value_noise2(&global_config.world_seed, x, z, scale, salt)
+    })
 }
 
+fn generated_volcanic_at_with_noise(
+    _global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> u32 {
+    noise(world_x, world_z, 192, 205)
+}
+
+#[derive(Clone, Copy)]
 struct GeneratedTerrainFactors {
     wx: i32,
     wz: i32,
@@ -1106,52 +1660,66 @@ struct GeneratedTerrainFactors {
     open_river: u32,
 }
 
-fn generated_terrain_factors(
-    global_config: &GlobalConfigView,
+fn generated_terrain_factors_with_noise(
+    _global_config: &GlobalConfigView,
     world_x: i32,
     world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
 ) -> GeneratedTerrainFactors {
     let warp_x =
-        ((value_noise2(&global_config.world_seed, world_x, world_z, 160, 31) as i32 - 128) * 22)
+        ((noise(world_x, world_z, 160, 31) as i32 - 128) * 22)
             / 128;
     let warp_z =
-        ((value_noise2(&global_config.world_seed, world_x, world_z, 160, 32) as i32 - 128) * 22)
+        ((noise(world_x, world_z, 160, 32) as i32 - 128) * 22)
             / 128;
     let wx = world_x.saturating_add(warp_x);
     let wz = world_z.saturating_add(warp_z);
-    let continent = ((value_noise2(&global_config.world_seed, wx, wz, 520, 21) as i32 - 128) * 86)
+    let continent = ((noise(wx, wz, 520, 21) as i32 - 128) * 86)
         / 128
-        + ((value_noise2(&global_config.world_seed, wx, wz, 220, 22) as i32 - 128) * 42) / 128
-        + ((value_noise2(&global_config.world_seed, wx, wz, 96, 23) as i32 - 128) * 14) / 128
+        + ((noise(wx, wz, 220, 22) as i32 - 128) * 42) / 128
+        + ((noise(wx, wz, 96, 23) as i32 - 128) * 14) / 128
         + 46;
     let shelf = smooth_range_fixed(continent, -50, 34);
     let inland = smooth_range_fixed(continent, -8, 78);
+    if inland == 0 {
+        // Every resulting river/lake/valley/floodplain mask is zero. The only
+        // consumers of softness/open_river are guarded by a nonzero such mask.
+        return GeneratedTerrainFactors {
+            wx,
+            wz,
+            shelf,
+            inland,
+            water_mask: 0,
+            lake: 0,
+            valley_mask: 0,
+            floodplain_mask: 0,
+            valley_softness: 0,
+            open_river: 0,
+        };
+    }
     let river_warp_x =
-        ((value_noise2(&global_config.world_seed, wx, wz, 128, 33) as i32 - 128) * 36) / 128;
+        ((noise(wx, wz, 128, 33) as i32 - 128) * 36) / 128;
     let river_warp_z =
-        ((value_noise2(&global_config.world_seed, wx, wz, 128, 34) as i32 - 128) * 36) / 128;
+        ((noise(wx, wz, 128, 34) as i32 - 128) * 36) / 128;
     let river_line = 128
-        - (value_noise2(
-            &global_config.world_seed,
-            wx.saturating_add(river_warp_x),
+        - (noise(wx.saturating_add(river_warp_x),
             wz.saturating_add(river_warp_z),
             104,
-            35,
-        ) as i32
+            35) as i32
             - 128)
             .abs();
-    let lake_noise = value_noise2(&global_config.world_seed, wx, wz, 220, 37) as i32;
-    let width_noise = ((value_noise2(&global_config.world_seed, wx, wz, 420, 43) as i32 * 2)
-        + value_noise2(&global_config.world_seed, wx, wz, 96, 44) as i32)
+    let lake_noise = noise(wx, wz, 220, 37) as i32;
+    let width_noise = ((noise(wx, wz, 420, 43) as i32 * 2)
+        + noise(wx, wz, 96, 44) as i32)
         / 3;
-    let canyon_noise = value_noise2(&global_config.world_seed, wx, wz, 340, 47) as i32;
+    let canyon_noise = noise(wx, wz, 340, 47) as i32;
     let broad_plain = smooth_range_fixed(
-        value_noise2(&global_config.world_seed, wx, wz, 760, 49) as i32,
+        noise(wx, wz, 760, 49) as i32,
         144,
         224,
     );
     let river_width = 255.min(width_noise + (broad_plain as i32 * 64) / 1024);
-    let lake_width = value_noise2(&global_config.world_seed, wx, wz, 520, 45) as i32;
+    let lake_width = noise(wx, wz, 520, 45) as i32;
     let open_river = scale_by_fixed(
         smooth_range_fixed(river_width, 72, 198) as i32,
         1024 - smooth_range_fixed(canyon_noise, 190, 252),
@@ -1217,15 +1785,25 @@ fn generated_water_level(
     None
 }
 
-fn generated_moisture_at(global_config: &GlobalConfigView, world_x: i32, world_z: i32) -> u32 {
-    (value_noise2(&global_config.world_seed, world_x, world_z, 176, 211) * 3
-        + value_noise2(&global_config.world_seed, world_x, world_z, 72, 212))
+fn generated_moisture_at_with_noise(
+    _global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> u32 {
+    (noise(world_x, world_z, 176, 211) * 3
+        + noise(world_x, world_z, 72, 212))
         / 4
 }
 
-fn generated_desert_score_at(global_config: &GlobalConfigView, world_x: i32, world_z: i32) -> u32 {
-    (value_noise2(&global_config.world_seed, world_x, world_z, 224, 213) * 3
-        + (255 - generated_moisture_at(global_config, world_x, world_z)))
+fn generated_desert_score_at_with_noise(
+    global_config: &GlobalConfigView,
+    world_x: i32,
+    world_z: i32,
+    noise: &mut impl FnMut(i32, i32, i32, u32) -> u32,
+) -> u32 {
+    (noise(world_x, world_z, 224, 213) * 3
+        + (255 - generated_moisture_at_with_noise(global_config, world_x, world_z, noise)))
         / 4
 }
 
@@ -1237,12 +1815,20 @@ fn value_noise2(seed: &[u8; 32], x: i32, z: i32, scale: i32, salt: u32) -> u32 {
     let tx = smooth_fixed(local_x, scale);
     let tz = smooth_fixed(local_z, scale);
     let base = seed_salt_hash(seed, salt);
-    let a = hash_coord3_from_base(base, cell_x, 0, cell_z) & 255;
-    let b = hash_coord3_from_base(base, cell_x.saturating_add(1), 0, cell_z) & 255;
-    let c = hash_coord3_from_base(base, cell_x, 0, cell_z.saturating_add(1)) & 255;
-    let d =
-        hash_coord3_from_base(base, cell_x.saturating_add(1), 0, cell_z.saturating_add(1)) & 255;
+    let [a, b, c, d] = noise_lattice_corners(base, cell_x, cell_z);
     lerp_fixed(lerp_fixed(a, b, tx), lerp_fixed(c, d, tx), tz)
+}
+
+fn noise_lattice_corners(base: u32, cell_x: i32, cell_z: i32) -> [u32; 4] {
+    let x0 = fnv_coord_word(fnv_coord_word(base, cell_x), 0);
+    let x1 = fnv_coord_word(fnv_coord_word(base, cell_x.saturating_add(1)), 0);
+    let z1 = cell_z.saturating_add(1);
+    [
+        finalize_coord_hash(fnv_coord_word(x0, cell_z)) & 255,
+        finalize_coord_hash(fnv_coord_word(x1, cell_z)) & 255,
+        finalize_coord_hash(fnv_coord_word(x0, z1)) & 255,
+        finalize_coord_hash(fnv_coord_word(x1, z1)) & 255,
+    ]
 }
 
 fn hash_coord3(seed: &[u8; 32], x: i32, y: i32, z: i32, salt: u32) -> u32 {
@@ -1250,6 +1836,11 @@ fn hash_coord3(seed: &[u8; 32], x: i32, y: i32, z: i32, salt: u32) -> u32 {
 }
 
 fn seed_salt_hash(seed: &[u8; 32], salt: u32) -> u32 {
+    // GlobalConfigView binds the canonical seed on-chain. These are exact FNV
+    // prefixes computed at compile time, not client-supplied generation data.
+    if seed == &CANONICAL_WORLD_SEED && (salt as usize) < CANONICAL_PREHASHED_SALTS.len() {
+        return CANONICAL_PREHASHED_SALTS[salt as usize];
+    }
     let mut hash = 0x811c_9dc5_u32 ^ salt;
     for byte in seed {
         hash ^= *byte as u32;
@@ -1258,17 +1849,23 @@ fn seed_salt_hash(seed: &[u8; 32], salt: u32) -> u32 {
     hash
 }
 
+// Feed the twelve little-endian coordinate bytes explicitly. Iterator chains
+// generate avoidable control flow in SBF; this preserves every FNV operation.
+#[inline(always)]
+fn fnv_coord_word(mut hash: u32, word: i32) -> u32 {
+    let word = word as u32;
+    hash = (hash ^ (word & 255)).wrapping_mul(0x0100_0193);
+    hash = (hash ^ ((word >> 8) & 255)).wrapping_mul(0x0100_0193);
+    hash = (hash ^ ((word >> 16) & 255)).wrapping_mul(0x0100_0193);
+    (hash ^ (word >> 24)).wrapping_mul(0x0100_0193)
+}
+
 fn hash_coord3_from_base(base: u32, x: i32, y: i32, z: i32) -> u32 {
-    let mut hash = base;
-    for byte in x
-        .to_le_bytes()
-        .iter()
-        .chain(y.to_le_bytes().iter())
-        .chain(z.to_le_bytes().iter())
-    {
-        hash ^= *byte as u32;
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
+    finalize_coord_hash(fnv_coord_word(fnv_coord_word(fnv_coord_word(base, x), y), z))
+}
+
+#[inline(always)]
+fn finalize_coord_hash(mut hash: u32) -> u32 {
     hash ^= hash >> 16;
     hash = hash.wrapping_mul(0x7feb_352d);
     hash ^= hash >> 15;
@@ -1698,14 +2295,25 @@ pub struct RangeMineArgs {
     pub action_id: u64,
     pub mode: u8,
     pub min_x: i32,
+    pub min_y: i16,
     pub min_z: i32,
     pub size_x: u8,
+    pub size_y: u16,
     pub size_z: u8,
     pub blocks: Vec<MineBlockArgs>,
+    pub support_anchor: Option<SupportAnchor>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SupportAnchor {
+    pub world_x: i32,
+    pub world_y: i16,
+    pub world_z: i32,
 }
 
 impl RangeMineArgs {
     const HEADER_LEN: usize = 23;
+    const SUPPORT_ANCHOR_LEN: usize = 10;
 
     pub fn unpack(data: &[u8]) -> Result<Self, NicechunkChunkError> {
         if data.len() < Self::HEADER_LEN {
@@ -1713,7 +2321,12 @@ impl RangeMineArgs {
         }
         let action_id = read_mining_action_id(data, 0)?;
         let mode = data[8];
-        if mode != RANGE_MINE_MODE_DEBUG || cfg!(feature = "mainnet") {
+        let supported_mode = match mode {
+            RANGE_MINE_MODE_DEBUG => !cfg!(feature = "mainnet"),
+            RANGE_MINE_MODE_SUPPORT_PRIMARY | RANGE_MINE_MODE_SUPPORT_COLLAPSE => true,
+            _ => false,
+        };
+        if !supported_mode {
             return Err(NicechunkChunkError::InvalidRangeMine);
         }
 
@@ -1752,6 +2365,9 @@ impl RangeMineArgs {
         if selected_count == 0 || selected_count > RANGE_MINE_MAX_BLOCKS {
             return Err(NicechunkChunkError::InvalidRangeMine);
         }
+        if mode == RANGE_MINE_MODE_SUPPORT_PRIMARY && selected_count != 1 {
+            return Err(NicechunkChunkError::InvalidRangeMine);
+        }
 
         let palette_offset = Self::HEADER_LEN + bitmap_len;
         let palette_count = data[palette_offset] as usize;
@@ -1781,14 +2397,25 @@ impl RangeMineArgs {
 
         let palette_index_bits = palette_index_bits(palette_count);
         let palette_index_len = (selected_count * palette_index_bits).div_ceil(8);
-        let expected_len = palette_end + palette_index_len;
+        let palette_indexes_end = palette_end + palette_index_len;
+        let support_anchor_len = if mode == RANGE_MINE_MODE_SUPPORT_COLLAPSE {
+            Self::SUPPORT_ANCHOR_LEN
+        } else {
+            0
+        };
+        let expected_len = palette_indexes_end + support_anchor_len;
         if data.len() != expected_len {
             return Err(NicechunkChunkError::InvalidRangeMine);
         }
-        let palette_indexes = &data[palette_end..];
+        let palette_indexes = &data[palette_end..palette_indexes_end];
         if !unused_high_bits_are_zero(palette_indexes, selected_count * palette_index_bits) {
             return Err(NicechunkChunkError::InvalidRangeMine);
         }
+        let support_anchor = (mode == RANGE_MINE_MODE_SUPPORT_COLLAPSE).then(|| SupportAnchor {
+            world_x: read_i32(data, palette_indexes_end),
+            world_y: read_i16(data, palette_indexes_end + 4),
+            world_z: read_i32(data, palette_indexes_end + 6),
+        });
 
         let layer_area = size_x * size_z;
         let mut blocks = Vec::with_capacity(selected_count);
@@ -1834,12 +2461,101 @@ impl RangeMineArgs {
             action_id,
             mode,
             min_x,
+            min_y,
             min_z,
             size_x: size_x as u8,
+            size_y: size_y as u16,
             size_z: size_z as u8,
             blocks,
+            support_anchor,
         })
     }
+
+    pub fn is_face_connected_to_support_anchor(&self) -> bool {
+        let Some(anchor) = self.support_anchor else {
+            return false;
+        };
+        let size_x = usize::from(self.size_x);
+        let size_y = usize::from(self.size_y);
+        let size_z = usize::from(self.size_z);
+        let layer_area = size_x.saturating_mul(size_z);
+        let volume = layer_area.saturating_mul(size_y);
+        if volume == 0 || volume > RANGE_MINE_MAX_BLOCKS {
+            return false;
+        }
+
+        let mut selected = vec![false; volume];
+        for block in &self.blocks {
+            let Some(index) = self.volume_index(block.world_x, block.world_y, block.world_z) else {
+                return false;
+            };
+            selected[index] = true;
+        }
+
+        let mut visited = vec![false; volume];
+        let mut queue = Vec::with_capacity(self.blocks.len());
+        for block in &self.blocks {
+            if face_distance(block.world_x, block.world_y, block.world_z, anchor) != 1 {
+                continue;
+            }
+            let Some(index) = self.volume_index(block.world_x, block.world_y, block.world_z) else {
+                return false;
+            };
+            if !visited[index] {
+                visited[index] = true;
+                queue.push(index);
+            }
+        }
+        if queue.is_empty() {
+            return false;
+        }
+
+        let mut cursor = 0;
+        while cursor < queue.len() {
+            let index = queue[cursor];
+            let y = index / layer_area;
+            let within_layer = index % layer_area;
+            let z = within_layer / size_x;
+            let x = within_layer % size_x;
+            let neighbors = [
+                x.checked_sub(1).map(|next| index - (x - next)),
+                (x + 1 < size_x).then_some(index + 1),
+                y.checked_sub(1).map(|_| index - layer_area),
+                (y + 1 < size_y).then_some(index + layer_area),
+                z.checked_sub(1).map(|_| index - size_x),
+                (z + 1 < size_z).then_some(index + size_x),
+            ];
+            for neighbor in neighbors.into_iter().flatten() {
+                if selected[neighbor] && !visited[neighbor] {
+                    visited[neighbor] = true;
+                    queue.push(neighbor);
+                }
+            }
+            cursor += 1;
+        }
+        queue.len() == self.blocks.len()
+    }
+
+    fn volume_index(&self, world_x: i32, world_y: i16, world_z: i32) -> Option<usize> {
+        let x = usize::try_from(world_x.checked_sub(self.min_x)?).ok()?;
+        let y = usize::try_from(i32::from(world_y).checked_sub(i32::from(self.min_y))?).ok()?;
+        let z = usize::try_from(world_z.checked_sub(self.min_z)?).ok()?;
+        let size_x = usize::from(self.size_x);
+        let size_y = usize::from(self.size_y);
+        let size_z = usize::from(self.size_z);
+        if x >= size_x || y >= size_y || z >= size_z {
+            return None;
+        }
+        y.checked_mul(size_x.checked_mul(size_z)?)?
+            .checked_add(z.checked_mul(size_x)?)?
+            .checked_add(x)
+    }
+}
+
+fn face_distance(world_x: i32, world_y: i16, world_z: i32, anchor: SupportAnchor) -> u64 {
+    u64::from(world_x.abs_diff(anchor.world_x))
+        .saturating_add(u64::from(world_y.abs_diff(anchor.world_y)))
+        .saturating_add(u64::from(world_z.abs_diff(anchor.world_z)))
 }
 
 fn packed_bit(data: &[u8], bit_index: usize) -> bool {
@@ -2060,12 +2776,20 @@ impl FoundationRecord {
             && self.min_z.rem_euclid(Self::LAND_CHUNK_SIZE as i32) == 0
     }
 
-    pub fn protects(&self, world_x: i32, world_y: i16, world_z: i32) -> bool {
-        world_y == self.surface_y.saturating_sub(1)
-            && world_x >= self.min_x
+    pub fn contains_column(&self, world_x: i32, world_z: i32) -> bool {
+        world_x >= self.min_x
             && self.max_x().map(|max| world_x <= max).unwrap_or(false)
             && world_z >= self.min_z
             && self.max_z().map(|max| world_z <= max).unwrap_or(false)
+    }
+
+    pub fn rejects_modification_by(
+        &self,
+        actor_owner: &Pubkey,
+        world_x: i32,
+        world_z: i32,
+    ) -> bool {
+        self.owner != *actor_owner && self.contains_column(world_x, world_z)
     }
 
     pub fn overlaps(&self, other: &Self) -> bool {
@@ -2225,38 +2949,39 @@ impl FoundationChunkState {
         Ok(())
     }
 
-    pub fn protects(
+    pub fn rejects_modification_by(
         data: &[u8],
         global_config: &Pubkey,
         chunk_x: i32,
         chunk_z: i32,
+        actor_owner: &Pubkey,
         world_x: i32,
-        world_y: i16,
         world_z: i32,
     ) -> Result<bool, NicechunkChunkError> {
         let (count, _) = Self::validate(data, global_config, chunk_x, chunk_z)?;
         for index in 0..count as usize {
-            if Self::record_at(data, index)?.protects(world_x, world_y, world_z) {
+            if Self::record_at(data, index)?.rejects_modification_by(actor_owner, world_x, world_z)
+            {
                 return Ok(true);
             }
         }
         Ok(false)
     }
 
-    pub fn protects_any(
+    pub fn rejects_any_modification_by(
         data: &[u8],
         global_config: &Pubkey,
         chunk_x: i32,
         chunk_z: i32,
+        actor_owner: &Pubkey,
         blocks: &[MineBlockArgs],
     ) -> Result<bool, NicechunkChunkError> {
         let (count, _) = Self::validate(data, global_config, chunk_x, chunk_z)?;
         for index in 0..count as usize {
             let record = Self::record_at(data, index)?;
-            if blocks
-                .iter()
-                .any(|block| record.protects(block.world_x, block.world_y, block.world_z))
-            {
+            if blocks.iter().any(|block| {
+                record.rejects_modification_by(actor_owner, block.world_x, block.world_z)
+            }) {
                 return Ok(true);
             }
         }
@@ -2344,6 +3069,28 @@ impl ChunkBrokenState {
             }
         }
         Ok(false)
+    }
+
+    pub(crate) fn contains_pair(
+        data: &[u8],
+        min_y: i16,
+        first: [u8; 3],
+        second: [u8; 3],
+    ) -> Result<(bool, bool), NicechunkChunkError> {
+        let (count, _) = Self::validate_header(data, min_y)?;
+        let first = u32::from_le_bytes([first[0], first[1], first[2], 0]);
+        let second = u32::from_le_bytes([second[0], second[1], second[2], 0]);
+        let (mut found_first, mut found_second) = (false, false);
+        let end = CHUNK_BROKEN_HEADER_LEN + count as usize * CHUNK_BROKEN_RECORD_LEN;
+        for record in data[CHUNK_BROKEN_HEADER_LEN..end].chunks_exact(CHUNK_BROKEN_RECORD_LEN) {
+            let value = u32::from_le_bytes([record[0], record[1], record[2], 0]);
+            found_first |= value == first;
+            found_second |= value == second;
+            if found_first && found_second {
+                break;
+            }
+        }
+        Ok((found_first, found_second))
     }
 
     pub fn packed_values(data: &[u8], min_y: i16) -> Result<Vec<u32>, NicechunkChunkError> {
@@ -2435,6 +3182,37 @@ impl ChunkPlacedRecord {
     }
 }
 
+// Produced only by a complete record validation that proves this cell vacant.
+// During placement, the only subsequent local change is capacity growth and the
+// inventory CPI receives this account read-only. Reusing this proof therefore
+// avoids a second linear scan without trusting the client or skipping a record.
+pub(crate) struct PreparedChunkPlacement {
+    count: u16,
+    capacity: u16,
+    min_y: i16,
+    packed: [u8; 3],
+}
+
+impl PreparedChunkPlacement {
+    pub(crate) fn needs_growth(&self) -> bool {
+        self.count >= self.capacity
+    }
+
+    pub(crate) fn append(self, data: &mut [u8], record: ChunkPlacedRecord) -> ProgramResult {
+        let (count, capacity) = ChunkPlacedState::validate_header(data, self.min_y)?;
+        if count != self.count || record.packed != self.packed {
+            return Err(NicechunkChunkError::InvalidChunkPlacedData.into());
+        }
+        if count >= capacity {
+            return Err(NicechunkChunkError::ChunkPlacedCapacityExceeded.into());
+        }
+        let offset = CHUNK_PLACED_HEADER_LEN + count as usize * CHUNK_PLACED_RECORD_LEN;
+        record.pack(&mut data[offset..offset + CHUNK_PLACED_RECORD_LEN])?;
+        data[6..8].copy_from_slice(&(count + 1).to_le_bytes());
+        Ok(())
+    }
+}
+
 pub struct ChunkPlacedState;
 
 impl ChunkPlacedState {
@@ -2497,6 +3275,43 @@ impl ChunkPlacedState {
             match_value = Some((index, record));
         }
         Ok(match_value)
+    }
+
+    pub(crate) fn prepare_append(
+        data: &[u8],
+        min_y: i16,
+        packed: [u8; 3],
+        anchor: Option<[u8; 3]>,
+    ) -> Result<(PreparedChunkPlacement, Option<ChunkPlacedRecord>), NicechunkChunkError> {
+        let (count, capacity) = Self::validate_header(data, min_y)?;
+        let mut target_found = false;
+        let mut anchor_record = None;
+        // The validated header proves this prefix contains exactly `count`
+        // whole records. Iterating fixed slices avoids per-index arithmetic
+        // and repeated account bounds checks while decoding every record.
+        let end = CHUNK_PLACED_HEADER_LEN + count as usize * CHUNK_PLACED_RECORD_LEN;
+        for bytes in data[CHUNK_PLACED_HEADER_LEN..end].chunks_exact(CHUNK_PLACED_RECORD_LEN) {
+            let record = ChunkPlacedRecord::unpack(bytes)?;
+            if record.packed == packed {
+                if target_found {
+                    return Err(NicechunkChunkError::InvalidChunkPlacedData);
+                }
+                target_found = true;
+            }
+            if Some(record.packed) == anchor {
+                if anchor_record.is_some() {
+                    return Err(NicechunkChunkError::InvalidChunkPlacedData);
+                }
+                anchor_record = Some(record);
+            }
+        }
+        if target_found {
+            return Err(NicechunkChunkError::PlacementOccupied);
+        }
+        Ok((
+            PreparedChunkPlacement { count, capacity, min_y, packed },
+            anchor_record,
+        ))
     }
 
     pub fn records(data: &[u8], min_y: i16) -> Result<Vec<ChunkPlacedRecord>, NicechunkChunkError> {
@@ -2744,7 +3559,7 @@ pub fn extra_drop_from_table_at_surface(
     for index in 0..rule_count {
         let offset = RESOURCE_DROP_TABLE_HEADER_LEN + index * RESOURCE_DROP_RULE_LEN;
         let rule = ResourceDropRule::unpack(&data[offset..offset + RESOURCE_DROP_RULE_LEN])?;
-        if rule.source_block_id != source_block_id
+        if rule.drop_block_id == BLOCK_TWIG || rule.source_block_id != source_block_id
             || altitude < rule.min_altitude
             || altitude > rule.max_altitude
             || depth < rule.min_depth
@@ -3426,6 +4241,30 @@ mod tests {
             .blocks
             .iter()
             .all(|block| block.expected_block_id == BLOCK_STONE));
+
+        let mut collapse = payload.clone();
+        collapse[8] = RANGE_MINE_MODE_SUPPORT_COLLAPSE;
+        collapse.extend_from_slice(&31_i32.to_le_bytes());
+        collapse.extend_from_slice(&100_i16.to_le_bytes());
+        collapse.extend_from_slice(&(-16_i32).to_le_bytes());
+        let decoded_collapse = RangeMineArgs::unpack(&collapse).unwrap();
+        assert_eq!(decoded_collapse.mode, RANGE_MINE_MODE_SUPPORT_COLLAPSE);
+        assert_eq!(
+            decoded_collapse.support_anchor,
+            Some(SupportAnchor {
+                world_x: 31,
+                world_y: 100,
+                world_z: -16,
+            })
+        );
+        assert!(decoded_collapse.is_face_connected_to_support_anchor());
+
+        let mut invalid_primary = payload;
+        invalid_primary[8] = RANGE_MINE_MODE_SUPPORT_PRIMARY;
+        assert!(matches!(
+            RangeMineArgs::unpack(&invalid_primary),
+            Err(NicechunkChunkError::InvalidRangeMine)
+        ));
     }
 
     #[test]
@@ -3489,6 +4328,60 @@ mod tests {
             RangeMineArgs::unpack(&empty),
             Err(NicechunkChunkError::InvalidRangeMine)
         ));
+
+        let mut primary = Vec::new();
+        primary.extend_from_slice(&1_u64.to_le_bytes());
+        primary.push(RANGE_MINE_MODE_SUPPORT_PRIMARY);
+        primary.extend_from_slice(&0_i32.to_le_bytes());
+        primary.extend_from_slice(&80_i16.to_le_bytes());
+        primary.extend_from_slice(&0_i32.to_le_bytes());
+        primary.push(1);
+        primary.extend_from_slice(&1_u16.to_le_bytes());
+        primary.push(1);
+        primary.push(1);
+        primary.push(1);
+        primary.push(BLOCK_STONE as u8);
+        assert_eq!(
+            RangeMineArgs::unpack(&primary).unwrap().mode,
+            RANGE_MINE_MODE_SUPPORT_PRIMARY
+        );
+
+        primary[8] = 0xff;
+        assert!(matches!(
+            RangeMineArgs::unpack(&primary),
+            Err(NicechunkChunkError::InvalidRangeMine)
+        ));
+    }
+
+    #[test]
+    fn support_collapse_requires_an_anchor_and_one_connected_component() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&9_u64.to_le_bytes());
+        payload.push(RANGE_MINE_MODE_SUPPORT_COLLAPSE);
+        payload.extend_from_slice(&0_i32.to_le_bytes());
+        payload.extend_from_slice(&80_i16.to_le_bytes());
+        payload.extend_from_slice(&0_i32.to_le_bytes());
+        payload.push(3);
+        payload.extend_from_slice(&1_u16.to_le_bytes());
+        payload.push(1);
+        payload.push(0b0000_0101);
+        payload.push(1);
+        payload.push(BLOCK_STONE as u8);
+
+        assert!(matches!(
+            RangeMineArgs::unpack(&payload),
+            Err(NicechunkChunkError::InvalidRangeMine)
+        ));
+
+        payload.extend_from_slice(&(-1_i32).to_le_bytes());
+        payload.extend_from_slice(&80_i16.to_le_bytes());
+        payload.extend_from_slice(&0_i32.to_le_bytes());
+        let decoded = RangeMineArgs::unpack(&payload).unwrap();
+        assert!(!decoded.is_face_connected_to_support_anchor());
+
+        payload[23] = 0b0000_0011;
+        let connected = RangeMineArgs::unpack(&payload).unwrap();
+        assert!(connected.is_face_connected_to_support_anchor());
     }
 
     #[test]
@@ -3807,6 +4700,190 @@ mod tests {
     }
 
     #[test]
+    fn placement_tree_candidate_bounds_never_exclude_a_valid_growth_profile() {
+        let mut matched = 0;
+        for seed in [CANONICAL_WORLD_SEED, [73_u8; 32]] {
+            let mut config = test_global_config_view();
+            config.world_seed = seed;
+            let mut cache = PlacementGenerationCache::new(&config);
+            for i in 0..192_i32 {
+                let x = i * 157 - 15000;
+                let z = i * 83 - 8000;
+                let surface = generated_surface_height(&config, x, z);
+                if !generated_can_grow_tree(&config, x, z, surface) {
+                    continue;
+                }
+                let growth = generated_tree_growth_profile(&config, x, z, surface);
+                let tree = generated_tree_from_profile(&config, x, z, surface, growth.pine);
+                // Test every actual trunk/canopy cell at the tightest valid roll.
+                for dx in -2..=2 {
+                    for dz in -2..=2 {
+                        for y in surface + 1..=surface + TREE_MAX_BLOCK_HEIGHT_ABOVE_SURFACE {
+                            if generated_tree_volume_block(&config, &tree, x + dx, y, z + dz) == BLOCK_AIR {
+                                continue;
+                            }
+                            assert!(cache.tree_candidate_can_match(x, z, y, growth.cell_size,
+                                growth.density + 1, (x + dx, z + dz)),
+                                "valid tree at {x},{surface},{z}, cell {},{y},{}, size={}, density={}",
+                                x + dx, z + dz, growth.cell_size, growth.density);
+                        }
+                    }
+                }
+                matched += 1;
+            }
+        }
+        assert!(matched > 32, "growth bounds need varied land samples");
+    }
+
+    #[test]
+    fn canonical_prehashed_salts_match_runtime_fnv_for_all_cached_and_fallback_salts() {
+        for seed in [CANONICAL_WORLD_SEED, [0_u8; 32], [255_u8; 32]] {
+            for salt in (0..700_u32).chain([u32::MAX]) {
+                let mut expected = 0x811c_9dc5_u32 ^ salt;
+                for byte in seed {
+                    expected = (expected ^ byte as u32).wrapping_mul(0x0100_0193);
+                }
+                assert_eq!(seed_salt_hash(&seed, salt), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn placement_noise_lattice_cache_preserves_samples_and_eviction() {
+        for seed in [CANONICAL_WORLD_SEED, [73_u8; 32]] {
+            let mut cache = PlacementNoiseCache::new(&seed);
+            let mut random = 0x5834_a2f1_u32;
+            for i in 0..4096_u32 {
+                random = random.wrapping_mul(1664525).wrapping_add(1013904223);
+                let x = match i % 11 {
+                    0 => i32::MIN,
+                    1 => i32::MAX,
+                    _ => random as i32,
+                };
+                let z = (random.rotate_left(13) as i32).saturating_add(1);
+                let scale = [28, 96, 160, 176, 220, 340, 176][i as usize % 7];
+                let salt = [28, 23, 31, 211, 202, 47, 47][i as usize % 7];
+                let expected = value_noise2(&seed, x, z, scale, salt);
+                assert_eq!(cache.value(x, z, scale, salt), expected);
+                assert_eq!(cache.value(x, z, scale, salt), expected);
+            }
+            assert_eq!(cache.lattices.len(), PlacementNoiseCache::CAPACITY);
+        }
+    }
+
+    #[test]
+    fn placement_exact_noise_samples_bind_every_input_and_survive_eviction() {
+        for seed in [CANONICAL_WORLD_SEED, [0_u8; 32], [73_u8; 32]] {
+            let mut cache = PlacementNoiseCache::new(&seed);
+            for (x, z) in [(0, 0), (-1, -17), (i32::MIN, i32::MAX), (1061, 1013)] {
+                for salt in [201, 202, 205, 211, 212, 213, 406] {
+                    for scale in [72, 176, 220] {
+                        let expected = value_noise2(&seed, x, z, scale, salt);
+                        assert_eq!(cache.value(x, z, scale, salt), expected);
+                        assert_eq!(cache.value(x, z, scale, salt), expected);
+                        // Replacing the exact sample and colliding lattice
+                        // bands must never produce a false hit on the old key.
+                        let other_x = x.saturating_add(43);
+                        let other_z = z.saturating_sub(23);
+                        assert_eq!(cache.value(other_x, other_z, scale, salt),
+                            value_noise2(&seed, other_x, other_z, scale, salt));
+                        let fallback = salt.wrapping_add(64 * 100);
+                        assert_eq!(cache.value(x, z, scale + 1, fallback),
+                            value_noise2(&seed, x, z, scale + 1, fallback));
+                        assert_eq!(cache.value(x, z, scale, salt), expected);
+                    }
+                }
+            }
+            assert_eq!(cache.samples.len(), 14);
+        }
+    }
+
+    #[test]
+    fn placement_classification_matches_canonical_terrain_water_and_canopies() {
+        let config = test_global_config_view();
+        let mut cache = PlacementGenerationCache::new(&config);
+        let mut columns = vec![(0, 0), (-16, -16), (800, 800), (248, 888),
+            (i32::MIN + 1024, i32::MIN + 1024), (i32::MAX - 1024, i32::MAX - 1024)];
+        for x in 1058..=1065 { for z in 1010..=1016 { columns.push((x, z)); } }
+        for (x, z) in columns {
+            let surface = generated_surface_height(&config, x, z);
+            let mut heights = vec![config.min_build_y, config.min_build_y + 1, -20,
+                config.sea_level - 1, config.sea_level, config.sea_level + 1,
+                config.max_terrain_height + 10, config.max_build_y];
+            heights.extend(surface.saturating_sub(2)..=surface.saturating_add(10));
+            for y in heights {
+                if y < config.min_build_y || y > config.max_build_y { continue; }
+                let args = GeneratedBlockArgs {
+                    chunk_x: x.div_euclid(16), chunk_z: z.div_euclid(16),
+                    local_x: x.rem_euclid(16) as u8, local_z: z.rem_euclid(16) as u8, y,
+                };
+                let block_id = generated_block_id_at(&config, &args);
+                assert_eq!(cache.is_occupied(&args), block_id != BLOCK_AIR, "occupied {x},{y},{z}: {block_id}");
+                assert_eq!(cache.supports_block(&args), block_id == BLOCK_BEDROCK || is_placeable_block(block_id),
+                    "support {x},{y},{z}: {block_id}");
+            }
+            assert!(cache.trees.len() <= PlacementGenerationCache::MAX_SURFACE_HEIGHTS);
+        }
+    }
+
+    #[test]
+    fn placement_generation_cache_preserves_adjacent_cell_results() {
+        let config = test_global_config_view();
+        let mut cache = PlacementGenerationCache::new(&config);
+        // Includes the forest pair that exceeds 1.4M CU without shared heights,
+        // other observed hot spots, a chunk boundary, water and deep terrain.
+        let pairs = [
+            ((1061, 111, 1013), (1062, 111, 1013)),
+            ((1004, 109, 1017), (1005, 109, 1017)),
+            ((1012, 110, 1013), (1013, 110, 1013)),
+            ((1023, 110, 1024), (1024, 110, 1024)),
+            ((-16, 85, -16), (-15, 85, -16)),
+            ((0, 96, 0), (0, 97, 0)),
+            ((0, -20, 0), (0, -19, 0)),
+        ];
+        for (anchor, target) in pairs {
+            for (x, y, z) in [anchor, target] {
+                let args = GeneratedBlockArgs {
+                    chunk_x: div_floor_i32(x, 16),
+                    chunk_z: div_floor_i32(z, 16),
+                    local_x: x.rem_euclid(16) as u8,
+                    local_z: z.rem_euclid(16) as u8,
+                    y,
+                };
+                let expected = generated_block_id_at(&config, &args);
+                assert_eq!(cache.block_id_at(&args), expected, "at {x},{y},{z}");
+                let entries = cache.surface_heights.len();
+                assert_eq!(cache.block_id_at(&args), expected);
+                assert_eq!(cache.surface_heights.len(), entries);
+            }
+        }
+        assert_eq!(
+            cache.block_id_at(&GeneratedBlockArgs {
+                chunk_x: 66, chunk_z: 63, local_x: 5, local_z: 5, y: 111,
+            }),
+            BLOCK_TRUNK,
+        );
+    }
+
+    #[test]
+    fn placement_generation_cache_is_bounded_and_falls_back_when_full() {
+        let config = test_global_config_view();
+        let mut cache = PlacementGenerationCache::new(&config);
+        for x in -80_i32..80 {
+            let args = GeneratedBlockArgs {
+                chunk_x: div_floor_i32(x * 31, 16),
+                chunk_z: div_floor_i32(x * 17, 16),
+                local_x: (x * 31).rem_euclid(16) as u8,
+                local_z: (x * 17).rem_euclid(16) as u8,
+                y: 240,
+            };
+            assert_eq!(cache.block_id_at(&args), generated_block_id_at(&config, &args));
+            assert!(cache.surface_heights.len() <= PlacementGenerationCache::MAX_SURFACE_HEIGHTS);
+        }
+        assert_eq!(cache.surface_heights.len(), PlacementGenerationCache::MAX_SURFACE_HEIGHTS);
+    }
+
+    #[test]
     fn tree_candidate_scan_matches_nearby_block_scan() {
         let config = test_global_config_view();
         let mut queries = Vec::new();
@@ -3931,10 +5008,12 @@ mod tests {
     }
 
     #[test]
-    fn foundation_chunk_supports_large_footprints_and_only_protects_the_base_layer() {
+    fn foundation_chunk_allows_owner_and_rejects_other_wallets_across_the_full_column() {
         let global_config = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let other_wallet = Pubkey::new_unique();
         let record = FoundationRecord {
-            owner: Pubkey::new_unique(),
+            owner,
             foundation_id: 901,
             min_x: -304,
             min_z: 688,
@@ -3946,18 +5025,88 @@ mod tests {
         FoundationChunkState::pack_empty(&mut data, 9, &global_config, -19, 43, 4).unwrap();
         FoundationChunkState::append(&mut data, &global_config, -19, 43, &record).unwrap();
 
-        assert!(
-            FoundationChunkState::protects(&data, &global_config, -19, 43, 719, 139, 1_212,)
-                .unwrap()
-        );
-        assert!(
-            !FoundationChunkState::protects(&data, &global_config, -19, 43, 719, 140, 1_212,)
-                .unwrap()
-        );
-        assert!(
-            !FoundationChunkState::protects(&data, &global_config, -19, 43, 720, 139, 1_212,)
-                .unwrap()
-        );
+        assert!(FoundationChunkState::rejects_modification_by(
+            &data,
+            &global_config,
+            -19,
+            43,
+            &other_wallet,
+            719,
+            1_212,
+        )
+        .unwrap());
+        assert!(!FoundationChunkState::rejects_modification_by(
+            &data,
+            &global_config,
+            -19,
+            43,
+            &owner,
+            719,
+            1_212,
+        )
+        .unwrap());
+        assert!(!FoundationChunkState::rejects_modification_by(
+            &data,
+            &global_config,
+            -19,
+            43,
+            &other_wallet,
+            720,
+            1_212,
+        )
+        .unwrap());
+
+        let blocks = [
+            MineBlockArgs {
+                world_x: 719,
+                world_y: -20,
+                world_z: 1_212,
+                expected_block_id: BLOCK_STONE,
+            },
+            MineBlockArgs {
+                world_x: -304,
+                world_y: 255,
+                world_z: 688,
+                expected_block_id: BLOCK_STONE,
+            },
+        ];
+        assert!(FoundationChunkState::rejects_any_modification_by(
+            &data,
+            &global_config,
+            -19,
+            43,
+            &other_wallet,
+            &blocks,
+        )
+        .unwrap());
+        assert!(!FoundationChunkState::rejects_any_modification_by(
+            &data,
+            &global_config,
+            -19,
+            43,
+            &owner,
+            &blocks,
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn empty_foundation_chunk_allows_modification_at_negative_coordinates() {
+        let global_config = Pubkey::new_unique();
+        let actor = Pubkey::new_unique();
+        let mut data = vec![0_u8; FoundationChunkState::len(2).unwrap()];
+        FoundationChunkState::pack_empty(&mut data, 4, &global_config, -2, -3, 2).unwrap();
+
+        assert!(!FoundationChunkState::rejects_modification_by(
+            &data,
+            &global_config,
+            -2,
+            -3,
+            &actor,
+            -17,
+            -33,
+        )
+        .unwrap());
     }
 
     #[test]
@@ -4123,6 +5272,32 @@ mod tests {
     }
 
     #[test]
+    fn broken_pair_lookup_matches_independent_lookups_and_rejects_bad_headers() {
+        let mut data = vec![0; ChunkBrokenState::len_for_capacity(128)];
+        ChunkBrokenState::pack_empty(&mut data, &ChunkBrokenInitArgs {
+            bump: 249, min_y: -32, capacity: 128,
+        }).unwrap();
+        for i in 0..128_u32 {
+            let bytes = i.to_le_bytes();
+            ChunkBrokenState::append_packed(&mut data, -32, bytes[..3].try_into().unwrap()).unwrap();
+        }
+        for first in [0_u32, 1, 63, 127, 128, 200, 0x00ff_ffff] {
+            for second in [0_u32, 1, 63, 127, 128, 200, 0x00ff_ffff] {
+                let first: [u8; 3] = first.to_le_bytes()[..3].try_into().unwrap();
+                let second: [u8; 3] = second.to_le_bytes()[..3].try_into().unwrap();
+                assert_eq!(ChunkBrokenState::contains_pair(&data, -32, first, second).unwrap(), (
+                    ChunkBrokenState::contains_packed(&data, first).unwrap(),
+                    ChunkBrokenState::contains_packed(&data, second).unwrap(),
+                ));
+            }
+        }
+        assert!(ChunkBrokenState::contains_pair(&data, -31, [0; 3], [1; 3]).is_err());
+        data[6..8].copy_from_slice(&129_u16.to_le_bytes());
+        assert!(ChunkBrokenState::contains_pair(&data, -32, [0; 3], [1; 3]).is_err());
+        assert!(ChunkBrokenState::contains_pair(&data[..8], -32, [0; 3], [1; 3]).is_err());
+    }
+
+    #[test]
     fn chunk_placed_records_preserve_block_identity_and_volume() {
         assert_eq!(ChunkPlacedState::len_for_capacity(64), 592);
         let mut data = vec![0_u8; ChunkPlacedState::len_for_capacity(2)];
@@ -4217,6 +5392,111 @@ mod tests {
             PlaceBlockArgs::unpack(&payload),
             Err(NicechunkChunkError::InvalidPlacementAnchor)
         ));
+    }
+
+    #[test]
+    fn prepared_placement_preserves_anchor_and_all_record_validation() {
+        let min_y = -32;
+        let mut data = vec![0; ChunkPlacedState::len_for_capacity(3)];
+        ChunkPlacedState::pack_empty(&mut data, &ChunkPlacedInitArgs {
+            bump: 249, min_y, capacity: 3,
+        }).unwrap();
+        let anchor = ChunkPlacedRecord {
+            packed: pack_broken_coord(1, 100, 1, min_y).unwrap(),
+            block_id: BLOCK_STONE, volume_mm3: 500_000,
+        };
+        let target = pack_broken_coord(1, 101, 1, min_y).unwrap();
+        ChunkPlacedState::append(&mut data, min_y, anchor).unwrap();
+        let (_, found) = ChunkPlacedState::prepare_append(&data, min_y, target, Some(anchor.packed)).unwrap();
+        assert_eq!(found, Some(anchor));
+        assert!(matches!(ChunkPlacedState::prepare_append(&data, min_y, anchor.packed, None),
+            Err(NicechunkChunkError::PlacementOccupied)));
+        // A malformed unrelated record must still fail the complete validation.
+        let second = CHUNK_PLACED_HEADER_LEN + CHUNK_PLACED_RECORD_LEN;
+        data[6..8].copy_from_slice(&2_u16.to_le_bytes());
+        data[second..second + CHUNK_PLACED_RECORD_LEN].fill(0);
+        assert!(matches!(ChunkPlacedState::prepare_append(&data, min_y, target, Some(anchor.packed)),
+            Err(NicechunkChunkError::InvalidChunkPlacedData)));
+        // Duplicating the support cell is also rejected by the shared scan.
+        anchor.pack(&mut data[second..second + CHUNK_PLACED_RECORD_LEN]).unwrap();
+        assert!(matches!(ChunkPlacedState::prepare_append(&data, min_y, target, Some(anchor.packed)),
+            Err(NicechunkChunkError::InvalidChunkPlacedData)));
+    }
+
+    #[test]
+    fn prepared_placement_survives_only_capacity_growth() {
+        let min_y = -32;
+        let mut data = vec![0; ChunkPlacedState::len_for_capacity(1)];
+        ChunkPlacedState::pack_empty(&mut data, &ChunkPlacedInitArgs {
+            bump: 249, min_y, capacity: 1,
+        }).unwrap();
+        let first = ChunkPlacedRecord {
+            packed: pack_broken_coord(1, 100, 1, min_y).unwrap(),
+            block_id: BLOCK_STONE, volume_mm3: 333_333,
+        };
+        ChunkPlacedState::append(&mut data, min_y, first).unwrap();
+        let second = ChunkPlacedRecord { packed: pack_broken_coord(1, 101, 1, min_y).unwrap(), ..first };
+        let (prepared, _) = ChunkPlacedState::prepare_append(&data, min_y, second.packed, None).unwrap();
+        assert!(prepared.needs_growth());
+        data.resize(ChunkPlacedState::len_for_capacity(2), 0);
+        data[8..10].copy_from_slice(&2_u16.to_le_bytes());
+        let mut reference = data.clone();
+        ChunkPlacedState::append(&mut reference, min_y, second).unwrap();
+        prepared.append(&mut data, second).unwrap();
+        assert_eq!(data, reference);
+    }
+
+    #[test]
+    fn prepared_placement_rejects_changed_count_or_target() {
+        let min_y = -32;
+        let mut data = vec![0; ChunkPlacedState::len_for_capacity(3)];
+        ChunkPlacedState::pack_empty(&mut data, &ChunkPlacedInitArgs {
+            bump: 249, min_y, capacity: 3,
+        }).unwrap();
+        let record = ChunkPlacedRecord {
+            packed: pack_broken_coord(1, 100, 1, min_y).unwrap(),
+            block_id: BLOCK_STONE, volume_mm3: 500_000,
+        };
+        let other = ChunkPlacedRecord { packed: pack_broken_coord(1, 101, 1, min_y).unwrap(), ..record };
+        let (prepared, _) = ChunkPlacedState::prepare_append(&data, min_y, record.packed, None).unwrap();
+        assert!(prepared.append(&mut data, other).is_err());
+        let (prepared, _) = ChunkPlacedState::prepare_append(&data, min_y, record.packed, None).unwrap();
+        ChunkPlacedState::append(&mut data, min_y, other).unwrap();
+        let before = data.clone();
+        assert!(prepared.append(&mut data, record).is_err());
+        assert_eq!(data, before);
+    }
+
+    #[test]
+    fn coordinate_hash_specialization_matches_bytewise_reference() {
+        fn reference(seed: &[u8; 32], x: i32, y: i32, z: i32, salt: u32) -> u32 {
+            let mut hash = 0x811c_9dc5_u32 ^ salt;
+            for byte in seed.iter().copied().chain(x.to_le_bytes())
+                .chain(y.to_le_bytes()).chain(z.to_le_bytes()) {
+                hash = (hash ^ byte as u32).wrapping_mul(0x0100_0193);
+            }
+            hash ^= hash >> 16;
+            hash = hash.wrapping_mul(0x7feb_352d);
+            hash ^= hash >> 15;
+            hash = hash.wrapping_mul(0x846c_a68b);
+            hash ^ (hash >> 16)
+        }
+        let mut random = 0x7263_46b9_u32;
+        for seed in [CANONICAL_WORLD_SEED, [73; 32]] {
+            for i in 0..8192_u32 {
+                random = random.wrapping_mul(1664525).wrapping_add(1013904223);
+                let x = random as i32;
+                random = random.wrapping_mul(1664525).wrapping_add(1013904223);
+                let z = random as i32;
+                let y = (i as i32).wrapping_mul(0x1789_abcd);
+                assert_eq!(hash_coord3(&seed, x, y, z, i), reference(&seed, x, y, z, i));
+                let corners = noise_lattice_corners(seed_salt_hash(&seed, i), x, z);
+                for (index, (cx, cz)) in [(x,z),(x.saturating_add(1),z),
+                    (x,z.saturating_add(1)),(x.saturating_add(1),z.saturating_add(1))].into_iter().enumerate() {
+                    assert_eq!(corners[index], reference(&seed, cx, 0, cz, i) & 255);
+                }
+            }
+        }
     }
 
     #[test]
@@ -4369,4 +5649,16 @@ mod tests {
             },
         ]
     }
+    #[test]
+    fn natural_leaf_twig_roll_is_fixed_thirty_percent_and_never_accepts_other_blocks(){
+        let config=test_global_config_view();let mut count=0;
+        for x in -50000..50000 {
+            let first=leaf_twig_drop(&config,x,130,-17,BLOCK_LEAVES);
+            assert_eq!(first.is_some(),leaf_twig_drop(&config,x,130,-17,BLOCK_LEAVES).is_some());
+            if let Some(drop)=first {count+=1;assert_eq!(drop.block_id,BLOCK_TWIG);assert_eq!(drop.volume_mm3,250000);}
+        }
+        assert!((29000..31000).contains(&count));
+        for block in [BLOCK_AIR,BLOCK_STONE,BLOCK_GRAVEL,BLOCK_TRUNK,BLOCK_TWIG] {assert!(leaf_twig_drop(&config,1,130,1,block).is_none());}
+    }
+
 }

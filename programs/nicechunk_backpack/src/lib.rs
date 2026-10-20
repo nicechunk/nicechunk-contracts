@@ -19,6 +19,8 @@ use solana_program::entrypoint;
 pub mod cluster_config;
 pub mod errors;
 pub mod state;
+pub mod starter_tools;
+pub mod container_geometry;
 
 use cluster_config::{
     NICECHUNK_BOOTSTRAP_AUTHORITY, NICECHUNK_CHUNK_PROGRAM_ID, NICECHUNK_CORE_PROGRAM_ID,
@@ -75,12 +77,12 @@ pub fn process_instruction(
 
     match tag {
         0 => initialize_backpack(program_id, accounts, payload),
-        1 => append_mined_resource(program_id, accounts, payload),
+        1 => append_mined_resource(program_id, accounts, payload, true),
         2 => remove_resource(program_id, accounts, payload),
         3 => append_market_resource(program_id, accounts, payload),
         4 => remove_resources(program_id, accounts, payload),
         5 => append_smelting_item(program_id, accounts, payload),
-        6 => append_mined_resources_batch(program_id, accounts, payload),
+        6 => append_mined_resources_batch(program_id, accounts, payload, true),
         7 => Err(NicechunkBackpackError::UnverifiedForgeInstructionDisabled.into()),
         8 => forge_equipment_with_material_verification(program_id, accounts, payload),
         9 => Err(NicechunkBackpackError::InvalidInstruction.into()),
@@ -91,8 +93,137 @@ pub fn process_instruction(
         14 => consume_smelting_resources(program_id, accounts, payload),
         15 => consume_placement_resource(program_id, accounts, payload),
         16 => append_placed_resource(program_id, accounts, payload),
+        17 => starter_tools::craft(program_id, accounts, payload),
+        // Only the authenticated Chunk PDA can call either reward route.
+        // Bare-hand rewards update inventory without creating an XP source.
+        18 => append_mined_resource(program_id, accounts, payload, false),
+        19 => append_mined_resources_batch(program_id, accounts, payload, false),
+        20 => certify_container(program_id,accounts,payload),
+        21 => append_water(program_id,accounts,payload),
+        22 => forge_water_container(program_id, accounts, payload),
+        23 => append_building_resource(program_id, accounts, payload),
         _ => Err(NicechunkBackpackError::InvalidInstruction.into()),
     }
+}
+
+// Only the Building program can sign this PDA. It verifies the active NCM
+// material and marks its removal before this atomic CPI, preventing replay.
+fn append_building_resource(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
+    if accounts.len() != 5 || payload.len() != 10 { return Err(NicechunkBackpackError::InvalidInstruction.into()); }
+    let [authority, global, profile, backpack, physics] = accounts else { return Err(NicechunkBackpackError::InvalidAccountCount.into()); };
+    let (expected, _) = Pubkey::find_program_address(&[b"building-reward-v1", global.key.as_ref()], &cluster_config::NICECHUNK_BUILDING_PROGRAM_ID);
+    if !authority.is_signer || authority.key != &expected { return Err(NicechunkBackpackError::InvalidBuildingRewardAuthority.into()); }
+    if !backpack.is_writable { return Err(NicechunkBackpackError::InvalidWritableAccount.into()); }
+    validate_global_config(global)?;
+    require_key_eq(profile.owner, &NICECHUNK_PLAYER_PROGRAM_ID, NicechunkBackpackError::InvalidPlayerProgram)?;
+    require_key_eq(backpack.owner, program_id, NicechunkBackpackError::InvalidBackpackOwner)?;
+    let (owner, profile_global) = PlayerProfileView::owner_and_global_config(&profile.try_borrow_data()?)?;
+    require_key_eq(&profile_global, global.key, NicechunkBackpackError::InvalidGlobalConfig)?;
+    validate_existing_backpack_pda(program_id, backpack, &owner)?;
+    validate_material_physics_pda(program_id, physics)?;
+    let record = BackpackResourceRecord::unpack(payload)?;
+    let block = BackpackSlotRecord::from_block_resource(record).block_id()?;
+    let rule = MaterialPhysicsTableView::new(&physics.try_borrow_data()?)?.block_rule(block)?;
+    let volume = rule.standard_volume_mm3;
+    let mass = rule.mass_grams(volume)?;
+    BackpackAccount::append_resource_with_volume(&mut backpack.try_borrow_mut_data()?, &owner, &record, volume, mass, Clock::get()?.slot)
+}
+
+// Explicit opt-in: creation and geometry certification share one instruction.
+// A geometry error or exhausted compute budget rolls back materials and item.
+fn forge_water_container(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
+    if payload.len() < 2 || accounts.len() != 7 {
+        return Err(NicechunkBackpackError::InvalidInstruction.into());
+    }
+    forge_equipment_with_material_verification(program_id, accounts, &payload[2..])?;
+    certify_container(program_id, &[accounts[0].clone(), accounts[3].clone()], &payload[..2])
+}
+
+fn certify_container(program_id:&Pubkey,accounts:&[AccountInfo],payload:&[u8])->ProgramResult {
+    if accounts.len()!=2 || payload.len()!=2 {return Err(NicechunkBackpackError::InvalidInstruction.into());}
+    let payer=&accounts[0];let item=&accounts[1];
+    if !payer.is_signer || !item.is_writable {return Err(NicechunkBackpackError::InvalidPayer.into());}
+    require_key_eq(item.owner,program_id,NicechunkBackpackError::InvalidForgedItemData)?;
+    let seed=u16::from_le_bytes([payload[0],payload[1]]);
+    let mut data=item.try_borrow_mut_data()?;
+    let code=ForgedItemAccount::code(&data)?;
+    let creator=Pubkey::new_from_array(data[20..52].try_into().unwrap());
+    let item_id=&data[12..20];
+    let (expected,_)=Pubkey::find_program_address(&[FORGED_ITEM_SEED,creator.as_ref(),item_id],program_id);
+    require_key_eq(item.key,&expected,NicechunkBackpackError::InvalidForgedItemPda)?;
+    let report=calculate_container_geometry(code,seed).map_err(|code| {
+        if matches!(code,5|7) {NicechunkBackpackError::ContainerTooComplex}
+        else {NicechunkBackpackError::InvalidContainerGeometry}
+    })?;
+    if report.water.status!=0 || report.water.volume_q3==0 {return Err(NicechunkBackpackError::InvalidContainerGeometry.into());}
+    let (_,requirements)=verified_forge_design(code)?;
+    // Compare reconstructed solids against the encoded model volume. Existing
+    // forge policy does not cap design volume by consumed inventory volume.
+    let material_mm3=(report.material_q3 as u128*1_000_000_000/8_589_934_592) as u64;
+    let mut reader_bit=20_usize;
+    let packed_volume=read_ncf_bits(code,&mut reader_bit,16)?;
+    let quantum=16_u64.pow(packed_volume>>13);
+    if material_mm3>requirements.required_volume_mm3.saturating_add(quantum-1) {
+        return Err(NicechunkBackpackError::ContainerMaterialMismatch.into());
+    }
+    let ml=u32::try_from(report.water.volume_q3 as u128*1_000_000/8_589_934_592)
+        .map_err(|_|NicechunkBackpackError::InvalidContainerGeometry)?;
+    if ml==0 {return Err(NicechunkBackpackError::InvalidContainerGeometry.into());}
+    ForgedItemAccount::certify_water_capacity(&mut data,ml,seed)?;
+    let mut receipt=[0_u8;12];receipt[..8].copy_from_slice(b"NCKCAP01");receipt[8..].copy_from_slice(&ml.to_le_bytes());
+    set_return_data(&receipt);
+    Ok(())
+}
+
+fn append_water(program_id:&Pubkey,accounts:&[AccountInfo],payload:&[u8])->ProgramResult {
+    if accounts.len()!=5 || payload.len()!=10 {return Err(NicechunkBackpackError::InvalidInstruction.into());}
+    let authority=&accounts[0];let global=&accounts[1];let profile=&accounts[2];let backpack=&accounts[3];let physics=&accounts[4];
+    if !authority.is_signer || !backpack.is_writable {return Err(NicechunkBackpackError::InvalidChunkAuthority.into());}
+    require_key_eq(profile.owner,&NICECHUNK_PLAYER_PROGRAM_ID,NicechunkBackpackError::InvalidPlayerProfile)?;
+    require_key_eq(global.owner,&NICECHUNK_CORE_PROGRAM_ID,NicechunkBackpackError::InvalidGlobalConfig)?;
+    let (global_key,_)=Pubkey::find_program_address(&[b"global-config"],&NICECHUNK_CORE_PROGRAM_ID);
+    require_key_eq(global.key,&global_key,NicechunkBackpackError::InvalidGlobalConfig)?;
+    let owner={let d=profile.try_borrow_data()?;
+        let (owner,bound_global)=PlayerProfileView::owner_and_global_config(&d)?;
+        require_key_eq(&bound_global,global.key,NicechunkBackpackError::InvalidGlobalConfig)?;
+        let (profile_key,_)=Pubkey::find_program_address(&[b"player-v7",owner.as_ref()],&NICECHUNK_PLAYER_PROGRAM_ID);
+        require_key_eq(profile.key,&profile_key,NicechunkBackpackError::InvalidPlayerProfile)?;
+        if &d[state::PLAYER_PROFILE_EQUIPPED_BACKPACK_OFFSET..state::PLAYER_PROFILE_EQUIPPED_BACKPACK_OFFSET+32]!=backpack.key.as_ref() {
+            return Err(NicechunkBackpackError::InvalidBackpackOwner.into());
+        }
+        owner};
+    let allowed=[NICECHUNK_CHUNK_PROGRAM_ID,*program_id].iter().any(|caller|
+        Pubkey::find_program_address(&[b"water-collection-v1",global.key.as_ref(),owner.as_ref()],caller).0==*authority.key);
+    if !allowed {return Err(NicechunkBackpackError::InvalidChunkAuthority.into());}
+    require_key_eq(backpack.owner,program_id,NicechunkBackpackError::InvalidBackpackOwner)?;
+    validate_existing_backpack_pda(program_id,backpack,&owner)?;
+    validate_material_physics_pda(program_id,physics)?;
+    let record=BackpackResourceRecord::unpack(payload)?;
+    if (record.world_y as u16)>>9!=17 {return Err(NicechunkBackpackError::InvalidInventoryItem.into());}
+    let physics_data=physics.try_borrow_data()?;
+    let table=MaterialPhysicsTableView::new(&physics_data)?;
+    let mass=table.block_mass_grams(17,1_000_000)?;
+    let clock=Clock::get()?;
+    BackpackAccount::append_resource_with_volume(&mut backpack.try_borrow_mut_data()?,&owner,&record,1_000_000,mass,clock.slot)
+}
+
+fn read_ncf_bits(data:&[u8],offset:&mut usize,count:usize)->Result<u32,NicechunkBackpackError> {
+    if *offset+count>data.len()*8 {return Err(NicechunkBackpackError::InvalidContainerGeometry);}
+    let mut value=0;for _ in 0..count {value=(value<<1)|u32::from((data[*offset/8]>>(7-*offset%8))&1);*offset+=1;}
+    Ok(value)
+}
+
+fn calculate_container_geometry(code:&[u8],seed:u16)->Result<container_geometry::Report,u64> {
+    // Solana's normal allocator owns the first 32 KiB. Certification explicitly
+    // requests a 256 KiB heap frame and uses the disjoint remainder as an arena.
+    // No normal instruction changes its allocator or requires a larger frame.
+    #[cfg(target_os="solana")]
+    let scratch=unsafe {core::slice::from_raw_parts_mut((0x300000000_u64+32768) as *mut u8,224*1024)};
+    #[cfg(not(target_os="solana"))]
+    let mut storage=vec![0_u8;224*1024];
+    #[cfg(not(target_os="solana"))]
+    let scratch=&mut storage[..];
+    container_geometry::calculate(code,scratch,seed)
 }
 
 fn consume_smelting_resources(
@@ -645,6 +776,7 @@ fn append_mined_resource(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     payload: &[u8],
+    skill_credit: bool,
 ) -> ProgramResult {
     const PAYLOAD_LEN: usize = BackpackResourceRecord::LEN + 4 + 8;
     if accounts.len() != 5 || payload.len() != PAYLOAD_LEN {
@@ -658,6 +790,9 @@ fn append_mined_resource(
             .map_err(|_| NicechunkBackpackError::InvalidInstruction)?,
     );
     let action_id = read_u64(payload, BackpackResourceRecord::LEN + 4);
+    if action_id == 0 {
+        return Err(NicechunkBackpackError::InvalidMiningAction.into());
+    }
     let account_info_iter = &mut accounts.iter();
     let chunk_broken = next_account_info(account_info_iter)?;
     let global_config = next_account_info(account_info_iter)?;
@@ -682,7 +817,9 @@ fn append_mined_resource(
 
     let clock = Clock::get()?;
     let mut backpack_data = backpack.try_borrow_mut_data()?;
-    BackpackAccount::record_mining_action(&mut backpack_data, &owner, action_id, clock.slot)?;
+    if skill_credit {
+        BackpackAccount::record_mining_action(&mut backpack_data, &owner, action_id, clock.slot)?;
+    }
     BackpackAccount::append_resource_with_volume(
         &mut backpack_data,
         &owner,
@@ -697,12 +834,16 @@ fn append_mined_resources_batch(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     payload: &[u8],
+    skill_credit: bool,
 ) -> ProgramResult {
     if accounts.len() != 5 || payload.len() < 9 {
         return Err(NicechunkBackpackError::InvalidInstruction.into());
     }
     let count = payload[0] as usize;
     let action_id = read_u64(payload, 1);
+    if action_id == 0 {
+        return Err(NicechunkBackpackError::InvalidMiningAction.into());
+    }
     let volume_end = BackpackResourceRecord::LEN + 4;
     let record_size = volume_end + 4;
     if payload.len() != 9 + count * record_size {
@@ -767,7 +908,9 @@ fn append_mined_resources_batch(
 
     let clock = Clock::get()?;
     let mut backpack_data = backpack.try_borrow_mut_data()?;
-    BackpackAccount::record_mining_action(&mut backpack_data, &owner, action_id, clock.slot)?;
+    if skill_credit {
+        BackpackAccount::record_mining_action(&mut backpack_data, &owner, action_id, clock.slot)?;
+    }
     BackpackAccount::append_resources_lossy_with_volumes_and_metadata(
         &mut backpack_data,
         &owner,
